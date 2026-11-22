@@ -1,4 +1,7 @@
+
 import 'package:flutter/material.dart';
+
+import '../../core/database/app_database.dart';
 
 class TodoPage extends StatefulWidget {
   const TodoPage({super.key});
@@ -8,23 +11,77 @@ class TodoPage extends StatefulWidget {
 }
 
 class _TodoPageState extends State<TodoPage> {
-  final List<Map<String, dynamic>> tasks = [];
+  List<Map<String, dynamic>> tasks = [];
   final TextEditingController controller = TextEditingController();
 
-  void addTask() {
+  @override
+  void initState() {
+    super.initState();
+    loadTasks();
+  }
+
+  Future<void> loadTasks() async {
+    final db = await AppDatabase.database;
+
+    final result = await db.query(
+      'todos',
+      orderBy: 'id DESC',
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      tasks = result;
+    });
+  }
+
+  Future<void> addTask() async {
     final title = controller.text.trim();
 
     if (title.isEmpty) return;
 
-    setState(() {
-      tasks.add({
-        'title': title,
-        'completed': false,
-      });
+    final db = await AppDatabase.database;
+
+    await db.insert('todos', {
+      'title': title,
+      'completed': 0,
+      'created_at': DateTime.now().toIso8601String(),
     });
 
     controller.clear();
-    Navigator.pop(context);
+
+    if (mounted) {
+      Navigator.pop(context);
+    }
+
+    await loadTasks();
+  }
+
+  Future<void> toggleTask(Map<String, dynamic> task) async {
+    final db = await AppDatabase.database;
+
+    await db.update(
+      'todos',
+      {
+        'completed': task['completed'] == 1 ? 0 : 1,
+      },
+      where: 'id = ?',
+      whereArgs: [task['id']],
+    );
+
+    await loadTasks();
+  }
+
+  Future<void> deleteTask(int id) async {
+    final db = await AppDatabase.database;
+
+    await db.delete(
+      'todos',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    await loadTasks();
   }
 
   void showAddTaskDialog() {
@@ -32,7 +89,7 @@ class _TodoPageState extends State<TodoPage> {
 
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Add New Task'),
           content: TextField(
@@ -42,10 +99,11 @@ class _TodoPageState extends State<TodoPage> {
               hintText: 'Enter task name',
               border: OutlineInputBorder(),
             ),
+            onSubmitted: (_) => addTask(),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -67,10 +125,10 @@ class _TodoPageState extends State<TodoPage> {
   @override
   Widget build(BuildContext context) {
     final pendingTasks =
-        tasks.where((task) => !task['completed']).toList();
+        tasks.where((task) => task['completed'] == 0).toList();
 
     final completedTasks =
-        tasks.where((task) => task['completed']).toList();
+        tasks.where((task) => task['completed'] == 1).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -90,7 +148,7 @@ class _TodoPageState extends State<TodoPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                ...pendingTasks.map((task) => buildTaskTile(task)),
+                ...pendingTasks.map(buildTaskTile),
                 const SizedBox(height: 20),
                 Text(
                   'Completed (${completedTasks.length})',
@@ -99,7 +157,7 @@ class _TodoPageState extends State<TodoPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                ...completedTasks.map((task) => buildTaskTile(task)),
+                ...completedTasks.map(buildTaskTile),
               ],
             ),
       floatingActionButton: FloatingActionButton(
@@ -113,28 +171,20 @@ class _TodoPageState extends State<TodoPage> {
     return Card(
       child: ListTile(
         leading: Checkbox(
-          value: task['completed'] as bool,
-          onChanged: (value) {
-            setState(() {
-              task['completed'] = value ?? false;
-            });
-          },
+          value: task['completed'] == 1,
+          onChanged: (_) => toggleTask(task),
         ),
         title: Text(
           task['title'] as String,
           style: TextStyle(
-            decoration: task['completed']
+            decoration: task['completed'] == 1
                 ? TextDecoration.lineThrough
                 : TextDecoration.none,
           ),
         ),
         trailing: IconButton(
           icon: const Icon(Icons.delete_outline),
-          onPressed: () {
-            setState(() {
-              tasks.remove(task);
-            });
-          },
+          onPressed: () => deleteTask(task['id'] as int),
         ),
       ),
     );
