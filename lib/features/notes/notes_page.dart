@@ -1,4 +1,7 @@
+
 import 'package:flutter/material.dart';
+
+import '../../core/database/app_database.dart';
 
 class NotesPage extends StatefulWidget {
   const NotesPage({super.key});
@@ -8,60 +11,87 @@ class NotesPage extends StatefulWidget {
 }
 
 class _NotesPageState extends State<NotesPage> {
-  final List<Map<String, dynamic>> notes = [];
+  List<Map<String, dynamic>> notes = [];
 
-  void addNote() {
+  @override
+  void initState() {
+    super.initState();
+    loadNotes();
+  }
+
+  Future<void> loadNotes() async {
+    final db = await AppDatabase.database;
+
+    final result = await db.query(
+      'notes',
+      orderBy: 'pinned DESC, id DESC',
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      notes = result;
+    });
+  }
+
+  Future<void> addNote() async {
     final titleController = TextEditingController();
     final contentController = TextEditingController();
 
-    showDialog(
+    await showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text('New Note'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Title',
-                  border: OutlineInputBorder(),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Title',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: contentController,
-                maxLines: 5,
-                decoration: const InputDecoration(
-                  labelText: 'Note',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: contentController,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                    labelText: 'Note',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 final title = titleController.text.trim();
                 final content = contentController.text.trim();
 
                 if (title.isEmpty && content.isEmpty) return;
 
-                setState(() {
-                  notes.insert(0, {
-                    'title': title.isEmpty ? 'Untitled' : title,
-                    'content': content,
-                    'date': DateTime.now(),
-                    'pinned': false,
-                  });
+                final db = await AppDatabase.database;
+                final now = DateTime.now().toIso8601String();
+
+                await db.insert('notes', {
+                  'title': title.isEmpty ? 'Untitled' : title,
+                  'content': content,
+                  'pinned': 0,
+                  'created_at': now,
+                  'updated_at': now,
                 });
 
-                Navigator.pop(context);
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                }
               },
               child: const Text('Save'),
             ),
@@ -69,18 +99,39 @@ class _NotesPageState extends State<NotesPage> {
         );
       },
     );
+
+    titleController.dispose();
+    contentController.dispose();
+
+    await loadNotes();
   }
 
-  void deleteNote(int index) {
-    setState(() {
-      notes.removeAt(index);
-    });
+  Future<void> deleteNote(int id) async {
+    final db = await AppDatabase.database;
+
+    await db.delete(
+      'notes',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    await loadNotes();
   }
 
-  void togglePin(int index) {
-    setState(() {
-      notes[index]['pinned'] = !notes[index]['pinned'];
-    });
+  Future<void> togglePin(Map<String, dynamic> note) async {
+    final db = await AppDatabase.database;
+
+    await db.update(
+      'notes',
+      {
+        'pinned': note['pinned'] == 1 ? 0 : 1,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [note['id']],
+    );
+
+    await loadNotes();
   }
 
   @override
@@ -117,25 +168,23 @@ class _NotesPageState extends State<NotesPage> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     leading: Icon(
-                      note['pinned'] == true
+                      note['pinned'] == 1
                           ? Icons.push_pin
                           : Icons.note_alt_outlined,
                     ),
                     trailing: PopupMenuButton<String>(
                       onSelected: (value) {
                         if (value == 'pin') {
-                          togglePin(index);
+                          togglePin(note);
                         } else if (value == 'delete') {
-                          deleteNote(index);
+                          deleteNote(note['id'] as int);
                         }
                       },
                       itemBuilder: (context) => [
                         PopupMenuItem(
                           value: 'pin',
                           child: Text(
-                            note['pinned'] == true
-                                ? 'Unpin'
-                                : 'Pin',
+                            note['pinned'] == 1 ? 'Unpin' : 'Pin',
                           ),
                         ),
                         const PopupMenuItem(
