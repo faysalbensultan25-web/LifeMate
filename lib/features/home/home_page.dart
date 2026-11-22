@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../notes/notes_page.dart';
 import '../todo/todo_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -17,6 +18,15 @@ class _HomePageState extends State<HomePage> {
       context,
       MaterialPageRoute(
         builder: (_) => const TodoPage(),
+      ),
+    );
+  }
+
+  void openNotes() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const NotesPage(),
       ),
     );
   }
@@ -61,6 +71,8 @@ class _HomePageState extends State<HomePage> {
           _featureCard(
             title: 'Notes',
             icon: Icons.note_alt,
+            active: true,
+            onTap: openNotes,
           ),
           _featureCard(
             title: 'Events',
