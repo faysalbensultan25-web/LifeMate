@@ -2,8 +2,24 @@ import 'package:flutter/material.dart';
 
 import '../todo/todo_page.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  int currentIndex = 0;
+
+  void openTodo() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const TodoPage(),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,98 +49,82 @@ class HomePage extends StatelessWidget {
         childAspectRatio: 1.25,
         children: [
           _featureCard(
-            context,
             title: 'To-Do',
             icon: Icons.task_alt,
             active: true,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const TodoPage(),
-                ),
-              );
-            },
+            onTap: openTodo,
           ),
           _featureCard(
-            context,
             title: 'Finance',
             icon: Icons.account_balance_wallet,
           ),
           _featureCard(
-            context,
             title: 'Notes',
             icon: Icons.note_alt,
           ),
           _featureCard(
-            context,
             title: 'Events',
             icon: Icons.event,
           ),
           _featureCard(
-            context,
             title: 'Statistics',
             icon: Icons.bar_chart,
           ),
           _featureCard(
-            context,
             title: 'Budget',
             icon: Icons.savings,
           ),
           _featureCard(
-            context,
             title: 'Profile',
             icon: Icons.person,
           ),
           _featureCard(
-            context,
             title: 'PDF Reports',
             icon: Icons.picture_as_pdf,
           ),
           _featureCard(
-            context,
             title: 'Backup',
             icon: Icons.backup,
           ),
           _featureCard(
-            context,
             title: 'Settings',
             icon: Icons.settings,
           ),
         ],
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: 0,
-        destinations: [
-          const NavigationDestination(
+        selectedIndex: currentIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            currentIndex = index;
+          });
+
+          if (index == 1) {
+            openTodo();
+          }
+        },
+        destinations: const [
+          NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
             label: 'Home',
           ),
           NavigationDestination(
-            icon: const Icon(Icons.check_circle_outline),
-            selectedIcon: const Icon(Icons.check_circle),
+            icon: Icon(Icons.check_circle_outline),
+            selectedIcon: Icon(Icons.check_circle),
             label: 'To-Do',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const TodoPage(),
-                ),
-              );
-            },
           ),
-          const NavigationDestination(
+          NavigationDestination(
             icon: Icon(Icons.add_circle_outline),
             selectedIcon: Icon(Icons.add_circle),
             label: 'Add',
           ),
-          const NavigationDestination(
+          NavigationDestination(
             icon: Icon(Icons.notifications_outlined),
             selectedIcon: Icon(Icons.notifications),
             label: 'Alerts',
           ),
-          const NavigationDestination(
+          NavigationDestination(
             icon: Icon(Icons.menu),
             selectedIcon: Icon(Icons.menu_open),
             label: 'More',
@@ -134,8 +134,7 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _featureCard(
-    BuildContext context, {
+  Widget _featureCard({
     required String title,
     required IconData icon,
     bool active = false,
@@ -144,7 +143,7 @@ class HomePage extends StatelessWidget {
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: active ? onTap : () {},
+        onTap: active ? onTap : null,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
