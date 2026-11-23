@@ -5,6 +5,7 @@ import '../../core/database/app_database.dart';
 import '../events/events_page.dart';
 import '../finance/finance_page.dart';
 import '../notes/notes_page.dart';
+import '../statistics/statistics_page.dart';
 import '../todo/todo_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -152,6 +153,17 @@ class _HomePageState extends State<HomePage> {
     await loadActivities();
   }
 
+  Future<void> openStatistics() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const StatisticsPage(),
+      ),
+    );
+
+    await loadActivities();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -215,8 +227,8 @@ class _HomePageState extends State<HomePage> {
               _featureCard(
                 'Statistics',
                 Icons.bar_chart,
-                false,
-                null,
+                true,
+                openStatistics,
               ),
               _featureCard(
                 'Budget',
