@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../../core/database/app_database.dart';
@@ -12,6 +11,7 @@ class NotesPage extends StatefulWidget {
 
 class _NotesPageState extends State<NotesPage> {
   List<Map<String, dynamic>> notes = [];
+  String searchText = '';
 
   @override
   void initState() {
@@ -34,15 +34,39 @@ class _NotesPageState extends State<NotesPage> {
     });
   }
 
-  Future<void> addNote() async {
-    final titleController = TextEditingController();
-    final contentController = TextEditingController();
+  List<Map<String, dynamic>> get filteredNotes {
+    if (searchText.trim().isEmpty) {
+      return notes;
+    }
+
+    final query = searchText.toLowerCase();
+
+    return notes.where((note) {
+      final title = (note['title'] as String).toLowerCase();
+      final content = (note['content'] as String).toLowerCase();
+
+      return title.contains(query) || content.contains(query);
+    }).toList();
+  }
+
+  Future<void> showNoteDialog({
+    Map<String, dynamic>? note,
+  }) async {
+    final titleController = TextEditingController(
+      text: note?['title'] as String? ?? '',
+    );
+
+    final contentController = TextEditingController(
+      text: note?['content'] as String? ?? '',
+    );
+
+    final isEditing = note != null;
 
     await showDialog(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('New Note'),
+          title: Text(isEditing ? 'Edit Note' : 'New Note'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -57,7 +81,7 @@ class _NotesPageState extends State<NotesPage> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: contentController,
-                  maxLines: 5,
+                  maxLines: 6,
                   decoration: const InputDecoration(
                     labelText: 'Note',
                     border: OutlineInputBorder(),
@@ -81,19 +105,35 @@ class _NotesPageState extends State<NotesPage> {
                 final db = await AppDatabase.database;
                 final now = DateTime.now().toIso8601String();
 
-                await db.insert('notes', {
-                  'title': title.isEmpty ? 'Untitled' : title,
-                  'content': content,
-                  'pinned': 0,
-                  'created_at': now,
-                  'updated_at': now,
-                });
+                if (isEditing) {
+                  await db.update(
+                    'notes',
+                    {
+                      'title': title.isEmpty ? 'Untitled' : title,
+                      'content': content,
+                      'updated_at': now,
+                    },
+                    where: 'id = ?',
+                    whereArgs: [note['id']],
+                  );
+                } else {
+                  await db.insert(
+                    'notes',
+                    {
+                      'title': title.isEmpty ? 'Untitled' : title,
+                      'content': content,
+                      'pinned': 0,
+                      'created_at': now,
+                      'updated_at': now,
+                    },
+                  );
+                }
 
                 if (dialogContext.mounted) {
                   Navigator.pop(dialogContext);
                 }
               },
-              child: const Text('Save'),
+              child: Text(isEditing ? 'Update' : 'Save'),
             ),
           ],
         );
@@ -136,69 +176,115 @@ class _NotesPageState extends State<NotesPage> {
 
   @override
   Widget build(BuildContext context) {
+    final visibleNotes = filteredNotes;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notes'),
       ),
-      body: notes.isEmpty
-          ? const Center(
-              child: Text(
-                'No notes yet',
-                style: TextStyle(fontSize: 18),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+            child: TextField(
+              onChanged: (value) {
+                setState(() {
+                  searchText = value;
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'Search notes...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: searchText.isNotEmpty
+                    ? IconButton(
+                        onPressed: () {
+                          setState(() {
+                            searchText = '';
+                          });
+                        },
+                        icon: const Icon(Icons.clear),
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: notes.length,
-              itemBuilder: (context, index) {
-                final note = notes[index];
+            ),
+          ),
+          Expanded(
+            child: visibleNotes.isEmpty
+                ? Center(
+                    child: Text(
+                      searchText.isEmpty
+                          ? 'No notes yet'
+                          : 'No matching notes',
+                      style: const TextStyle(fontSize: 18),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: visibleNotes.length,
+                    itemBuilder: (context, index) {
+                      final note = visibleNotes[index];
 
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: ListTile(
-                    title: Text(
-                      note['title'] as String,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    subtitle: Text(
-                      note['content'] as String,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    leading: Icon(
-                      note['pinned'] == 1
-                          ? Icons.push_pin
-                          : Icons.note_alt_outlined,
-                    ),
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'pin') {
-                          togglePin(note);
-                        } else if (value == 'delete') {
-                          deleteNote(note['id'] as int);
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          value: 'pin',
-                          child: Text(
-                            note['pinned'] == 1 ? 'Unpin' : 'Pin',
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        child: ListTile(
+                          leading: Icon(
+                            note['pinned'] == 1
+                                ? Icons.push_pin
+                                : Icons.note_alt_outlined,
+                          ),
+                          title: Text(
+                            note['title'] as String,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          subtitle: Text(
+                            note['content'] as String,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onTap: () {
+                            showNoteDialog(note: note);
+                          },
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (value) {
+                              if (value == 'edit') {
+                                showNoteDialog(note: note);
+                              } else if (value == 'pin') {
+                                togglePin(note);
+                              } else if (value == 'delete') {
+                                deleteNote(note['id'] as int);
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: Text('Edit'),
+                              ),
+                              PopupMenuItem(
+                                value: 'pin',
+                                child: Text(
+                                  note['pinned'] == 1 ? 'Unpin' : 'Pin',
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Delete'),
+                              ),
+                            ],
                           ),
                         ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Text('Delete'),
-                        ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
-        onPressed: addNote,
+        onPressed: () => showNoteDialog(),
         child: const Icon(Icons.add),
       ),
     );
