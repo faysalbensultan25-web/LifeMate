@@ -2,33 +2,44 @@ name: Build LifeMate APK
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
+      # --------------------------------------------------
+      # 1. Checkout
+      # --------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # --------------------------------------------------
+      # 2. Java 17
+      # --------------------------------------------------
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
+      # --------------------------------------------------
+      # 3. Flutter
+      # --------------------------------------------------
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
+      # --------------------------------------------------
+      # 4. Generate Android project if missing
+      # --------------------------------------------------
       - name: Generate Android project
         run: |
           if [ ! -f android/gradlew ]; then
+            echo "Android project not found. Generating..."
+
             flutter create \
               --platforms=android \
               --project-name lifemate \
@@ -37,16 +48,28 @@ jobs:
 
             rm -rf android
             cp -R /tmp/lifemate_scaffold/android ./android
+
+            echo "Android project generated."
+          else
+            echo "Android project already exists."
           fi
 
+      # --------------------------------------------------
+      # 5. Install Android SDK 36
+      # --------------------------------------------------
       - name: Install Android SDK 36
         run: |
-          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" \
+            -name sdkmanager \
+            -type f | head -n 1)
 
           if [ -z "$SDKMANAGER" ]; then
             echo "SDK Manager not found"
             exit 1
           fi
+
+          echo "Using SDK Manager:"
+          echo "$SDKMANAGER"
 
           yes | "$SDKMANAGER" --licenses || true
 
@@ -54,7 +77,17 @@ jobs:
           "$SDKMANAGER" "platforms;android-36"
           "$SDKMANAGER" "build-tools;36.0.0"
 
-      - name: Force compileSdk 36
+      # --------------------------------------------------
+      # 6. Flutter dependencies
+      # --------------------------------------------------
+      - name: Flutter Pub Get
+        run: |
+          flutter pub get
+
+      # --------------------------------------------------
+      # 7. Force App compileSdk = 36
+      # --------------------------------------------------
+      - name: Force App compileSdk 36
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -71,13 +104,15 @@ jobs:
 
               content = file.read_text()
 
+              # Replace existing compileSdk values
               content = re.sub(
                   r'(?m)^(\s*compileSdk(?:Version)?\s*(?:=\s*)?)(?:flutter\.compileSdkVersion|\d+)',
                   r'\g<1>36',
                   content
               )
 
-              if "compileSdk" not in content:
+              # If compileSdk does not exist, add it
+              if not re.search(r'compileSdk(?:Version)?', content):
                   content = content.replace(
                       "android {",
                       "android {\n    compileSdk 36",
@@ -85,28 +120,139 @@ jobs:
                   )
 
               file.write_text(content)
+
               print("Updated:", file)
+          PY
 
-      - name: Flutter clean
-        run: flutter clean
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Verify compileSdk configuration
+      # --------------------------------------------------
+      # 8. Force Flutter plugin Android compileSdk = 36
+      # --------------------------------------------------
+      - name: Force Flutter plugin compileSdk 36
         run: |
-          echo "===== APP BUILD GRADLE ====="
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import os
+
+          roots = [
+              Path(os.path.expanduser(
+                  "~/.pub-cache/hosted/pub.dev"
+              )),
+              Path(".dart_tool/package_config.json").parent
+          ]
+
+          changed = []
+
+          # Specifically target the plugins involved in the error
+          target_names = [
+              "file_picker",
+              "flutter_plugin_android_lifecycle",
+          ]
+
+          pub_root = roots[0]
+
+          if pub_root.exists():
+              for name in target_names:
+                  for folder in pub_root.glob(f"{name}-*"):
+                      android_folder = folder / "android"
+
+                      if not android_folder.exists():
+                          continue
+
+                      for file in android_folder.glob("build.gradle*"):
+                          content = file.read_text()
+
+                          updated = re.sub(
+                              r'(?m)^(\s*compileSdk(?:Version)?\s*(?:=\s*)?)(?:flutter\.compileSdkVersion|\d+)',
+                              r'\g<1>36',
+                              content
+                          )
+
+                          if not re.search(
+                              r'compileSdk(?:Version)?',
+                              updated
+                          ):
+                              updated = (
+                                  "android {\n"
+                                  "    compileSdk 36\n"
+                                  + updated
+                              )
+
+                          if updated != content:
+                              file.write_text(updated)
+                              changed.append(str(file))
+
+          print("Plugin Gradle files updated:")
+
+          for item in changed:
+              print(item)
+
+          print(
+              "Total plugin files updated:",
+              len(changed)
+          )
+          PY
+
+      # --------------------------------------------------
+      # 9. Verify compileSdk
+      # --------------------------------------------------
+      - name: Verify compileSdk
+        run: |
+          echo "========================================"
+          echo "APP BUILD GRADLE"
+          echo "========================================"
+
           cat android/app/build.gradle || true
 
-          echo "===== SEARCH COMPILE SDK ====="
-          grep -R "compileSdk" android ~/.pub-cache/hosted/pub.dev/file_picker* ~/.pub-cache/hosted/pub.dev/flutter_plugin_android_lifecycle* 2>/dev/null || true
+          echo ""
+          echo "========================================"
+          echo "FILE PICKER GRADLE"
+          echo "========================================"
 
+          find ~/.pub-cache/hosted/pub.dev \
+            -path "*file_picker*/android/build.gradle*" \
+            -print \
+            -exec cat {} \; || true
+
+          echo ""
+          echo "========================================"
+          echo "FLUTTER PLUGIN ANDROID LIFECYCLE"
+          echo "========================================"
+
+          find ~/.pub-cache/hosted/pub.dev \
+            -path "*flutter_plugin_android_lifecycle*/android/build.gradle*" \
+            -print \
+            -exec cat {} \; || true
+
+      # --------------------------------------------------
+      # 10. Clean Flutter
+      # --------------------------------------------------
+      - name: Flutter Clean
+        run: |
+          flutter clean
+
+      # --------------------------------------------------
+      # 11. Get dependencies again
+      # --------------------------------------------------
+      - name: Flutter Pub Get Again
+        run: |
+          flutter pub get
+
+      # --------------------------------------------------
+      # 12. Build APK
+      # --------------------------------------------------
       - name: Build APK
         env:
-          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
+          GRADLE_OPTS: >-
+            -Dorg.gradle.daemon=false
+            -Dorg.gradle.parallel=true
+            -Dorg.gradle.caching=true
         run: |
-          flutter build apk --release --android-skip-build-dependency-validation
+          flutter build apk --release
 
+      # --------------------------------------------------
+      # 13. Upload APK
+      # --------------------------------------------------
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
