@@ -1,1 +1,48 @@
-g
+name: Build LifeMate APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Generate Android project
+        run: |
+          if [ ! -f android/gradlew ]; then
+            flutter create --platforms=android \
+              --project-name lifemate \
+              --org com.lifemate /tmp/lifemate_scaffold
+            rm -rf android
+            cp -R /tmp/lifemate_scaffold/android ./android
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LifeMate-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
