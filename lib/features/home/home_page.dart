@@ -5,6 +5,7 @@ import '../events/events_page.dart';
 import '../finance/finance_page.dart';
 import '../notes/notes_page.dart';
 import '../profile/profile_page.dart';
+import '../reports/pdf_reports_page.dart';
 import '../statistics/budget_page.dart';
 import '../statistics/statistics_page.dart';
 import '../todo/todo_page.dart';
@@ -187,6 +188,17 @@ class _HomePageState extends State<HomePage> {
     await loadActivities();
   }
 
+  Future<void> openPdfReports() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const PdfReportsPage(),
+      ),
+    );
+
+    await loadActivities();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -268,8 +280,8 @@ class _HomePageState extends State<HomePage> {
               _featureCard(
                 'PDF Reports',
                 Icons.picture_as_pdf,
-                false,
-                null,
+                true,
+                openPdfReports,
               ),
               _featureCard(
                 'Backup',
