@@ -1,12 +1,12 @@
-
 import 'package:flutter/material.dart';
 
 import '../../core/database/app_database.dart';
 import '../events/events_page.dart';
 import '../finance/finance_page.dart';
 import '../notes/notes_page.dart';
-import '../statistics/statistics_page.dart';
+import '../profile/profile_page.dart';
 import '../statistics/budget_page.dart';
+import '../statistics/statistics_page.dart';
 import '../todo/todo_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -172,6 +172,19 @@ class _HomePageState extends State<HomePage> {
         builder: (_) => const BudgetPage(),
       ),
     );
+
+    await loadActivities();
+  }
+
+  Future<void> openProfile() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ProfilePage(),
+      ),
+    );
+
+    await loadActivities();
   }
 
   @override
@@ -194,7 +207,7 @@ class _HomePageState extends State<HomePage> {
             icon: const Icon(Icons.notifications_outlined),
           ),
           IconButton(
-            onPressed: () {},
+            onPressed: openProfile,
             icon: const Icon(Icons.account_circle_outlined),
           ),
         ],
@@ -249,8 +262,8 @@ class _HomePageState extends State<HomePage> {
               _featureCard(
                 'Profile',
                 Icons.person,
-                false,
-                null,
+                true,
+                openProfile,
               ),
               _featureCard(
                 'PDF Reports',
