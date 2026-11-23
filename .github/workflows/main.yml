@@ -40,22 +40,49 @@ jobs:
 
       - name: Install Android SDK 36
         run: |
-          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-
-          if [ ! -f "$SDKMANAGER" ]; then
-            SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)
-          fi
-
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)
           yes | "$SDKMANAGER" --licenses
           "$SDKMANAGER" "platforms;android-36"
 
-      - name: Set compileSdk to 36
+      - name: Force compileSdk 36
         run: |
-          if [ -f android/app/build.gradle.kts ]; then
-            sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' android/app/build.gradle.kts
-          elif [ -f android/app/build.gradle ]; then
-            sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 36/' android/app/build.gradle
-          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          for file in [
+              Path("android/app/build.gradle"),
+              Path("android/app/build.gradle.kts")
+          ]:
+              if file.exists():
+                  content = file.read_text()
+                  content = re.sub(
+                      r'(?m)^(\s*compileSdk(?:Version)?\s*(?:=\s*)?).*$',
+                      r'\g<1>36',
+                      content
+                  )
+                  file.write_text(content)
+
+          root_file = Path("android/build.gradle")
+
+          if root_file.exists():
+              content = root_file.read_text()
+
+              addition = """
+          subprojects {
+              afterEvaluate { project ->
+                  if (project.hasProperty('android')) {
+                      project.android {
+                          compileSdkVersion 36
+                      }
+                  }
+              }
+          }
+          """
+
+              if "compileSdkVersion 36" not in content:
+                  root_file.write_text(content + "\n" + addition)
+          PY
 
       - name: Install dependencies
         run: flutter pub get
