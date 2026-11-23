@@ -1,6 +1,8 @@
+
 import 'package:flutter/material.dart';
 
 import '../../core/database/app_database.dart';
+import '../finance/finance_page.dart';
 import '../notes/notes_page.dart';
 import '../todo/todo_page.dart';
 
@@ -37,6 +39,18 @@ class _HomePageState extends State<HomePage> {
       limit: 3,
     );
 
+    final incomes = await db.query(
+      'incomes',
+      orderBy: 'id DESC',
+      limit: 3,
+    );
+
+    final expenses = await db.query(
+      'expenses',
+      orderBy: 'id DESC',
+      limit: 3,
+    );
+
     final result = <Map<String, dynamic>>[];
 
     for (final todo in todos) {
@@ -57,6 +71,24 @@ class _HomePageState extends State<HomePage> {
       });
     }
 
+    for (final income in incomes) {
+      result.add({
+        'type': 'income',
+        'title': 'Income: ৳${income['amount']}',
+        'subtitle': income['description'] ?? 'Income',
+        'date': income['created_at'],
+      });
+    }
+
+    for (final expense in expenses) {
+      result.add({
+        'type': 'expense',
+        'title': 'Expense: ৳${expense['amount']}',
+        'subtitle': expense['description'] ?? 'Expense',
+        'date': expense['created_at'],
+      });
+    }
+
     result.sort((a, b) {
       final aDate = DateTime.tryParse(a['date'] as String);
       final bDate = DateTime.tryParse(b['date'] as String);
@@ -71,7 +103,7 @@ class _HomePageState extends State<HomePage> {
     if (!mounted) return;
 
     setState(() {
-      activities = result.take(6).toList();
+      activities = result.take(8).toList();
     });
   }
 
@@ -91,6 +123,17 @@ class _HomePageState extends State<HomePage> {
       context,
       MaterialPageRoute(
         builder: (_) => const NotesPage(),
+      ),
+    );
+
+    await loadActivities();
+  }
+
+  Future<void> openFinance() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const FinancePage(),
       ),
     );
 
@@ -142,8 +185,8 @@ class _HomePageState extends State<HomePage> {
               _featureCard(
                 'Finance',
                 Icons.account_balance_wallet,
-                false,
-                null,
+                true,
+                openFinance,
               ),
               _featureCard(
                 'Notes',
@@ -305,16 +348,32 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _activityCard(Map<String, dynamic> activity) {
-    final isTodo = activity['type'] == 'todo';
+    final type = activity['type'] as String;
+
+    final isTodo = type == 'todo';
+    final isNote = type == 'note';
+    final isIncome = type == 'income';
+
+    final icon = isTodo
+        ? Icons.task_alt
+        : isNote
+            ? Icons.note_alt
+            : isIncome
+                ? Icons.trending_up
+                : Icons.trending_down;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
-        onTap: isTodo ? openTodo : openNotes,
+        onTap: isTodo
+            ? openTodo
+            : isNote
+                ? openNotes
+                : openFinance,
         leading: CircleAvatar(
           backgroundColor: const Color(0xFFE7F0FF),
           child: Icon(
-            isTodo ? Icons.task_alt : Icons.note_alt,
+            icon,
             color: const Color(0xFF1877F2),
           ),
         ),
@@ -326,9 +385,7 @@ class _HomePageState extends State<HomePage> {
         subtitle: Text(
           activity['subtitle'] as String,
         ),
-        trailing: const Icon(
-          Icons.chevron_right,
-        ),
+        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }
@@ -338,36 +395,33 @@ class _HomePageState extends State<HomePage> {
       child: Padding(
         padding: EdgeInsets.all(20),
         child: Center(
-          child: Text(
-            'No recent activity',
-          ),
+          child: Text('No recent activity'),
         ),
       ),
     );
   }
 
   Widget _financeCard() {
-    return const Card(
+    return Card(
       child: ListTile(
-        leading: CircleAvatar(
+        onTap: openFinance,
+        leading: const CircleAvatar(
           backgroundColor: Color(0xFFE7F0FF),
           child: Icon(
             Icons.account_balance_wallet,
             color: Color(0xFF1877F2),
           ),
         ),
-        title: Text(
+        title: const Text(
           'Finance',
           style: TextStyle(
             fontWeight: FontWeight.w600,
           ),
         ),
-        subtitle: Text(
-          'Finance activity will appear here',
+        subtitle: const Text(
+          'Manage your income and expenses',
         ),
-        trailing: Icon(
-          Icons.lock_outline,
-        ),
+        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }
