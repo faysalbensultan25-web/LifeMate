@@ -41,10 +41,16 @@ jobs:
       - name: Install Android SDK 36
         run: |
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)
-          yes | "$SDKMANAGER" --licenses
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "SDK Manager not found"
+            exit 1
+          fi
+
+          yes | "$SDKMANAGER" --licenses || true
           "$SDKMANAGER" "platforms;android-36"
 
-      - name: Force compileSdk 36
+      - name: Set App compileSdk 36
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -56,36 +62,52 @@ jobs:
           ]:
               if file.exists():
                   content = file.read_text()
+
                   content = re.sub(
-                      r'(?m)^(\s*compileSdk(?:Version)?\s*(?:=\s*)?).*$',
+                      r'(?m)^(\s*compileSdk(?:Version)?\s*(?:=\s*)?)(?:flutter\.compileSdkVersion|\d+)',
                       r'\g<1>36',
                       content
                   )
+
                   file.write_text(content)
-
-          root_file = Path("android/build.gradle")
-
-          if root_file.exists():
-              content = root_file.read_text()
-
-              addition = """
-          subprojects {
-              afterEvaluate { project ->
-                  if (project.hasProperty('android')) {
-                      project.android {
-                          compileSdkVersion 36
-                      }
-                  }
-              }
-          }
-          """
-
-              if "compileSdkVersion 36" not in content:
-                  root_file.write_text(content + "\n" + addition)
+                  print("Updated:", file)
           PY
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Set Android Plugin compileSdk 36
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import os
+
+          root = Path(os.path.expanduser("~/.pub-cache/hosted/pub.dev"))
+
+          if not root.exists():
+              raise SystemExit("Pub cache directory not found")
+
+          changed = []
+
+          for file in root.glob("*/android/build.gradle*"):
+              content = file.read_text()
+
+              updated = re.sub(
+                  r'(?m)^(\s*compileSdk(?:Version)?\s*(?:=\s*)?)(?:flutter\.compileSdkVersion|\d+)',
+                  r'\g<1>36',
+                  content
+              )
+
+              if updated != content:
+                  file.write_text(updated)
+                  changed.append(str(file))
+
+          for item in changed:
+              print("Updated plugin:", item)
+
+          print("Total Android plugin files updated:", len(changed))
+          PY
 
       - name: Build APK
         env:
@@ -97,3 +119,4 @@ jobs:
         with:
           name: LifeMate-APK
           path: build/app/outputs/flutter-apk/app-release.apk
+
