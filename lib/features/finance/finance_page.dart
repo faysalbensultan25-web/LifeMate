@@ -23,7 +23,61 @@ class _FinancePageState extends State<FinancePage> {
   @override
   void initState() {
     super.initState();
-    loadFinanceData();
+    initializeFinance();
+  }
+
+  Future<void> initializeFinance() async {
+    await insertDefaultCategories();
+    await loadFinanceData();
+  }
+
+  Future<void> insertDefaultCategories() async {
+    final db = await AppDatabase.database;
+
+    final defaults = {
+      'income': [
+        'Salary',
+        'Business',
+        'House Rent',
+        'Investment',
+        'Gift',
+        'Other',
+      ],
+      'expense': [
+        'Food',
+        'Transport',
+        'Shopping',
+        'House Rent',
+        'Electricity',
+        'Medical',
+        'Education',
+        'Family',
+        'Entertainment',
+        'Other',
+      ],
+    };
+
+    for (final entry in defaults.entries) {
+      for (final name in entry.value) {
+        final existing = await db.query(
+          'categories',
+          where: 'name = ? AND type = ?',
+          whereArgs: [name, entry.key],
+          limit: 1,
+        );
+
+        if (existing.isEmpty) {
+          await db.insert(
+            'categories',
+            {
+              'name': name,
+              'type': entry.key,
+              'created_at': DateTime.now().toIso8601String(),
+            },
+          );
+        }
+      }
+    }
   }
 
   Future<void> loadFinanceData() async {
@@ -92,6 +146,15 @@ class _FinancePageState extends State<FinancePage> {
               if (name.isEmpty) return;
 
               final db = await AppDatabase.database;
+
+              final existing = await db.query(
+                'categories',
+                where: 'name = ? AND type = ?',
+                whereArgs: [name, type],
+                limit: 1,
+              );
+
+              if (existing.isNotEmpty) return;
 
               await db.insert(
                 'categories',
@@ -389,7 +452,12 @@ class _FinancePageState extends State<FinancePage> {
           IconButton(
             onPressed: () => addCategory('income'),
             icon: const Icon(Icons.category_outlined),
-            tooltip: 'Manage Income Categories',
+            tooltip: 'Add Income Category',
+          ),
+          IconButton(
+            onPressed: () => addCategory('expense'),
+            icon: const Icon(Icons.add_circle_outline),
+            tooltip: 'Add Expense Category',
           ),
         ],
       ),
