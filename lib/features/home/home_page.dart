@@ -35,7 +35,12 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('LifeMate'),
+        title: const Text(
+          'LifeMate',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         actions: [
           IconButton(
             onPressed: () {},
@@ -51,59 +56,102 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      body: GridView.count(
+
+      body: ListView(
         padding: const EdgeInsets.all(16),
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.25,
         children: [
-          _featureCard(
-            title: 'To-Do',
+          // Feature Grid
+          GridView.count(
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.25,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              _featureCard(
+                title: 'To-Do',
+                icon: Icons.task_alt,
+                active: true,
+                onTap: openTodo,
+              ),
+              _featureCard(
+                title: 'Finance',
+                icon: Icons.account_balance_wallet,
+              ),
+              _featureCard(
+                title: 'Notes',
+                icon: Icons.note_alt,
+                active: true,
+                onTap: openNotes,
+              ),
+              _featureCard(
+                title: 'Events',
+                icon: Icons.event,
+              ),
+              _featureCard(
+                title: 'Statistics',
+                icon: Icons.bar_chart,
+              ),
+              _featureCard(
+                title: 'Budget',
+                icon: Icons.savings,
+              ),
+              _featureCard(
+                title: 'Profile',
+                icon: Icons.person,
+              ),
+              _featureCard(
+                title: 'PDF Reports',
+                icon: Icons.picture_as_pdf,
+              ),
+              _featureCard(
+                title: 'Backup',
+                icon: Icons.backup,
+              ),
+              _featureCard(
+                title: 'Settings',
+                icon: Icons.settings,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Recent Activity
+          const Text(
+            'Recent Activity',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          _activityCard(
             icon: Icons.task_alt,
-            active: true,
+            title: 'To-Do',
+            subtitle: 'Your recent tasks will appear here',
             onTap: openTodo,
           ),
-          _featureCard(
-            title: 'Finance',
-            icon: Icons.account_balance_wallet,
-          ),
-          _featureCard(
-            title: 'Notes',
+
+          _activityCard(
             icon: Icons.note_alt,
-            active: true,
+            title: 'Notes',
+            subtitle: 'Your recent notes will appear here',
             onTap: openNotes,
           ),
-          _featureCard(
-            title: 'Events',
-            icon: Icons.event,
-          ),
-          _featureCard(
-            title: 'Statistics',
-            icon: Icons.bar_chart,
-          ),
-          _featureCard(
-            title: 'Budget',
-            icon: Icons.savings,
-          ),
-          _featureCard(
-            title: 'Profile',
-            icon: Icons.person,
-          ),
-          _featureCard(
-            title: 'PDF Reports',
-            icon: Icons.picture_as_pdf,
-          ),
-          _featureCard(
-            title: 'Backup',
-            icon: Icons.backup,
-          ),
-          _featureCard(
-            title: 'Settings',
-            icon: Icons.settings,
+
+          _activityCard(
+            icon: Icons.account_balance_wallet,
+            title: 'Finance',
+            subtitle: 'Recent income and expenses will appear here',
           ),
         ],
       ),
+
+      // Existing navigation remains unchanged.
       bottomNavigationBar: NavigationBar(
         selectedIndex: currentIndex,
         onDestinationSelected: (index) {
@@ -162,7 +210,9 @@ class _HomePageState extends State<HomePage> {
             Icon(
               icon,
               size: 38,
-              color: active ? Colors.teal : Colors.grey,
+              color: active
+                  ? AppThemeColor.primary
+                  : Colors.grey,
             ),
             const SizedBox(height: 10),
             Text(
@@ -177,7 +227,9 @@ class _HomePageState extends State<HomePage> {
               active ? 'Open' : 'Coming soon',
               style: TextStyle(
                 fontSize: 11,
-                color: active ? Colors.teal : Colors.grey,
+                color: active
+                    ? AppThemeColor.primary
+                    : Colors.grey,
               ),
             ),
           ],
@@ -185,4 +237,41 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+
+  Widget _activityCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    VoidCallback? onTap,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        onTap: onTap,
+        leading: CircleAvatar(
+          backgroundColor: const Color(0xFFE7F0FF),
+          child: Icon(
+            icon,
+            color: AppThemeColor.primary,
+          ),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: Text(subtitle),
+        trailing: const Icon(
+          Icons.chevron_right,
+        ),
+      ),
+    );
+  }
+}
+
+class AppThemeColor {
+  AppThemeColor._();
+
+  static const Color primary = Color(0xFF1877F2);
 }
