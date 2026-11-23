@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/database/app_database.dart';
+import '../events/events_page.dart';
 import '../finance/finance_page.dart';
 import '../notes/notes_page.dart';
 import '../todo/todo_page.dart';
@@ -140,6 +141,17 @@ class _HomePageState extends State<HomePage> {
     await loadActivities();
   }
 
+  Future<void> openEvents() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const EventsPage(),
+      ),
+    );
+
+    await loadActivities();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -197,8 +209,8 @@ class _HomePageState extends State<HomePage> {
               _featureCard(
                 'Events',
                 Icons.event,
-                false,
-                null,
+                true,
+                openEvents,
               ),
               _featureCard(
                 'Statistics',
