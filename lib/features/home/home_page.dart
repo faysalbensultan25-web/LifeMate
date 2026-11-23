@@ -6,6 +6,7 @@ import '../events/events_page.dart';
 import '../finance/finance_page.dart';
 import '../notes/notes_page.dart';
 import '../statistics/statistics_page.dart';
+import '../statistics/budget_page.dart';
 import '../todo/todo_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -164,6 +165,15 @@ class _HomePageState extends State<HomePage> {
     await loadActivities();
   }
 
+  Future<void> openBudget() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const BudgetPage(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -233,8 +243,8 @@ class _HomePageState extends State<HomePage> {
               _featureCard(
                 'Budget',
                 Icons.savings,
-                false,
-                null,
+                true,
+                openBudget,
               ),
               _featureCard(
                 'Profile',
