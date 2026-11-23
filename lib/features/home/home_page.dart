@@ -23,12 +23,6 @@ class _HomePageState extends State<HomePage> {
     loadRecentActivities();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    loadRecentActivities();
-  }
-
   Future<void> loadRecentActivities() async {
     try {
       final db = await AppDatabase.database;
@@ -55,7 +49,6 @@ class _HomePageState extends State<HomePage> {
               ? 'Task completed'
               : 'Task added',
           'date': todo['created_at'] as String,
-          'id': todo['id'],
         });
       }
 
@@ -65,7 +58,6 @@ class _HomePageState extends State<HomePage> {
           'title': note['title'] as String,
           'subtitle': 'Note created',
           'date': note['created_at'] as String,
-          'id': note['id'],
         });
       }
 
@@ -95,7 +87,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void openTodo() async {
+  Future<void> openTodo() async {
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -106,7 +98,7 @@ class _HomePageState extends State<HomePage> {
     await loadRecentActivities();
   }
 
-  void openNotes() async {
+  Future<void> openNotes() async {
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -196,183 +188,4 @@ class _HomePageState extends State<HomePage> {
                   icon: Icons.backup,
                 ),
                 _featureCard(
-                  title: 'Settings',
-                  icon: Icons.settings,
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Recent Activity',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildRecentActivity(),
-          ],
-        ),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            currentIndex = index;
-          });
-
-          if (index == 1) {
-            openTodo();
-          }
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.check_circle_outline),
-            selectedIcon: Icon(Icons.check_circle),
-            label: 'To-Do',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.add_circle_outline),
-            selectedIcon: Icon(Icons.add_circle),
-            label: 'Add',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.notifications_outlined),
-            selectedIcon: Icon(Icons.notifications),
-            label: 'Alerts',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.menu),
-            selectedIcon: Icon(Icons.menu_open),
-            label: 'More',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecentActivity() {
-    if (loadingActivities) {
-      return const Padding(
-        padding: EdgeInsets.all(24),
-        child: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    if (recentActivities.isEmpty) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              Icon(
-                Icons.history,
-                size: 40,
-                color: AppThemeColor.primary,
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'No recent activity',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Your recent To-Do and Notes will appear here.',
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        ...recentActivities.map(
-          (activity) => _activityCard(activity),
-        ),
-        const SizedBox(height: 4),
-        _financeActivityCard(),
-      ],
-    );
-  }
-
-  Widget _activityCard(Map<String, dynamic> activity) {
-    final isTodo = activity['type'] == 'todo';
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        onTap: isTodo ? openTodo : openNotes,
-        leading: CircleAvatar(
-          backgroundColor: const Color(0xFFE7F0FF),
-          child: Icon(
-            isTodo ? Icons.task_alt : Icons.note_alt,
-            color: AppThemeColor.primary,
-          ),
-        ),
-        title: Text(
-          activity['title'] as String,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: Text(
-          '${isTodo ? 'To-Do' : 'Notes'} • '
-          '${activity['subtitle']}',
-        ),
-        trailing: const Icon(
-          Icons.chevron_right,
-        ),
-      ),
-    );
-  }
-
-  Widget _financeActivityCard() {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: const Color(0xFFE7F0FF),
-          child: Icon(
-            Icons.account_balance_wallet,
-            color: AppThemeColor.primary,
-          ),
-        ),
-        title: const Text(
-          'Finance',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: const Text(
-          'Finance activity will appear here',
-        ),
-        trailing: const Icon(
-          Icons.lock_outline,
-          size: 20,
-        ),
-      ),
-    );
-  }
-
-  Widget _featureCard({
-    required String title,
-    required IconData icon,
-    bool active = false,
-    VoidCallback? onTap,
-  }) {
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16
+                  title: 'Settings
