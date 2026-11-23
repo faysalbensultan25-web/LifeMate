@@ -40,8 +40,14 @@ jobs:
 
       - name: Install Android SDK 36
         run: |
-          yes | sdkmanager --licenses
-          sdkmanager "platforms;android-36"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+
+          if [ ! -f "$SDKMANAGER" ]; then
+            SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)
+          fi
+
+          yes | "$SDKMANAGER" --licenses
+          "$SDKMANAGER" "platforms;android-36"
 
       - name: Set compileSdk to 36
         run: |
