@@ -20,9 +20,9 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
+
       onCreate: (db, version) async {
-        // To-Do
         await db.execute('''
           CREATE TABLE todos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +32,6 @@ class AppDatabase {
           )
         ''');
 
-        // Notes
         await db.execute('''
           CREATE TABLE notes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,7 +43,6 @@ class AppDatabase {
           )
         ''');
 
-        // Income
         await db.execute('''
           CREATE TABLE incomes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,7 +54,6 @@ class AppDatabase {
           )
         ''');
 
-        // Expense
         await db.execute('''
           CREATE TABLE expenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,7 +65,6 @@ class AppDatabase {
           )
         ''');
 
-        // Categories
         await db.execute('''
           CREATE TABLE categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -78,7 +74,6 @@ class AppDatabase {
           )
         ''');
 
-        // Events
         await db.execute('''
           CREATE TABLE events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,7 +84,6 @@ class AppDatabase {
           )
         ''');
 
-        // Budgets
         await db.execute('''
           CREATE TABLE budgets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,7 +95,6 @@ class AppDatabase {
           )
         ''');
 
-        // Profile
         await db.execute('''
           CREATE TABLE profiles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -109,11 +102,20 @@ class AppDatabase {
             phone TEXT,
             email TEXT,
             address TEXT,
-            photo_path TEXT
+            photo_path TEXT,
+            birth_date TEXT,
+            gender TEXT,
+            permanent_address TEXT,
+            education TEXT,
+            occupation TEXT,
+            workplace TEXT,
+            designation TEXT,
+            blood_group TEXT,
+            emergency_contact TEXT,
+            about TEXT
           )
         ''');
 
-        // Notifications
         await db.execute('''
           CREATE TABLE notifications (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -124,7 +126,6 @@ class AppDatabase {
           )
         ''');
 
-        // Backup information
         await db.execute('''
           CREATE TABLE backups (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -132,6 +133,50 @@ class AppDatabase {
             created_at TEXT NOT NULL
           )
         ''');
+      },
+
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN birth_date TEXT',
+          );
+
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN gender TEXT',
+          );
+
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN permanent_address TEXT',
+          );
+
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN education TEXT',
+          );
+
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN occupation TEXT',
+          );
+
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN workplace TEXT',
+          );
+
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN designation TEXT',
+          );
+
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN blood_group TEXT',
+          );
+
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN emergency_contact TEXT',
+          );
+
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN about TEXT',
+          );
+        }
       },
     );
   }
