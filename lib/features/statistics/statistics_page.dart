@@ -67,6 +67,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
 
       final loadedCategories = await db.query(
         'categories',
+        orderBy: 'name ASC',
       );
 
       final loadedBudgets = await db.query(
@@ -110,9 +111,8 @@ class _StatisticsPageState extends State<StatisticsPage> {
       }
 
       final rate = incomeTotal > 0
-          ? ((incomeTotal - expenseTotal) / incomeTotal) *
-              100
-          : 0;
+          ? ((incomeTotal - expenseTotal) / incomeTotal) * 100
+          : 0.0;
 
       final monthly = buildMonthlyData(
         loadedIncomes,
@@ -153,13 +153,10 @@ class _StatisticsPageState extends State<StatisticsPage> {
         highestIncome = maxIncome;
         highestExpense = maxExpense;
 
-        highestIncomeDescription =
-            maxIncomeDescription;
+        highestIncomeDescription = maxIncomeDescription;
+        highestExpenseDescription = maxExpenseDescription;
 
-        highestExpenseDescription =
-            maxExpenseDescription;
-
-        savingsRate = rate.toDouble();
+        savingsRate = rate;
 
         monthlyData = monthly;
         weeklyData = weekly;
@@ -187,6 +184,38 @@ class _StatisticsPageState extends State<StatisticsPage> {
   }
 
   // ============================================================
+  // DATE HELPERS
+  // ============================================================
+
+  DateTime? parseDate(dynamic value) {
+    if (value == null) return null;
+
+    return DateTime.tryParse(
+      value.toString(),
+    );
+  }
+
+  DateTime dateOnly(DateTime date) {
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+    );
+  }
+
+  bool isDateInRange(
+    DateTime date,
+    DateTime start,
+    DateTime end,
+  ) {
+    final d = dateOnly(date);
+    final s = dateOnly(start);
+    final e = dateOnly(end);
+
+    return !d.isBefore(s) && !d.isAfter(e);
+  }
+
+  // ============================================================
   // MONTHLY DATA
   // ============================================================
 
@@ -202,9 +231,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
       double expense = 0;
 
       for (final item in incomeList) {
-        final date = DateTime.tryParse(
-          item['date']?.toString() ?? '',
-        );
+        final date = parseDate(item['date']);
 
         if (date != null &&
             date.year == now.year &&
@@ -215,9 +242,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
       }
 
       for (final item in expenseList) {
-        final date = DateTime.tryParse(
-          item['date']?.toString() ?? '',
-        );
+        final date = parseDate(item['date']);
 
         if (date != null &&
             date.year == now.year &&
@@ -238,50 +263,40 @@ class _StatisticsPageState extends State<StatisticsPage> {
   }
 
   // ============================================================
-  // WEEKLY DATA - CURRENT 7 DAYS
+  // WEEKLY DATA
   // ============================================================
 
   List<Map<String, dynamic>> buildWeeklyData(
     List<Map<String, dynamic>> incomeList,
     List<Map<String, dynamic>> expenseList,
   ) {
-    final today = DateTime.now();
+    final today = dateOnly(DateTime.now());
 
     final result = <Map<String, dynamic>>[];
 
     for (int i = 6; i >= 0; i--) {
-      final day = DateTime(
-        today.year,
-        today.month,
-        today.day,
-      ).subtract(Duration(days: i));
+      final day = today.subtract(
+        Duration(days: i),
+      );
 
       double income = 0;
       double expense = 0;
 
       for (final item in incomeList) {
-        final date = DateTime.tryParse(
-          item['date']?.toString() ?? '',
-        );
+        final date = parseDate(item['date']);
 
         if (date != null &&
-            date.year == day.year &&
-            date.month == day.month &&
-            date.day == day.day) {
+            isDateInRange(date, day, day)) {
           income +=
               (item['amount'] as num?)?.toDouble() ?? 0;
         }
       }
 
       for (final item in expenseList) {
-        final date = DateTime.tryParse(
-          item['date']?.toString() ?? '',
-        );
+        final date = parseDate(item['date']);
 
         if (date != null &&
-            date.year == day.year &&
-            date.month == day.month &&
-            date.day == day.day) {
+            isDateInRange(date, day, day)) {
           expense +=
               (item['amount'] as num?)?.toDouble() ?? 0;
         }
@@ -298,63 +313,58 @@ class _StatisticsPageState extends State<StatisticsPage> {
   }
 
   // ============================================================
-  // DAILY DATA - TODAY
+  // DAILY DATA
   // ============================================================
 
   List<Map<String, dynamic>> buildDailyData(
     List<Map<String, dynamic>> incomeList,
     List<Map<String, dynamic>> expenseList,
   ) {
-    final today = DateTime.now();
+    final today = dateOnly(DateTime.now());
+
+    double income = 0;
+    double expense = 0;
+
+    for (final item in incomeList) {
+      final date = parseDate(item['date']);
+
+      if (date != null &&
+          isDateInRange(date, today, today)) {
+        income +=
+            (item['amount'] as num?)?.toDouble() ?? 0;
+      }
+    }
+
+    for (final item in expenseList) {
+      final date = parseDate(item['date']);
+
+      if (date != null &&
+          isDateInRange(date, today, today)) {
+        expense +=
+            (item['amount'] as num?)?.toDouble() ?? 0;
+      }
+    }
 
     final result = <Map<String, dynamic>>[];
 
     for (int hour = 0; hour < 24; hour++) {
-      double income = 0;
-      double expense = 0;
-
-      for (final item in incomeList) {
-        final date = DateTime.tryParse(
-          item['date']?.toString() ?? '',
-        );
-
-        if (date != null &&
-            date.year == today.year &&
-            date.month == today.month &&
-            date.day == today.day &&
-            date.hour == hour) {
-          income +=
-              (item['amount'] as num?)?.toDouble() ?? 0;
-        }
-      }
-
-      for (final item in expenseList) {
-        final date = DateTime.tryParse(
-          item['date']?.toString() ?? '',
-        );
-
-        if (date != null &&
-            date.year == today.year &&
-            date.month == today.month &&
-            date.day == today.day &&
-            date.hour == hour) {
-          expense +=
-              (item['amount'] as num?)?.toDouble() ?? 0;
-        }
-      }
-
       result.add({
         'hour': hour,
-        'income': income,
-        'expense': expense,
+        'income': 0.0,
+        'expense': 0.0,
       });
     }
+
+    // Keep daily total information in hour 0 when
+    // transaction date does not contain a useful time.
+    result[0]['income'] = income;
+    result[0]['expense'] = expense;
 
     return result;
   }
 
   // ============================================================
-  // YEARLY DATA - LAST 5 YEARS
+  // YEARLY DATA
   // ============================================================
 
   List<Map<String, dynamic>> buildYearlyData(
@@ -372,9 +382,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
       double expense = 0;
 
       for (final item in incomeList) {
-        final date = DateTime.tryParse(
-          item['date']?.toString() ?? '',
-        );
+        final date = parseDate(item['date']);
 
         if (date != null && date.year == year) {
           income +=
@@ -383,9 +391,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
       }
 
       for (final item in expenseList) {
-        final date = DateTime.tryParse(
-          item['date']?.toString() ?? '',
-        );
+        final date = parseDate(item['date']);
 
         if (date != null && date.year == year) {
           expense +=
@@ -419,7 +425,9 @@ class _StatisticsPageState extends State<StatisticsPage> {
       if (categoryId != null) {
         final id = categoryId is int
             ? categoryId
-            : int.tryParse(categoryId.toString());
+            : int.tryParse(
+                categoryId.toString(),
+              );
 
         if (id != null) {
           categoryTotals[id] =
@@ -441,7 +449,8 @@ class _StatisticsPageState extends State<StatisticsPage> {
 
       if (amount > 0) {
         result.add({
-          'name': category['name']?.toString() ?? 'Other',
+          'name':
+              category['name']?.toString() ?? 'Other',
           'amount': amount,
         });
       }
@@ -513,7 +522,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
   }
 
   // ============================================================
-  // PERIOD CARD
+  // PERIOD SUMMARY
   // ============================================================
 
   Widget periodSummaryCard({
@@ -1118,9 +1127,8 @@ class _StatisticsPageState extends State<StatisticsPage> {
 
               final percentage =
                   totalExpense > 0
-                      ? (amount / totalExpense) *
-                          100
-                      : 0;
+                      ? (amount / totalExpense) * 100
+                      : 0.0;
 
               return Padding(
                 padding:
@@ -1135,8 +1143,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
                       children: [
                         Expanded(
                           child: Text(
-                            item['name']
-                                as String,
+                            item['name'] as String,
                           ),
                         ),
                         Text(
@@ -1161,13 +1168,13 @@ class _StatisticsPageState extends State<StatisticsPage> {
                     const SizedBox(height: 8),
                     ClipRRect(
                       borderRadius:
-                          BorderRadius.circular(
-                        10,
-                      ),
+                          BorderRadius.circular(10),
                       child:
                           LinearProgressIndicator(
                         value:
-                            amount / maxAmount,
+                            maxAmount > 0
+                                ? amount / maxAmount
+                                : 0,
                         minHeight: 9,
                         backgroundColor:
                             Colors.grey.shade200,
@@ -1186,7 +1193,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
   }
 
   // ============================================================
-  // HIGHEST INCOME / EXPENSE
+  // HIGHEST TRANSACTIONS
   // ============================================================
 
   Widget highestTransactionCard() {
@@ -1246,7 +1253,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
       decoration: BoxDecoration(
         borderRadius:
             BorderRadius.circular(12),
-        color: color.withValues(alpha: 0.08),
+        color: color.withOpacity(0.08),
       ),
       child: Column(
         crossAxisAlignment:
@@ -1299,7 +1306,8 @@ class _StatisticsPageState extends State<StatisticsPage> {
   // ============================================================
 
   Widget savingsAnalysis() {
-    final balance = totalIncome - totalExpense;
+    final balance =
+        totalIncome - totalExpense;
 
     final rateText =
         '${savingsRate.toStringAsFixed(1)}%';
@@ -1341,6 +1349,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
                               strokeWidth: 9,
                               backgroundColor:
                                   Colors.grey.shade200,
+                              color: Colors.teal,
                             ),
                             Text(
                               rateText,
@@ -1420,6 +1429,158 @@ class _StatisticsPageState extends State<StatisticsPage> {
   }
 
   // ============================================================
+  // BUDGET DATE RANGE
+  // ============================================================
+
+  Map<String, DateTime>? getBudgetRange(
+    Map<String, dynamic> budget,
+  ) {
+    final start = parseDate(
+      budget['start_date'],
+    );
+
+    if (start == null) return null;
+
+    final period =
+        budget['period']?.toString() ?? 'Monthly';
+
+    final startDay = dateOnly(start);
+
+    if (period == 'Custom') {
+      final end = parseDate(
+        budget['end_date'],
+      );
+
+      if (end == null) return null;
+
+      return {
+        'start': startDay,
+        'end': dateOnly(end),
+      };
+    }
+
+    // Monthly budget = the complete month
+    final monthStart = DateTime(
+      start.year,
+      start.month,
+      1,
+    );
+
+    final monthEnd = DateTime(
+      start.year,
+      start.month + 1,
+      0,
+    );
+
+    return {
+      'start': monthStart,
+      'end': monthEnd,
+    };
+  }
+
+  // ============================================================
+  // BUDGET ACTUAL
+  // ============================================================
+
+  double calculateBudgetActual(
+    Map<String, dynamic> budget,
+  ) {
+    final range = getBudgetRange(budget);
+
+    if (range == null) return 0;
+
+    final start = range['start']!;
+    final end = range['end']!;
+
+    final type =
+        budget['type']?.toString() ?? 'expense';
+
+    final categoryId = budget['category_id'];
+
+    final source =
+        type == 'income' ? incomes : expenses;
+
+    double actual = 0;
+
+    for (final item in source) {
+      final date = parseDate(item['date']);
+
+      if (date == null) continue;
+
+      if (!isDateInRange(
+        date,
+        start,
+        end,
+      )) {
+        continue;
+      }
+
+      if (categoryId != null) {
+        final transactionCategoryId =
+            item['category_id'];
+
+        if (transactionCategoryId == null ||
+            transactionCategoryId.toString() !=
+                categoryId.toString()) {
+          continue;
+        }
+      }
+
+      actual +=
+          (item['amount'] as num?)?.toDouble() ?? 0;
+    }
+
+    return actual;
+  }
+
+  // ============================================================
+  // ACTIVE / CURRENT BUDGETS
+  // ============================================================
+
+  bool isCurrentBudget(
+    Map<String, dynamic> budget,
+  ) {
+    final range = getBudgetRange(budget);
+
+    if (range == null) return false;
+
+    final today = dateOnly(DateTime.now());
+
+    final start = range['start']!;
+    final end = range['end']!;
+
+    return !today.isBefore(start) &&
+        !today.isAfter(end);
+  }
+
+  String budgetTypeName(
+    Map<String, dynamic> budget,
+  ) {
+    return budget['type'] == 'income'
+        ? 'Income'
+        : 'Expense';
+  }
+
+  String budgetCategoryName(
+    Map<String, dynamic> budget,
+  ) {
+    final categoryId = budget['category_id'];
+
+    if (categoryId == null) {
+      return 'All Categories';
+    }
+
+    for (final category in categories) {
+      if (category['id'].toString() ==
+          categoryId.toString()) {
+        return category['name'].toString();
+      }
+    }
+
+    return 'All Categories';
+  }
+
+  // ============================================================
   // BUDGET VS ACTUAL
   // ============================================================
 
@@ -1438,11 +1599,14 @@ class _StatisticsPageState extends State<StatisticsPage> {
               const SizedBox(height: 10),
               const Text(
                 'No budget plans found.',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 5),
               Text(
-                'Create a budget to compare planned '
-                'and actual expenses.',
+                'Create an income or expense budget '
+                'to compare planned and actual amounts.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.grey.shade600,
@@ -1455,35 +1619,9 @@ class _StatisticsPageState extends State<StatisticsPage> {
       );
     }
 
-    final now = DateTime.now();
-
-    final currentBudgets = budgets.where((budget) {
-      final start = DateTime.tryParse(
-        budget['start_date']?.toString() ?? '',
-      );
-
-      final endText =
-          budget['end_date']?.toString();
-
-      final end = endText != null &&
-              endText.isNotEmpty
-          ? DateTime.tryParse(endText)
-          : null;
-
-      if (start == null) {
-        return false;
-      }
-
-      if (start.isAfter(now)) {
-        return false;
-      }
-
-      if (end != null && end.isBefore(now)) {
-        return false;
-      }
-
-      return true;
-    }).toList();
+    final currentBudgets = budgets
+        .where(isCurrentBudget)
+        .toList();
 
     if (currentBudgets.isEmpty) {
       return Card(
@@ -1491,6 +1629,12 @@ class _StatisticsPageState extends State<StatisticsPage> {
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
+              const Icon(
+                Icons.event_available_outlined,
+                size: 40,
+                color: Colors.grey,
+              ),
+              const SizedBox(height: 10),
               const Text(
                 'No active budget plans.',
                 style: TextStyle(
@@ -1500,6 +1644,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
               const SizedBox(height: 5),
               Text(
                 'There are no budgets active today.',
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.grey.shade600,
                   fontSize: 12,
@@ -1525,18 +1670,22 @@ class _StatisticsPageState extends State<StatisticsPage> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            const SizedBox(height: 5),
+            const Text(
+              'Current active budgets',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+              ),
+            ),
             const SizedBox(height: 16),
+
             ...currentBudgets.map(
               (budget) {
                 final planned =
                     (budget['amount'] as num?)
                             ?.toDouble() ??
                         0;
-
-                final period =
-                    budget['period']
-                        ?.toString() ??
-                    'Monthly';
 
                 final actual =
                     calculateBudgetActual(
@@ -1551,10 +1700,20 @@ class _StatisticsPageState extends State<StatisticsPage> {
                 final exceeded =
                     actual > planned;
 
+                final isIncome =
+                    budget['type'] == 'income';
+
+                final difference =
+                    planned - actual;
+
+                final accentColor = isIncome
+                    ? Colors.green
+                    : Colors.red;
+
                 return Padding(
                   padding:
                       const EdgeInsets.only(
-                    bottom: 18,
+                    bottom: 20,
                   ),
                   child: Column(
                     crossAxisAlignment:
@@ -1562,6 +1721,14 @@ class _StatisticsPageState extends State<StatisticsPage> {
                     children: [
                       Row(
                         children: [
+                          Icon(
+                            isIncome
+                                ? Icons.trending_up
+                                : Icons.trending_down,
+                            size: 19,
+                            color: accentColor,
+                          ),
+                          const SizedBox(width: 7),
                           Expanded(
                             child: Text(
                               budget['title']
@@ -1574,43 +1741,83 @@ class _StatisticsPageState extends State<StatisticsPage> {
                               ),
                             ),
                           ),
-                          Text(
-                            period,
-                            style:
-                                const TextStyle(
-                              color: Colors.grey,
-                              fontSize: 11,
+                          Container(
+                            padding:
+                                const EdgeInsets
+                                    .symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration:
+                                BoxDecoration(
+                              borderRadius:
+                                  BorderRadius
+                                      .circular(10),
+                              color: accentColor
+                                  .withOpacity(0.10),
+                            ),
+                            child: Text(
+                              budgetTypeName(
+                                budget,
+                              ),
+                              style: TextStyle(
+                                color: accentColor,
+                                fontSize: 10,
+                                fontWeight:
+                                    FontWeight.bold,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+
+                      const SizedBox(height: 7),
+
+                      Text(
+                        '${budget['period']} • '
+                        '${budgetCategoryName(budget)}',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 11,
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
                       Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment
-                                .spaceBetween,
                         children: [
-                          Text(
-                            'Actual: ${money(actual)}',
-                            style: TextStyle(
-                              color: exceeded
+                          Expanded(
+                            child: _budgetAmount(
+                              'Planned',
+                              planned,
+                              Colors.blue,
+                            ),
+                          ),
+                          Expanded(
+                            child: _budgetAmount(
+                              'Actual',
+                              actual,
+                              accentColor,
+                            ),
+                          ),
+                          Expanded(
+                            child: _budgetAmount(
+                              exceeded
+                                  ? 'Exceeded'
+                                  : 'Remaining',
+                              exceeded
+                                  ? actual - planned
+                                  : difference,
+                              exceeded
                                   ? Colors.red
                                   : Colors.green,
-                              fontWeight:
-                                  FontWeight.w600,
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            'Budget: ${money(planned)}',
-                            style:
-                                const TextStyle(
-                              fontSize: 12,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 7),
+
+                      const SizedBox(height: 9),
+
                       ClipRRect(
                         borderRadius:
                             BorderRadius.circular(
@@ -1618,23 +1825,26 @@ class _StatisticsPageState extends State<StatisticsPage> {
                         ),
                         child:
                             LinearProgressIndicator(
-                          value:
-                              percentage > 1
-                                  ? 1
-                                  : percentage,
+                          value: percentage > 1
+                              ? 1
+                              : percentage,
                           minHeight: 9,
                           backgroundColor:
                               Colors.grey.shade200,
                           color: exceeded
                               ? Colors.red
-                              : Colors.green,
+                              : accentColor,
                         ),
                       ),
+
                       const SizedBox(height: 5),
+
                       Text(
                         exceeded
-                            ? 'Budget exceeded by ${money(actual - planned)}'
-                            : 'Remaining: ${money(planned - actual)}',
+                            ? 'Budget exceeded by '
+                                '${money(actual - planned)}'
+                            : '${(percentage * 100).toStringAsFixed(1)}% used • '
+                                'Remaining ${money(difference)}',
                         style: TextStyle(
                           fontSize: 10,
                           color: exceeded
@@ -1653,126 +1863,37 @@ class _StatisticsPageState extends State<StatisticsPage> {
     );
   }
 
-  // ============================================================
-  // CALCULATE BUDGET ACTUAL
-  // ============================================================
-
-  double calculateBudgetActual(
-    Map<String, dynamic> budget,
+  Widget _budgetAmount(
+    String title,
+    double amount,
+    Color color,
   ) {
-    final now = DateTime.now();
-
-    final amount =
-        (budget['amount'] as num?)?.toDouble() ?? 0;
-
-    final period =
-        budget['period']?.toString() ?? 'Monthly';
-
-    final startText =
-        budget['start_date']?.toString();
-
-    final start = startText != null
-        ? DateTime.tryParse(startText)
-        : null;
-
-    if (start == null) {
-      return 0;
-    }
-
-    DateTime rangeStart;
-    DateTime rangeEnd;
-
-    if (period == 'Weekly') {
-      final difference =
-          now.difference(start).inDays;
-
-      final weeks = difference >= 0
-          ? difference ~/ 7
-          : 0;
-
-      rangeStart =
-          start.add(Duration(days: weeks * 7));
-
-      rangeEnd =
-          rangeStart.add(const Duration(days: 7));
-    } else if (period == 'Yearly') {
-      rangeStart = DateTime(
-        now.year,
-        start.month,
-        start.day,
-      );
-
-      if (rangeStart.isAfter(now)) {
-        rangeStart = DateTime(
-          now.year - 1,
-          start.month,
-          start.day,
-        );
-      }
-
-      rangeEnd = DateTime(
-        rangeStart.year + 1,
-        rangeStart.month,
-        rangeStart.day,
-      );
-    } else {
-      rangeStart = DateTime(
-        now.year,
-        now.month,
-        start.day,
-      );
-
-      if (rangeStart.isAfter(now)) {
-        rangeStart = DateTime(
-          now.year,
-          now.month - 1,
-          start.day,
-        );
-      }
-
-      rangeEnd = DateTime(
-        rangeStart.year,
-        rangeStart.month + 1,
-        rangeStart.day,
-      );
-    }
-
-    final customEnd =
-        budget['end_date']?.toString();
-
-    final parsedCustomEnd =
-        customEnd != null &&
-                customEnd.isNotEmpty
-            ? DateTime.tryParse(customEnd)
-            : null;
-
-    if (parsedCustomEnd != null &&
-        parsedCustomEnd.isBefore(rangeEnd)) {
-      rangeEnd = parsedCustomEnd
-          .add(const Duration(days: 1));
-    }
-
-    double actual = 0;
-
-    for (final expense in expenses) {
-      final date = DateTime.tryParse(
-        expense['date']?.toString() ?? '',
-      );
-
-      if (date == null) {
-        continue;
-      }
-
-      if (!date.isBefore(rangeStart) &&
-          date.isBefore(rangeEnd)) {
-        actual +=
-            (expense['amount'] as num?)
-                    ?.toDouble() ??
-                0;
-      }
-    }
-
-    return actual;
+    return Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 10,
+            color: Colors.grey,
+          ),
+        ),
+        const SizedBox(height: 3),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            money(amount),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   // ============================================================
@@ -1890,17 +2011,14 @@ class _StatisticsPageState extends State<StatisticsPage> {
             onPressed: isLoading
                 ? null
                 : loadStatistics,
-            icon: const Icon(
-              Icons.refresh,
-            ),
+            icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
           ),
         ],
       ),
       body: isLoading
           ? const Center(
-              child:
-                  CircularProgressIndicator(),
+              child: CircularProgressIndicator(),
             )
           : RefreshIndicator(
               onRefresh: loadStatistics,
@@ -1910,10 +2028,6 @@ class _StatisticsPageState extends State<StatisticsPage> {
                 padding:
                     const EdgeInsets.all(16),
                 children: [
-                  // ------------------------------------------------
-                  // OVERALL SUMMARY
-                  // ------------------------------------------------
-
                   GridView.count(
                     crossAxisCount: 2,
                     shrinkWrap: true,
@@ -1954,10 +2068,6 @@ class _StatisticsPageState extends State<StatisticsPage> {
 
                   const SizedBox(height: 20),
 
-                  // ------------------------------------------------
-                  // DAILY / WEEKLY / MONTHLY / YEARLY
-                  // ------------------------------------------------
-
                   dailySummary(),
 
                   const SizedBox(height: 14),
@@ -1974,57 +2084,29 @@ class _StatisticsPageState extends State<StatisticsPage> {
 
                   const SizedBox(height: 20),
 
-                  // ------------------------------------------------
-                  // MONTHLY CHART
-                  // ------------------------------------------------
-
                   monthlyChart(),
 
                   const SizedBox(height: 20),
-
-                  // ------------------------------------------------
-                  // WEEKLY CHART
-                  // ------------------------------------------------
 
                   weeklyChart(),
 
                   const SizedBox(height: 20),
 
-                  // ------------------------------------------------
-                  // YEARLY CHART
-                  // ------------------------------------------------
-
                   yearlyChart(),
 
                   const SizedBox(height: 20),
-
-                  // ------------------------------------------------
-                  // CATEGORY
-                  // ------------------------------------------------
 
                   categoryBreakdown(),
 
                   const SizedBox(height: 20),
 
-                  // ------------------------------------------------
-                  // HIGHEST TRANSACTIONS
-                  // ------------------------------------------------
-
                   highestTransactionCard(),
 
                   const SizedBox(height: 20),
 
-                  // ------------------------------------------------
-                  // SAVINGS ANALYSIS
-                  // ------------------------------------------------
-
                   savingsAnalysis(),
 
                   const SizedBox(height: 20),
-
-                  // ------------------------------------------------
-                  // BUDGET VS ACTUAL
-                  // ------------------------------------------------
 
                   budgetVsActual(),
 
