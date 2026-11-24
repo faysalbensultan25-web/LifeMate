@@ -11,29 +11,19 @@ class LifeMateApp extends StatefulWidget {
   State<LifeMateApp> createState() => _LifeMateAppState();
 }
 
-class _LifeMateAppState extends State<LifeMateApp>
-    with WidgetsBindingObserver {
+class _LifeMateAppState extends State<LifeMateApp> {
   ThemeMode _themeMode = ThemeMode.system;
-  String _language = 'en';
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _loadSettings();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
   }
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
 
     final theme = prefs.getString('theme') ?? 'system';
-    final language = prefs.getString('language') ?? 'en';
 
     ThemeMode selectedTheme;
 
@@ -54,7 +44,6 @@ class _LifeMateAppState extends State<LifeMateApp>
 
     setState(() {
       _themeMode = selectedTheme;
-      _language = language;
     });
   }
 
@@ -65,13 +54,21 @@ class _LifeMateAppState extends State<LifeMateApp>
       debugShowCheckedModeBanner: false,
 
       theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+
+      // আপনার বর্তমান AppTheme-এ darkTheme নেই,
+      // তাই আপাতত Material-এর dark theme ব্যবহার করা হচ্ছে।
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: AppTheme.primaryBlue,
+          brightness: Brightness.dark,
+        ),
+      ),
+
       themeMode: _themeMode,
 
-      home: HomePage(
-        language: _language,
-        onSettingsChanged: _loadSettings,
-      ),
+      home: const HomePage(),
     );
   }
 }
