@@ -1,5 +1,5 @@
-
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/database/app_database.dart';
 
@@ -59,22 +59,19 @@ class _FinancePageState extends State<FinancePage> {
 
     for (final entry in defaults.entries) {
       for (final name in entry.value) {
-        final existing = await db.query(
+        final exists = await db.query(
           'categories',
           where: 'name = ? AND type = ?',
           whereArgs: [name, entry.key],
           limit: 1,
         );
 
-        if (existing.isEmpty) {
-          await db.insert(
-            'categories',
-            {
-              'name': name,
-              'type': entry.key,
-              'created_at': DateTime.now().toIso8601String(),
-            },
-          );
+        if (exists.isEmpty) {
+          await db.insert('categories', {
+            'name': name,
+            'type': entry.key,
+            'created_at': DateTime.now().toIso8601String(),
+          });
         }
       }
     }
@@ -83,30 +80,25 @@ class _FinancePageState extends State<FinancePage> {
   Future<void> loadFinanceData() async {
     final db = await AppDatabase.database;
 
-    final incomeData = await db.query(
-      'incomes',
-      orderBy: 'id DESC',
-    );
+    final incomeData =
+        await db.query('incomes', orderBy: 'id DESC');
 
-    final expenseData = await db.query(
-      'expenses',
-      orderBy: 'id DESC',
-    );
+    final expenseData =
+        await db.query('expenses', orderBy: 'id DESC');
 
-    final categoryData = await db.query(
-      'categories',
-      orderBy: 'name ASC',
-    );
+    final categoryData =
+        await db.query('categories', orderBy: 'name ASC');
 
-    final incomeTotal = incomeData.fold<double>(
-      0,
-      (sum, item) => sum + (item['amount'] as num).toDouble(),
-    );
+    double income = 0;
+    double expense = 0;
 
-    final expenseTotal = expenseData.fold<double>(
-      0,
-      (sum, item) => sum + (item['amount'] as num).toDouble(),
-    );
+    for (final x in incomeData) {
+      income += (x['amount'] as num).toDouble();
+    }
+
+    for (final x in expenseData) {
+      expense += (x['amount'] as num).toDouble();
+    }
 
     if (!mounted) return;
 
@@ -114,8 +106,8 @@ class _FinancePageState extends State<FinancePage> {
       incomes = incomeData;
       expenses = expenseData;
       categories = categoryData;
-      totalIncome = incomeTotal;
-      totalExpense = expenseTotal;
+      totalIncome = income;
+      totalExpense = expense;
     });
   }
 
@@ -125,7 +117,11 @@ class _FinancePageState extends State<FinancePage> {
     await showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('New Category'),
+        title: Text(
+          type == 'income'
+              ? 'Add Income Category'
+              : 'Add Expense Category',
+        ),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -142,28 +138,24 @@ class _FinancePageState extends State<FinancePage> {
           ElevatedButton(
             onPressed: () async {
               final name = controller.text.trim();
-
               if (name.isEmpty) return;
 
               final db = await AppDatabase.database;
 
-              final existing = await db.query(
+              final exists = await db.query(
                 'categories',
                 where: 'name = ? AND type = ?',
                 whereArgs: [name, type],
                 limit: 1,
               );
 
-              if (existing.isNotEmpty) return;
+              if (exists.isNotEmpty) return;
 
-              await db.insert(
-                'categories',
-                {
-                  'name': name,
-                  'type': type,
-                  'created_at': DateTime.now().toIso8601String(),
-                },
-              );
+              await db.insert('categories', {
+                'name': name,
+                'type': type,
+                'created_at': DateTime.now().toIso8601String(),
+              });
 
               if (dialogContext.mounted) {
                 Navigator.pop(dialogContext);
@@ -182,25 +174,40 @@ class _FinancePageState extends State<FinancePage> {
   Future<void> addTransaction(bool isIncome) async {
     final amountController = TextEditingController();
     final descriptionController = TextEditingController();
+    final dateController = TextEditingController();
 
     final type = isIncome ? 'income' : 'expense';
 
-    var selectedCategoryId = 0;
+    DateTime selectedDate = DateTime.now();
 
-    var availableCategories = categories
-        .where((category) => category['type'] == type)
-        .toList();
+    var availableCategories =
+        categories.where((x) => x['type'] == type).toList();
+
+    int? selectedCategoryId;
+
+    dateController.text =
+        DateFormat('dd MMM yyyy').format(selectedDate);
 
     await showDialog(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
-          builder: (context, updateDialog) {
+          builder: (context, update) {
             return AlertDialog(
-              title: Text(isIncome ? 'Add Income' : 'Add Expense'),
+              title: Row(
+                children: [
+                  Icon(
+                    isIncome
+                        ? Icons.arrow_downward
+                        : Icons.arrow_upward,
+                    color: isIncome ? Colors.green : Colors.red,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(isIncome ? 'Add Income' : 'Add Expense'),
+                ],
+              ),
               content: SingleChildScrollView(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
                     TextField(
                       controller: amountController,
@@ -215,54 +222,83 @@ class _FinancePageState extends State<FinancePage> {
                       ),
                     ),
                     const SizedBox(height: 12),
+
                     DropdownButtonFormField<int>(
-                      value: selectedCategoryId == 0
-                          ? null
-                          : selectedCategoryId,
+                      value: selectedCategoryId,
                       decoration: const InputDecoration(
                         labelText: 'Category',
                         border: OutlineInputBorder(),
                       ),
-                      items: availableCategories.map((category) {
+                      items: availableCategories.map((x) {
                         return DropdownMenuItem<int>(
-                          value: category['id'] as int,
-                          child: Text(category['name'] as String),
+                          value: x['id'] as int,
+                          child: Text(x['name'].toString()),
                         );
                       }).toList(),
                       onChanged: (value) {
-                        updateDialog(() {
-                          selectedCategoryId = value ?? 0;
+                        update(() {
+                          selectedCategoryId = value;
                         });
                       },
                     ),
+
                     Align(
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
                         onPressed: () async {
                           await addCategory(type);
+                          await loadFinanceData();
 
                           availableCategories = categories
-                              .where(
-                                (category) => category['type'] == type,
-                              )
+                              .where((x) => x['type'] == type)
                               .toList();
 
-                          updateDialog(() {
-                            selectedCategoryId =
-                                availableCategories.isNotEmpty
-                                    ? availableCategories.last['id'] as int
-                                    : 0;
+                          update(() {
+                            if (availableCategories.isNotEmpty) {
+                              selectedCategoryId =
+                                  availableCategories.last['id'] as int;
+                            }
                           });
                         },
                         icon: const Icon(Icons.add),
                         label: const Text('Add Category'),
                       ),
                     ),
-                    const SizedBox(height: 8),
+
+                    TextField(
+                      controller: dateController,
+                      readOnly: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Date',
+                        prefixIcon: Icon(Icons.calendar_today),
+                        border: OutlineInputBorder(),
+                      ),
+                      onTap: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
+
+                        if (date != null) {
+                          update(() {
+                            selectedDate = date;
+                            dateController.text =
+                                DateFormat('dd MMM yyyy').format(date);
+                          });
+                        }
+                      },
+                    ),
+
+                    const SizedBox(height: 12),
+
                     TextField(
                       controller: descriptionController,
+                      maxLines: 2,
                       decoration: const InputDecoration(
                         labelText: 'Description',
+                        prefixIcon: Icon(Icons.notes),
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -274,20 +310,27 @@ class _FinancePageState extends State<FinancePage> {
                   onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('Cancel'),
                 ),
-                ElevatedButton(
+                ElevatedButton.icon(
                   onPressed: () async {
-                    final amount = double.tryParse(
-                      amountController.text.trim(),
-                    );
+                    final amount =
+                        double.tryParse(amountController.text.trim());
 
                     if (amount == null ||
                         amount <= 0 ||
-                        selectedCategoryId == 0) {
+                        selectedCategoryId == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Enter amount and select category',
+                          ),
+                        ),
+                      );
                       return;
                     }
 
                     final db = await AppDatabase.database;
-                    final now = DateTime.now().toIso8601String();
+                    final date =
+                        selectedDate.toIso8601String();
 
                     await db.insert(
                       isIncome ? 'incomes' : 'expenses',
@@ -296,8 +339,9 @@ class _FinancePageState extends State<FinancePage> {
                         'category_id': selectedCategoryId,
                         'description':
                             descriptionController.text.trim(),
-                        'date': now,
-                        'created_at': now,
+                        'date': date,
+                        'created_at':
+                            DateTime.now().toIso8601String(),
                       },
                     );
 
@@ -305,7 +349,8 @@ class _FinancePageState extends State<FinancePage> {
                       Navigator.pop(dialogContext);
                     }
                   },
-                  child: const Text('Save'),
+                  icon: const Icon(Icons.save),
+                  label: const Text('Save'),
                 ),
               ],
             );
@@ -316,6 +361,7 @@ class _FinancePageState extends State<FinancePage> {
 
     amountController.dispose();
     descriptionController.dispose();
+    dateController.dispose();
 
     await loadFinanceData();
   }
@@ -335,16 +381,20 @@ class _FinancePageState extends State<FinancePage> {
     await loadFinanceData();
   }
 
-  String categoryName(dynamic categoryId) {
-    if (categoryId == null) return 'Uncategorized';
+  String categoryName(dynamic id) {
+    final item = categories.where((x) => x['id'] == id);
 
-    final matches = categories.where(
-      (category) => category['id'] == categoryId,
-    );
+    if (item.isEmpty) return 'Other';
 
-    if (matches.isEmpty) return 'Uncategorized';
+    return item.first['name'].toString();
+  }
 
-    return matches.first['name'] as String;
+  String formatDate(dynamic value) {
+    final date = DateTime.tryParse(value?.toString() ?? '');
+
+    if (date == null) return '';
+
+    return DateFormat('dd MMM yyyy').format(date);
   }
 
   Widget summaryCard(
@@ -356,19 +406,32 @@ class _FinancePageState extends State<FinancePage> {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 12),
-            Text(title, style: const TextStyle(color: Colors.grey)),
-            const SizedBox(height: 6),
-            Text(
-              '৳ ${amount.toStringAsFixed(2)}',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: color,
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: color.withOpacity(.12),
+              child: Icon(icon, color: color),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    '৳ ${amount.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -377,7 +440,55 @@ class _FinancePageState extends State<FinancePage> {
     );
   }
 
-  Widget transactionList(
+  Widget transactionCard(
+    Map<String, dynamic> item,
+    bool isIncome,
+  ) {
+    final amount = (item['amount'] as num).toDouble();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor:
+              isIncome ? Colors.green.shade50 : Colors.red.shade50,
+          child: Icon(
+            isIncome
+                ? Icons.arrow_downward
+                : Icons.arrow_upward,
+            color: isIncome ? Colors.green : Colors.red,
+          ),
+        ),
+        title: Text(
+          '${isIncome ? '+' : '-'} ৳ ${amount.toStringAsFixed(2)}',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: isIncome ? Colors.green : Colors.red,
+          ),
+        ),
+        subtitle: Text(
+          '${categoryName(item['category_id'])}'
+          '${item['description'].toString().isNotEmpty ? ' • ${item['description']}' : ''}'
+          '\n${formatDate(item['date'])}',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        isThreeLine: true,
+        trailing: IconButton(
+          icon: const Icon(
+            Icons.delete_outline,
+            color: Colors.red,
+          ),
+          onPressed: () => deleteTransaction(
+            isIncome,
+            item['id'] as int,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget history(
     String title,
     List<Map<String, dynamic>> items,
     bool isIncome,
@@ -385,60 +496,32 @@ class _FinancePageState extends State<FinancePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+        const SizedBox(height: 14),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 19,
+            fontWeight: FontWeight.bold,
           ),
         ),
+        const SizedBox(height: 8),
         if (items.isEmpty)
-          const Card(
+          Card(
             child: ListTile(
-              title: Text('No transactions yet'),
+              leading: Icon(
+                isIncome
+                    ? Icons.account_balance_wallet_outlined
+                    : Icons.receipt_long_outlined,
+              ),
+              title: Text(
+                isIncome
+                    ? 'No income recorded'
+                    : 'No expense recorded',
+              ),
             ),
           )
         else
-          ...items.map((item) {
-            return Card(
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: isIncome
-                      ? Colors.green.shade50
-                      : Colors.red.shade50,
-                  child: Icon(
-                    isIncome
-                        ? Icons.arrow_downward
-                        : Icons.arrow_upward,
-                    color: isIncome ? Colors.green : Colors.red,
-                  ),
-                ),
-                title: Text(
-                  '৳ ${(item['amount'] as num).toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                subtitle: Text(
-                  '${categoryName(item['category_id'])} • '
-                  '${(item['description'] as String?)?.isNotEmpty == true ? item['description'] : 'No description'}',
-                ),
-                trailing: IconButton(
-                  icon: const Icon(
-                    Icons.delete_outline,
-                    color: Colors.red,
-                  ),
-                  onPressed: () => deleteTransaction(
-                    isIncome,
-                    item['id'] as int,
-                  ),
-                ),
-              ),
-            );
-          }),
+          ...items.map((x) => transactionCard(x, isIncome)),
       ],
     );
   }
@@ -447,54 +530,59 @@ class _FinancePageState extends State<FinancePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Finance'),
+        title: const Text(
+          'Finance',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         actions: [
-          IconButton(
-            onPressed: () => addCategory('income'),
-            icon: const Icon(Icons.category_outlined),
-            tooltip: 'Add Income Category',
-          ),
-          IconButton(
-            onPressed: () => addCategory('expense'),
-            icon: const Icon(Icons.add_circle_outline),
-            tooltip: 'Add Expense Category',
+          PopupMenuButton<String>(
+            onSelected: addCategory,
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'income',
+                child: Text('Add Income Category'),
+              ),
+              PopupMenuItem(
+                value: 'expense',
+                child: Text('Add Expense Category'),
+              ),
+            ],
           ),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: loadFinanceData,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(
+            14,
+            10,
+            14,
+            30,
+          ),
           children: [
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1.15,
-              children: [
-                summaryCard(
-                  'Total Income',
-                  totalIncome,
-                  Icons.trending_up,
-                  Colors.green,
-                ),
-                summaryCard(
-                  'Total Expense',
-                  totalExpense,
-                  Icons.trending_down,
-                  Colors.red,
-                ),
-              ],
+            summaryCard(
+              'Total Income',
+              totalIncome,
+              Icons.trending_up,
+              Colors.green,
+            ),
+            summaryCard(
+              'Total Expense',
+              totalExpense,
+              Icons.trending_down,
+              Colors.red,
             ),
             summaryCard(
               'Current Balance',
               balance,
               Icons.account_balance_wallet,
-              const Color(0xFF1877F2),
+              balance >= 0
+                  ? Colors.blue
+                  : Colors.red,
             ),
-            const SizedBox(height: 16),
+
+            const SizedBox(height: 10),
+
             Row(
               children: [
                 Expanded(
@@ -502,20 +590,40 @@ class _FinancePageState extends State<FinancePage> {
                     onPressed: () => addTransaction(true),
                     icon: const Icon(Icons.add),
                     label: const Text('Income'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () => addTransaction(false),
                     icon: const Icon(Icons.remove),
                     label: const Text('Expense'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
-            transactionList('Income History', incomes, true),
-            transactionList('Expense History', expenses, false),
+
+            history(
+              'Income History',
+              incomes,
+              true,
+            ),
+
+            history(
+              'Expense History',
+              expenses,
+              false,
+            ),
           ],
         ),
       ),
