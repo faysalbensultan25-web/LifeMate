@@ -234,7 +234,6 @@ class _HomePageState extends State<HomePage> {
       ),
     );
 
-    // Reload profile photo and name after returning.
     await loadProfile();
     await loadActivities();
   }
@@ -248,6 +247,421 @@ class _HomePageState extends State<HomePage> {
     );
 
     await loadActivities();
+  }
+
+  // ------------------------------------------------------------
+  // QUICK ADD
+  // ------------------------------------------------------------
+
+  void showQuickAdd() {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              16,
+              8,
+              16,
+              24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Quick Add',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                _quickAddTile(
+                  sheetContext,
+                  'To-Do',
+                  Icons.check_circle_outline,
+                  () {
+                    Navigator.pop(sheetContext);
+                    openTodo();
+                  },
+                ),
+
+                _quickAddTile(
+                  sheetContext,
+                  'Income',
+                  Icons.trending_up,
+                  () {
+                    Navigator.pop(sheetContext);
+                    openFinance();
+                  },
+                ),
+
+                _quickAddTile(
+                  sheetContext,
+                  'Expense',
+                  Icons.trending_down,
+                  () {
+                    Navigator.pop(sheetContext);
+                    openFinance();
+                  },
+                ),
+
+                _quickAddTile(
+                  sheetContext,
+                  'Note',
+                  Icons.note_alt_outlined,
+                  () {
+                    Navigator.pop(sheetContext);
+                    openNotes();
+                  },
+                ),
+
+                _quickAddTile(
+                  sheetContext,
+                  'Event',
+                  Icons.event_outlined,
+                  () {
+                    Navigator.pop(sheetContext);
+                    openEvents();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _quickAddTile(
+    BuildContext context,
+    String title,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: const Color(0xFFE7F0FF),
+        child: Icon(
+          icon,
+          color: const Color(0xFF1877F2),
+        ),
+      ),
+      title: Text(title),
+      trailing: const Icon(
+        Icons.chevron_right,
+      ),
+      onTap: onTap,
+    );
+  }
+
+  // ------------------------------------------------------------
+  // SEARCH
+  // ------------------------------------------------------------
+
+  Future<List<Map<String, dynamic>>> searchAll(
+    String query,
+  ) async {
+    final text = query.trim();
+
+    if (text.isEmpty) return [];
+
+    final db = await AppDatabase.database;
+    final pattern = '%$text%';
+
+    final result = <Map<String, dynamic>>[];
+
+    final todos = await db.query(
+      'todos',
+      where: 'title LIKE ?',
+      whereArgs: [pattern],
+      orderBy: 'id DESC',
+      limit: 20,
+    );
+
+    for (final item in todos) {
+      result.add({
+        'type': 'To-Do',
+        'title': item['title'],
+        'subtitle': 'To-Do',
+        'action': 'todo',
+      });
+    }
+
+    final notes = await db.query(
+      'notes',
+      where: 'title LIKE ? OR content LIKE ?',
+      whereArgs: [pattern, pattern],
+      orderBy: 'id DESC',
+      limit: 20,
+    );
+
+    for (final item in notes) {
+      result.add({
+        'type': 'Note',
+        'title': item['title'],
+        'subtitle': item['content'],
+        'action': 'note',
+      });
+    }
+
+    final incomes = await db.query(
+      'incomes',
+      where: 'description LIKE ?',
+      whereArgs: [pattern],
+      orderBy: 'id DESC',
+      limit: 20,
+    );
+
+    for (final item in incomes) {
+      result.add({
+        'type': 'Income',
+        'title': 'Income: ৳${item['amount']}',
+        'subtitle': item['description'] ?? 'Income',
+        'action': 'finance',
+      });
+    }
+
+    final expenses = await db.query(
+      'expenses',
+      where: 'description LIKE ?',
+      whereArgs: [pattern],
+      orderBy: 'id DESC',
+      limit: 20,
+    );
+
+    for (final item in expenses) {
+      result.add({
+        'type': 'Expense',
+        'title': 'Expense: ৳${item['amount']}',
+        'subtitle': item['description'] ?? 'Expense',
+        'action': 'finance',
+      });
+    }
+
+    final events = await db.query(
+      'events',
+      where: 'title LIKE ? OR description LIKE ?',
+      whereArgs: [pattern, pattern],
+      orderBy: 'id DESC',
+      limit: 20,
+    );
+
+    for (final item in events) {
+      result.add({
+        'type': 'Event',
+        'title': item['title'],
+        'subtitle': item['description'] ?? 'Event',
+        'action': 'events',
+      });
+    }
+
+    return result;
+  }
+
+  void openSearch() {
+    final searchController = TextEditingController();
+
+    showSearchResults(searchController);
+  }
+
+  void showSearchResults(
+    TextEditingController controller,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  bottom:
+                      MediaQuery.of(context).viewInsets.bottom +
+                          16,
+                ),
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.height *
+                      0.78,
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Search LifeMate',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      TextField(
+                        controller: controller,
+                        autofocus: true,
+                        onChanged: (_) {
+                          setSheetState(() {});
+                        },
+                        decoration: InputDecoration(
+                          hintText:
+                              'Search To-Do, Notes, Finance, Events...',
+                          prefixIcon:
+                              const Icon(Icons.search),
+                          suffixIcon: controller.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  onPressed: () {
+                                    controller.clear();
+                                    setSheetState(() {});
+                                  },
+                                  icon: const Icon(
+                                    Icons.clear,
+                                  ),
+                                ),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      Expanded(
+                        child: FutureBuilder<
+                            List<Map<String, dynamic>>>(
+                          future: searchAll(
+                            controller.text,
+                          ),
+                          builder: (
+                            context,
+                            snapshot,
+                          ) {
+                            if (controller.text.trim().isEmpty) {
+                              return const Center(
+                                child: Text(
+                                  'Type something to search.',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              );
+                            }
+
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const Center(
+                                child:
+                                    CircularProgressIndicator(),
+                              );
+                            }
+
+                            if (snapshot.hasError) {
+                              return Center(
+                                child: Text(
+                                  'Search failed: ${snapshot.error}',
+                                ),
+                              );
+                            }
+
+                            final results =
+                                snapshot.data ?? [];
+
+                            if (results.isEmpty) {
+                              return const Center(
+                                child: Text(
+                                  'No results found.',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              );
+                            }
+
+                            return ListView.builder(
+                              itemCount: results.length,
+                              itemBuilder: (
+                                context,
+                                index,
+                              ) {
+                                final item =
+                                    results[index];
+
+                                return Card(
+                                  child: ListTile(
+                                    leading: const CircleAvatar(
+                                      backgroundColor:
+                                          Color(0xFFE7F0FF),
+                                      child: Icon(
+                                        Icons.search,
+                                        color:
+                                            Color(0xFF1877F2),
+                                      ),
+                                    ),
+                                    title: Text(
+                                      item['title']
+                                          .toString(),
+                                      maxLines: 1,
+                                      overflow:
+                                          TextOverflow.ellipsis,
+                                    ),
+                                    subtitle: Text(
+                                      '${item['type']} • '
+                                      '${item['subtitle']}',
+                                      maxLines: 2,
+                                      overflow:
+                                          TextOverflow.ellipsis,
+                                    ),
+                                    trailing: const Icon(
+                                      Icons.chevron_right,
+                                    ),
+                                    onTap: () {
+                                      Navigator.pop(
+                                        sheetContext,
+                                      );
+
+                                      _openSearchResult(
+                                        item['action']
+                                            .toString(),
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    ).whenComplete(controller.dispose);
+  }
+
+  void _openSearchResult(String action) {
+    if (action == 'todo') {
+      openTodo();
+    } else if (action == 'note') {
+      openNotes();
+    } else if (action == 'finance') {
+      openFinance();
+    } else if (action == 'events') {
+      openEvents();
+    }
   }
 
   Widget _profileHomeIcon() {
@@ -282,11 +696,20 @@ class _HomePageState extends State<HomePage> {
         ),
         actions: [
           IconButton(
-            onPressed: () {},
+            onPressed: openSearch,
             icon: const Icon(Icons.search),
+            tooltip: 'Search',
           ),
           IconButton(
-            onPressed: () {},
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Notifications will be available here.',
+                  ),
+                ),
+              );
+            },
             icon: const Icon(
               Icons.notifications_outlined,
             ),
@@ -405,6 +828,24 @@ class _HomePageState extends State<HomePage> {
 
           if (index == 1) {
             openTodo();
+          } else if (index == 2) {
+            showQuickAdd();
+          } else if (index == 3) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Notifications will be available here.',
+                ),
+              ),
+            );
+          } else if (index == 4) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'More options will be available here.',
+                ),
+              ),
+            );
           }
         },
         destinations: const [
