@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../app.dart';
 import '../backup/backup_page.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -12,10 +13,9 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   String language = 'English';
-  String theme = 'System Default';
+  String theme = 'Light';
   String currency = 'BDT (৳)';
   bool notifications = true;
-
   bool isLoading = true;
 
   @override
@@ -30,86 +30,67 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!mounted) return;
 
     setState(() {
-      language =
-          prefs.getString('language') ?? 'English';
-
-      theme =
-          prefs.getString('theme') ?? 'System Default';
-
-      currency =
-          prefs.getString('currency') ?? 'BDT (৳)';
-
-      notifications =
-          prefs.getBool('notifications') ?? true;
-
+      language = prefs.getString('language') ?? 'English';
+      theme = prefs.getString('theme') ?? 'Light';
+      currency = prefs.getString('currency') ?? 'BDT (৳)';
+      notifications = prefs.getBool('notifications') ?? true;
       isLoading = false;
     });
   }
 
   Future<void> saveLanguage(String value) async {
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.setString('language', value);
 
     if (!mounted) return;
 
-    setState(() {
-      language = value;
-    });
-
-    showMessage(
-      value == 'বাংলা'
-          ? 'ভাষা বাংলা নির্বাচন করা হয়েছে।'
-          : 'English language selected.',
-    );
+    setState(() => language = value);
+    showMessage(value == 'বাংলা'
+        ? 'ভাষা বাংলা নির্বাচন করা হয়েছে।'
+        : 'English language selected.');
   }
 
   Future<void> saveTheme(String value) async {
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.setString('theme', value);
+
+    switch (value) {
+      case 'Dark':
+        lifeMateThemeMode.value = ThemeMode.dark;
+        break;
+      case 'System Default':
+        lifeMateThemeMode.value = ThemeMode.system;
+        break;
+      default:
+        lifeMateThemeMode.value = ThemeMode.light;
+    }
 
     if (!mounted) return;
 
-    setState(() {
-      theme = value;
-    });
-
-    showMessage(
-      'Theme saved. Restart the app to apply everywhere.',
-    );
+    setState(() => theme = value);
+    showMessage('Theme changed successfully.');
   }
 
   Future<void> saveCurrency(String value) async {
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.setString('currency', value);
 
     if (!mounted) return;
 
-    setState(() {
-      currency = value;
-    });
-
+    setState(() => currency = value);
     showMessage('Currency saved.');
   }
 
   Future<void> saveNotifications(bool value) async {
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.setBool('notifications', value);
 
     if (!mounted) return;
 
-    setState(() {
-      notifications = value;
-    });
-
-    showMessage(
-      value
-          ? 'Notifications enabled.'
-          : 'Notifications disabled.',
-    );
+    setState(() => notifications = value);
+    showMessage(value
+        ? 'Notifications enabled.'
+        : 'Notifications disabled.');
   }
 
   void showMessage(String message) {
@@ -123,158 +104,129 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> showLanguageDialog() async {
     final selected = await showDialog<String>(
       context: context,
-      builder: (context) {
-        return SimpleDialog(
-          title: const Text('Language'),
-          children: [
-            RadioListTile<String>(
-              value: 'English',
-              groupValue: language,
-              title: const Text('English'),
-              onChanged: (value) {
-                Navigator.pop(context, value);
-              },
-            ),
-            RadioListTile<String>(
-              value: 'বাংলা',
-              groupValue: language,
-              title: const Text('বাংলা'),
-              onChanged: (value) {
-                Navigator.pop(context, value);
-              },
-            ),
-          ],
-        );
-      },
+      builder: (context) => SimpleDialog(
+        title: const Text('Language'),
+        children: [
+          RadioListTile<String>(
+            value: 'English',
+            groupValue: language,
+            title: const Text('English'),
+            onChanged: (v) => Navigator.pop(context, v),
+          ),
+          RadioListTile<String>(
+            value: 'বাংলা',
+            groupValue: language,
+            title: const Text('বাংলা'),
+            onChanged: (v) => Navigator.pop(context, v),
+          ),
+        ],
+      ),
     );
 
-    if (selected != null) {
-      await saveLanguage(selected);
-    }
+    if (selected != null) await saveLanguage(selected);
   }
 
   Future<void> showThemeDialog() async {
     final selected = await showDialog<String>(
       context: context,
-      builder: (context) {
-        return SimpleDialog(
-          title: const Text('Theme'),
-          children: [
-            RadioListTile<String>(
-              value: 'System Default',
-              groupValue: theme,
-              title: const Text('System Default'),
-              onChanged: (value) {
-                Navigator.pop(context, value);
-              },
-            ),
-            RadioListTile<String>(
-              value: 'Light',
-              groupValue: theme,
-              title: const Text('Light'),
-              onChanged: (value) {
-                Navigator.pop(context, value);
-              },
-            ),
-            RadioListTile<String>(
-              value: 'Dark',
-              groupValue: theme,
-              title: const Text('Dark'),
-              onChanged: (value) {
-                Navigator.pop(context, value);
-              },
-            ),
-          ],
-        );
-      },
+      builder: (context) => SimpleDialog(
+        title: const Text('Theme'),
+        children: [
+          RadioListTile<String>(
+            value: 'Light',
+            groupValue: theme,
+            title: const Text('Light'),
+            secondary: const Icon(Icons.light_mode),
+            onChanged: (v) => Navigator.pop(context, v),
+          ),
+          RadioListTile<String>(
+            value: 'Dark',
+            groupValue: theme,
+            title: const Text('Dark'),
+            secondary: const Icon(Icons.dark_mode),
+            onChanged: (v) => Navigator.pop(context, v),
+          ),
+          RadioListTile<String>(
+            value: 'System Default',
+            groupValue: theme,
+            title: const Text('System Default'),
+            secondary: const Icon(Icons.settings_suggest),
+            onChanged: (v) => Navigator.pop(context, v),
+          ),
+        ],
+      ),
     );
 
-    if (selected != null) {
-      await saveTheme(selected);
-    }
+    if (selected != null) await saveTheme(selected);
   }
 
   Future<void> showCurrencyDialog() async {
     final selected = await showDialog<String>(
       context: context,
-      builder: (context) {
-        return SimpleDialog(
-          title: const Text('Currency'),
-          children: [
-            RadioListTile<String>(
-              value: 'BDT (৳)',
-              groupValue: currency,
-              title: const Text('Bangladeshi Taka (৳)'),
-              onChanged: (value) {
-                Navigator.pop(context, value);
-              },
-            ),
-            RadioListTile<String>(
-              value: 'USD (\$)',
-              groupValue: currency,
-              title: const Text('US Dollar (\$)'),
-              onChanged: (value) {
-                Navigator.pop(context, value);
-              },
-            ),
-            RadioListTile<String>(
-              value: 'EUR (€)',
-              groupValue: currency,
-              title: const Text('Euro (€)'),
-              onChanged: (value) {
-                Navigator.pop(context, value);
-              },
-            ),
-            RadioListTile<String>(
-              value: 'GBP (£)',
-              groupValue: currency,
-              title: const Text('British Pound (£)'),
-              onChanged: (value) {
-                Navigator.pop(context, value);
-              },
-            ),
-          ],
-        );
-      },
+      builder: (context) => SimpleDialog(
+        title: const Text('Currency'),
+        children: [
+          RadioListTile<String>(
+            value: 'BDT (৳)',
+            groupValue: currency,
+            title: const Text('Bangladeshi Taka (৳)'),
+            onChanged: (v) => Navigator.pop(context, v),
+          ),
+          RadioListTile<String>(
+            value: 'USD (\$)',
+            groupValue: currency,
+            title: const Text('US Dollar (\$)'),
+            onChanged: (v) => Navigator.pop(context, v),
+          ),
+          RadioListTile<String>(
+            value: 'EUR (€)',
+            groupValue: currency,
+            title: const Text('Euro (€)'),
+            onChanged: (v) => Navigator.pop(context, v),
+          ),
+          RadioListTile<String>(
+            value: 'GBP (£)',
+            groupValue: currency,
+            title: const Text('British Pound (£)'),
+            onChanged: (v) => Navigator.pop(context, v),
+          ),
+        ],
+      ),
     );
 
-    if (selected != null) {
-      await saveCurrency(selected);
-    }
+    if (selected != null) await saveCurrency(selected);
   }
 
   void showPrivacyInfo() {
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.lock_outline),
-              SizedBox(width: 10),
-              Text('Privacy'),
-            ],
-          ),
-          content: const SingleChildScrollView(
-            child: Text(
-              'LifeMate is designed with privacy in mind.\n\n'
-              '• Your personal information is stored locally.\n'
-              '• Finance, To-Do, Notes and Events are stored '
-              'in the app database.\n'
-              '• LifeMate does not require unnecessary personal data.\n'
-              '• Backup files are controlled by you.\n'
-              '• You can delete your stored information at any time.\n\n'
-              'Always keep your backup file in a safe place.',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
-            ),
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.lock_outline),
+            SizedBox(width: 10),
+            Text('Privacy'),
           ],
-        );
-      },
+        ),
+        content: const SingleChildScrollView(
+          child: Text(
+            'LifeMate is designed with privacy in mind.\n\n'
+            '• Your personal information is stored locally.\n'
+            '• Finance, To-Do, Notes and Events are stored '
+            'in the app database.\n'
+            '• LifeMate does not require unnecessary personal data.\n'
+            '• Backup files are controlled by you.\n'
+            '• You can delete your stored information at any time.\n\n'
+            'Always keep your backup file in a safe place.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -298,9 +250,7 @@ class _SettingsPageState extends State<SettingsPage> {
         SizedBox(height: 16),
         Text(
           'Version 1.0.0',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ],
     );
@@ -319,29 +269,20 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-      ),
+      appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           const Text(
             'Preferences',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-
           const SizedBox(height: 10),
-
           Card(
             child: Column(
               children: [
@@ -351,42 +292,30 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   title: const Text('Language'),
                   subtitle: Text(language),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                  ),
+                  trailing: const Icon(Icons.chevron_right),
                   onTap: showLanguageDialog,
                 ),
-
                 const Divider(height: 1),
-
                 ListTile(
                   leading: const CircleAvatar(
                     child: Icon(Icons.palette_outlined),
                   ),
                   title: const Text('Theme'),
                   subtitle: Text(theme),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                  ),
+                  trailing: const Icon(Icons.chevron_right),
                   onTap: showThemeDialog,
                 ),
-
                 const Divider(height: 1),
-
                 ListTile(
                   leading: const CircleAvatar(
                     child: Icon(Icons.currency_exchange),
                   ),
                   title: const Text('Currency'),
                   subtitle: Text(currency),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                  ),
+                  trailing: const Icon(Icons.chevron_right),
                   onTap: showCurrencyDialog,
                 ),
-
                 const Divider(height: 1),
-
                 SwitchListTile(
                   secondary: const CircleAvatar(
                     child: Icon(Icons.notifications_outlined),
@@ -403,19 +332,12 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
-
           const SizedBox(height: 24),
-
           const Text(
             'Data & Privacy',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-
           const SizedBox(height: 10),
-
           Card(
             child: Column(
               children: [
@@ -427,14 +349,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   subtitle: const Text(
                     'Create, export and restore your data',
                   ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                  ),
+                  trailing: const Icon(Icons.chevron_right),
                   onTap: openBackup,
                 ),
-
                 const Divider(height: 1),
-
                 ListTile(
                   leading: const CircleAvatar(
                     child: Icon(Icons.lock_outline),
@@ -443,45 +361,30 @@ class _SettingsPageState extends State<SettingsPage> {
                   subtitle: const Text(
                     'Learn how LifeMate handles your data',
                   ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                  ),
+                  trailing: const Icon(Icons.chevron_right),
                   onTap: showPrivacyInfo,
                 ),
               ],
             ),
           ),
-
           const SizedBox(height: 24),
-
           const Text(
             'About',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-
           const SizedBox(height: 10),
-
           Card(
             child: ListTile(
               leading: const CircleAvatar(
                 child: Icon(Icons.info_outline),
               ),
               title: const Text('About LifeMate'),
-              subtitle: const Text(
-                'Version 1.0.0',
-              ),
-              trailing: const Icon(
-                Icons.chevron_right,
-              ),
+              subtitle: const Text('Version 1.0.0'),
+              trailing: const Icon(Icons.chevron_right),
               onTap: showAbout,
             ),
           ),
-
           const SizedBox(height: 30),
-
           Center(
             child: Text(
               'LifeMate • Version 1.0.0',
@@ -491,7 +394,6 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
-
           const SizedBox(height: 20),
         ],
       ),
