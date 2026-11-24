@@ -11,8 +11,7 @@ class BudgetPage extends StatefulWidget {
 }
 
 class _BudgetPageState extends State<BudgetPage> {
-  bool isLoading = true;
-  bool isSaving = false;
+  bool loading = true;
 
   List<Map<String, dynamic>> budgets = [];
   List<Map<String, dynamic>> categories = [];
@@ -29,21 +28,17 @@ class _BudgetPageState extends State<BudgetPage> {
   }
 
   Future<void> loadData() async {
-    if (!mounted) return;
-
-    setState(() {
-      isLoading = true;
-    });
+    setState(() => loading = true);
 
     try {
       final db = await AppDatabase.database;
 
-      final budgetData = await db.query(
+      final b = await db.query(
         'budgets',
         orderBy: 'start_date DESC, id DESC',
       );
 
-      final categoryData = await db.query(
+      final c = await db.query(
         'categories',
         orderBy: 'name ASC',
       );
@@ -51,67 +46,50 @@ class _BudgetPageState extends State<BudgetPage> {
       if (!mounted) return;
 
       setState(() {
-        budgets = budgetData;
-        categories = categoryData;
+        budgets = b;
+        categories = c;
       });
 
       await calculateSummary();
     } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Unable to load budget data: $e'),
-        ),
-      );
-    } finally {
       if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
       }
+    } finally {
+      if (mounted) setState(() => loading = false);
     }
   }
 
   Future<void> calculateSummary() async {
-    double pIncome = 0;
-    double pExpense = 0;
-    double aIncome = 0;
-    double aExpense = 0;
-
-    final db = await AppDatabase.database;
+    double pi = 0;
+    double pe = 0;
+    double ai = 0;
+    double ae = 0;
 
     for (final budget in budgets) {
-      final type = (budget['type'] ?? 'expense').toString();
-      final amount = _toDouble(budget['amount']);
-
-      if (type == 'income') {
-        pIncome += amount;
-      } else {
-        pExpense += amount;
-      }
-
+      final type = budget['type']?.toString() ?? 'expense';
+      final amount = toDouble(budget['amount']);
       final actual = await calculateActual(budget);
 
       if (type == 'income') {
-        aIncome += actual;
+        pi += amount;
+        ai += actual;
       } else {
-        aExpense += actual;
+        pe += amount;
+        ae += actual;
       }
     }
 
     if (!mounted) return;
 
     setState(() {
-      plannedIncome = pIncome;
-      plannedExpense = pExpense;
-      actualIncome = aIncome;
-      actualExpense = aExpense;
+      plannedIncome = pi;
+      plannedExpense = pe;
+      actualIncome = ai;
+      actualExpense = ae;
     });
-
-    // Keep database connection referenced so analyzer does not
-    // consider this flow incomplete.
-    db;
   }
 
   Future<double> calculateActual(
@@ -119,11 +97,10 @@ class _BudgetPageState extends State<BudgetPage> {
   ) async {
     final db = await AppDatabase.database;
 
-    final type = (budget['type'] ?? 'expense').toString();
+    final type = budget['type']?.toString() ?? 'expense';
     final categoryId = budget['category_id'];
 
-    final startDate = _parseDate(budget['start_date']);
-
+    final startDate = parseDate(budget['start_date']);
     if (startDate == null) return 0;
 
     DateTime endDate;
@@ -138,156 +115,135 @@ class _BudgetPageState extends State<BudgetPage> {
         59,
       );
     } else {
-      final parsedEnd = _parseDate(budget['end_date']);
-
-      if (parsedEnd == null) return 0;
-
+      endDate = parseDate(budget['end_date']) ??
+          startDate;
       endDate = DateTime(
-        parsedEnd.year,
-        parsedEnd.month,
-        parsedEnd.day,
+        endDate.year,
+        endDate.month,
+        endDate.day,
         23,
         59,
         59,
       );
     }
 
-    final start = DateFormat('yyyy-MM-dd HH:mm:ss').format(
-      DateTime(
-        startDate.year,
-        startDate.month,
-        startDate.day,
-      ),
+    final start = DateTime(
+      startDate.year,
+      startDate.month,
+      startDate.day,
     );
 
-    final end = DateFormat('yyyy-MM-dd HH:mm:ss').format(endDate);
+    final table =
+        type == 'income' ? 'incomes' : 'expenses';
 
-    final table = type == 'income' ? 'incomes' : 'expenses';
+    final rows = await db.query(table);
 
-    final whereParts = <String>[
-      'date >= ?',
-      'date <= ?',
-    ];
+    double total = 0;
 
-    final whereArgs = <dynamic>[
-      start,
-      end,
-    ];
+    for (final row in rows) {
+      final date = DateTime.tryParse(
+        row['date']?.toString() ?? '',
+      );
 
-    if (categoryId != null) {
-      whereParts.add('category_id = ?');
-      whereArgs.add(categoryId);
+      if (date == null) continue;
+
+      if (date.isBefore(start) || date.isAfter(endDate)) {
+        continue;
+      }
+
+      if (categoryId != null &&
+          row['category_id'].toString() !=
+              categoryId.toString()) {
+        continue;
+      }
+
+      total += toDouble(row['amount']);
     }
 
-    final result = await db.rawQuery(
-      '''
-      SELECT COALESCE(SUM(amount), 0) AS total
-      FROM $table
-      WHERE ${whereParts.join(' AND ')}
-      ''',
-      whereArgs,
-    );
-
-    return _toDouble(result.first['total']);
+    return total;
   }
 
-  String categoryName(dynamic categoryId) {
-    if (categoryId == null) {
-      return 'All Categories';
-    }
+  List<Map<String, dynamic>> categoriesFor(
+    String type,
+  ) {
+    return categories
+        .where((x) => x['type']?.toString() == type)
+        .toList();
+  }
 
-    for (final category in categories) {
-      if (category['id'].toString() == categoryId.toString()) {
-        return category['name']?.toString() ?? 'All Categories';
+  String categoryName(dynamic id) {
+    if (id == null) return 'All Categories';
+
+    for (final c in categories) {
+      if (c['id'].toString() == id.toString()) {
+        return c['name']?.toString() ?? 'All Categories';
       }
     }
 
     return 'All Categories';
   }
 
-  List<Map<String, dynamic>> categoriesForType(String type) {
-    return categories.where((category) {
-      return (category['type'] ?? '').toString() == type;
-    }).toList();
-  }
-
   Future<void> showBudgetDialog({
     Map<String, dynamic>? existing,
   }) async {
-    final isEditing = existing != null;
+    final editing = existing != null;
 
     String type =
-        (existing?['type'] ?? 'expense').toString();
+        existing?['type']?.toString() ?? 'expense';
 
     String period =
-        (existing?['period'] ?? 'monthly').toString();
+        existing?['period']?.toString() ?? 'monthly';
 
-    final titleController = TextEditingController(
+    final title = TextEditingController(
       text: existing?['title']?.toString() ?? '',
     );
 
-    final amountController = TextEditingController(
-      text: existing != null
-          ? _toDouble(existing['amount']).toStringAsFixed(2)
-          : '',
+    final amount = TextEditingController(
+      text: existing == null
+          ? ''
+          : toDouble(existing['amount']).toStringAsFixed(2),
     );
 
-    DateTime startDate =
-        _parseDate(existing?['start_date']) ??
+    DateTime start =
+        parseDate(existing?['start_date']) ??
             DateTime(
               DateTime.now().year,
               DateTime.now().month,
               1,
             );
 
-    DateTime? endDate =
-        _parseDate(existing?['end_date']);
+    DateTime? end =
+        parseDate(existing?['end_date']);
 
-    int? categoryId;
+    int? categoryId = existing?['category_id'] == null
+        ? null
+        : int.tryParse(
+            existing!['category_id'].toString(),
+          );
 
-    if (existing?['category_id'] != null) {
-      categoryId = int.tryParse(
-        existing!['category_id'].toString(),
-      );
-    }
-
-    if (period == 'custom' && endDate == null) {
-      endDate = DateTime(
-        startDate.year,
-        startDate.month,
-        startDate.day,
-      );
-    }
-
-    isSaving = false;
-
-    final result = await showDialog<bool>(
+    final saved = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
       builder: (dialogContext) {
         return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final availableCategories =
-                categoriesForType(type);
+          builder: (context, setDialog) {
+            final available =
+                categoriesFor(type);
 
-            final categoryExists = categoryId == null ||
-                availableCategories.any(
-                  (category) =>
-                      category['id'].toString() ==
+            if (categoryId != null &&
+                !available.any(
+                  (x) =>
+                      x['id'].toString() ==
                       categoryId.toString(),
-                );
-
-            if (!categoryExists) {
+                )) {
               categoryId = null;
             }
 
             return AlertDialog(
               title: Text(
-                isEditing ? 'Edit Budget' : 'Add Budget',
+                editing ? 'Edit Budget' : 'Add Budget',
               ),
               content: SingleChildScrollView(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButtonFormField<String>(
                       value: type,
@@ -305,28 +261,22 @@ class _BudgetPageState extends State<BudgetPage> {
                           child: Text('Expense'),
                         ),
                       ],
-                      onChanged: isSaving
-                          ? null
-                          : (value) {
-                              if (value == null) return;
-
-                              setDialogState(() {
-                                type = value;
-                                categoryId = null;
-                              });
-                            },
+                      onChanged: (v) {
+                        if (v == null) return;
+                        setDialog(() {
+                          type = v;
+                          categoryId = null;
+                        });
+                      },
                     ),
 
                     const SizedBox(height: 12),
 
                     TextField(
-                      controller: titleController,
-                      enabled: !isSaving,
-                      textCapitalization:
-                          TextCapitalization.sentences,
+                      controller: title,
                       decoration: const InputDecoration(
-                        labelText: 'Title',
-                        hintText: 'Example: Monthly food',
+                        labelText: 'Budget Title',
+                        hintText: 'Example: Monthly Food',
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -334,14 +284,13 @@ class _BudgetPageState extends State<BudgetPage> {
                     const SizedBox(height: 12),
 
                     TextField(
-                      controller: amountController,
-                      enabled: !isSaving,
+                      controller: amount,
                       keyboardType:
                           const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
                       decoration: const InputDecoration(
-                        labelText: 'Planned Amount',
+                        labelText: 'Amount',
                         prefixText: '৳ ',
                         border: OutlineInputBorder(),
                       ),
@@ -360,26 +309,20 @@ class _BudgetPageState extends State<BudgetPage> {
                           value: null,
                           child: Text('All Categories'),
                         ),
-                        ...availableCategories.map(
-                          (category) {
-                            return DropdownMenuItem<int?>(
-                              value: int.tryParse(
-                                category['id'].toString(),
-                              ),
-                              child: Text(
-                                category['name'].toString(),
-                              ),
-                            );
-                          },
+                        ...available.map(
+                          (x) => DropdownMenuItem<int?>(
+                            value: x['id'] as int,
+                            child: Text(
+                              x['name'].toString(),
+                            ),
+                          ),
                         ),
                       ],
-                      onChanged: isSaving
-                          ? null
-                          : (value) {
-                              setDialogState(() {
-                                categoryId = value;
-                              });
-                            },
+                      onChanged: (v) {
+                        setDialog(() {
+                          categoryId = v;
+                        });
+                      },
                     ),
 
                     const SizedBox(height: 12),
@@ -387,7 +330,7 @@ class _BudgetPageState extends State<BudgetPage> {
                     DropdownButtonFormField<String>(
                       value: period,
                       decoration: const InputDecoration(
-                        labelText: 'Time Frame',
+                        labelText: 'Period',
                         border: OutlineInputBorder(),
                       ),
                       items: const [
@@ -400,38 +343,32 @@ class _BudgetPageState extends State<BudgetPage> {
                           child: Text('Custom'),
                         ),
                       ],
-                      onChanged: isSaving
-                          ? null
-                          : (value) {
-                              if (value == null) return;
+                      onChanged: (v) {
+                        if (v == null) return;
 
-                              setDialogState(() {
-                                period = value;
+                        setDialog(() {
+                          period = v;
 
-                                if (period == 'monthly') {
-                                  endDate = null;
-                                  startDate = DateTime(
-                                    startDate.year,
-                                    startDate.month,
-                                    1,
-                                  );
-                                } else {
-                                  endDate ??= DateTime(
-                                    startDate.year,
-                                    startDate.month,
-                                    startDate.day,
-                                  );
-                                }
-                              });
-                            },
+                          if (v == 'monthly') {
+                            start = DateTime(
+                              start.year,
+                              start.month,
+                              1,
+                            );
+                            end = null;
+                          } else {
+                            end ??= start;
+                          }
+                        });
+                      },
                     ),
 
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
 
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(
-                        Icons.calendar_month_outlined,
+                        Icons.calendar_month,
                       ),
                       title: Text(
                         period == 'monthly'
@@ -440,237 +377,164 @@ class _BudgetPageState extends State<BudgetPage> {
                       ),
                       subtitle: Text(
                         DateFormat('dd MMM yyyy')
-                            .format(startDate),
+                            .format(start),
                       ),
-                      onTap: isSaving
-                          ? null
-                          : () async {
-                              if (period == 'monthly') {
-                                final picked =
-                                    await showDatePicker(
-                                  context: context,
-                                  initialDate: startDate,
-                                  firstDate: DateTime(2000),
-                                  lastDate: DateTime(2100),
-                                );
+                      onTap: () async {
+                        final picked =
+                            await showDatePicker(
+                          context: context,
+                          initialDate: start,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
 
-                                if (picked != null) {
-                                  setDialogState(() {
-                                    startDate = DateTime(
-                                      picked.year,
-                                      picked.month,
-                                      1,
-                                    );
-                                  });
-                                }
-                              } else {
-                                final picked =
-                                    await showDatePicker(
-                                  context: context,
-                                  initialDate: startDate,
-                                  firstDate: DateTime(2000),
-                                  lastDate: DateTime(2100),
-                                );
+                        if (picked == null) return;
 
-                                if (picked != null) {
-                                  setDialogState(() {
-                                    startDate = picked;
+                        setDialog(() {
+                          start = period == 'monthly'
+                              ? DateTime(
+                                  picked.year,
+                                  picked.month,
+                                  1,
+                                )
+                              : picked;
 
-                                    if (endDate != null &&
-                                        endDate!.isBefore(
-                                          startDate,
-                                        )) {
-                                      endDate = startDate;
-                                    }
-                                  });
-                                }
-                              }
-                            },
+                          if (end != null &&
+                              end!.isBefore(start)) {
+                            end = start;
+                          }
+                        });
+                      },
                     ),
 
                     if (period == 'custom')
                       ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(
-                          Icons.event_available_outlined,
+                          Icons.event_available,
                         ),
                         title: const Text('End Date'),
                         subtitle: Text(
-                          endDate == null
+                          end == null
                               ? 'Select end date'
                               : DateFormat('dd MMM yyyy')
-                                  .format(endDate!),
+                                  .format(end!),
                         ),
-                        onTap: isSaving
-                            ? null
-                            : () async {
-                                final picked =
-                                    await showDatePicker(
-                                  context: context,
-                                  initialDate:
-                                      endDate ?? startDate,
-                                  firstDate: startDate,
-                                  lastDate: DateTime(2100),
-                                );
+                        onTap: () async {
+                          final picked =
+                              await showDatePicker(
+                            context: context,
+                            initialDate: end ?? start,
+                            firstDate: start,
+                            lastDate: DateTime(2100),
+                          );
 
-                                if (picked != null) {
-                                  setDialogState(() {
-                                    endDate = picked;
-                                  });
-                                }
-                              },
+                          if (picked != null) {
+                            setDialog(() {
+                              end = picked;
+                            });
+                          }
+                        },
                       ),
                   ],
                 ),
               ),
               actions: [
                 TextButton(
-                  onPressed: isSaving
-                      ? null
-                      : () {
-                          Navigator.pop(
-                            dialogContext,
-                            false,
-                          );
-                        },
+                  onPressed: () =>
+                      Navigator.pop(dialogContext, false),
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          if (isSaving) return;
+                  onPressed: () async {
+                    final name = title.text.trim();
 
-                          final title =
-                              titleController.text.trim();
+                    final value = double.tryParse(
+                      amount.text.trim().replaceAll(',', ''),
+                    );
 
-                          final amount = double.tryParse(
-                            amountController.text
-                                .trim()
-                                .replaceAll(',', ''),
-                          );
-
-                          if (title.isEmpty) {
-                            ScaffoldMessenger.of(context)
-                                .showSnackBar(
-                              const SnackBar(
-                                content:
-                                    Text('Enter a budget title.'),
-                              ),
-                            );
-                            return;
-                          }
-
-                          if (amount == null || amount <= 0) {
-                            ScaffoldMessenger.of(context)
-                                .showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Enter a valid amount.',
-                                ),
-                              ),
-                            );
-                            return;
-                          }
-
-                          if (period == 'custom' &&
-                              endDate == null) {
-                            ScaffoldMessenger.of(context)
-                                .showSnackBar(
-                              const SnackBar(
-                                content:
-                                    Text('Select an end date.'),
-                              ),
-                            );
-                            return;
-                          }
-
-                          if (period == 'custom' &&
-                              endDate!.isBefore(startDate)) {
-                            ScaffoldMessenger.of(context)
-                                .showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'End date cannot be before start date.',
-                                ),
-                              ),
-                            );
-                            return;
-                          }
-
-                          setDialogState(() {
-                            isSaving = true;
-                          });
-
-                          try {
-                            final db =
-                                await AppDatabase.database;
-
-                            final data = <String, dynamic>{
-                              'title': title,
-                              'amount': amount,
-                              'type': type,
-                              'category_id': categoryId,
-                              'period': period,
-                              'start_date': DateFormat(
-                                'yyyy-MM-dd',
-                              ).format(startDate),
-                              'end_date': period == 'custom'
-                                  ? DateFormat('yyyy-MM-dd')
-                                      .format(endDate!)
-                                  : null,
-                            };
-
-                            if (isEditing) {
-                              await db.update(
-                                'budgets',
-                                data,
-                                where: 'id = ?',
-                                whereArgs: [
-                                  existing['id'],
-                                ],
-                              );
-                            } else {
-                              await db.insert(
-                                'budgets',
-                                data,
-                              );
-                            }
-
-                            if (dialogContext.mounted) {
-                              Navigator.pop(
-                                dialogContext,
-                                true,
-                              );
-                            }
-                          } catch (e) {
-                            if (dialogContext.mounted) {
-                              setDialogState(() {
-                                isSaving = false;
-                              });
-
-                              ScaffoldMessenger.of(context)
-                                  .showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Could not save budget: $e',
-                                  ),
-                                ),
-                              );
-                            }
-                          }
-                        },
-                  child: isSaving
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
+                    if (name.isEmpty ||
+                        value == null ||
+                        value <= 0) {
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Enter title and valid amount.',
                           ),
-                        )
-                      : Text(
-                          isEditing ? 'Update' : 'Save',
                         ),
+                      );
+                      return;
+                    }
+
+                    if (period == 'custom' &&
+                        end == null) {
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Select end date.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (period == 'custom' &&
+                        end!.isBefore(start)) {
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'End date cannot be before start date.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    final db =
+                        await AppDatabase.database;
+
+                    final data = {
+                      'title': name,
+                      'amount': value,
+                      'type': type,
+                      'category_id': categoryId,
+                      'period': period,
+                      'start_date': DateFormat(
+                        'yyyy-MM-dd',
+                      ).format(start),
+                      'end_date': period == 'custom'
+                          ? DateFormat('yyyy-MM-dd')
+                              .format(end!)
+                          : null,
+                    };
+
+                    if (editing) {
+                      await db.update(
+                        'budgets',
+                        data,
+                        where: 'id = ?',
+                        whereArgs: [existing['id']],
+                      );
+                    } else {
+                      await db.insert(
+                        'budgets',
+                        data,
+                      );
+                    }
+
+                    if (dialogContext.mounted) {
+                      Navigator.pop(
+                        dialogContext,
+                        true,
+                      );
+                    }
+                  },
+                  child: Text(
+                    editing ? 'Update' : 'Save',
+                  ),
                 ),
               ],
             );
@@ -679,10 +543,10 @@ class _BudgetPageState extends State<BudgetPage> {
       },
     );
 
-    titleController.dispose();
-    amountController.dispose();
+    title.dispose();
+    amount.dispose();
 
-    if (result == true && mounted) {
+    if (saved == true) {
       await loadData();
     }
   }
@@ -690,81 +554,63 @@ class _BudgetPageState extends State<BudgetPage> {
   Future<void> deleteBudget(
     Map<String, dynamic> budget,
   ) async {
-    final confirmed = await showDialog<bool>(
+    final ok = await showDialog<bool>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Delete Budget'),
-          content: const Text(
-            'Are you sure you want to delete this budget?',
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Budget'),
+        content: const Text(
+          'Delete this budget?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context, false);
-              },
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(context, true);
-              },
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
 
-    if (confirmed != true) return;
+    if (ok != true) return;
 
-    try {
-      final db = await AppDatabase.database;
+    final db = await AppDatabase.database;
 
-      await db.delete(
-        'budgets',
-        where: 'id = ?',
-        whereArgs: [budget['id']],
-      );
+    await db.delete(
+      'budgets',
+      where: 'id = ?',
+      whereArgs: [budget['id']],
+    );
 
-      await loadData();
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not delete budget: $e'),
-        ),
-      );
-    }
+    await loadData();
   }
 
-  String periodText(Map<String, dynamic> budget) {
-    final period =
-        (budget['period'] ?? 'monthly').toString();
-
-    final start = _parseDate(budget['start_date']);
-
+  String periodText(Map<String, dynamic> b) {
+    final start = parseDate(b['start_date']);
     if (start == null) return '';
 
-    if (period == 'monthly') {
+    if (b['period'] == 'monthly') {
       return DateFormat('MMMM yyyy').format(start);
     }
 
-    final end = _parseDate(budget['end_date']);
+    final end = parseDate(b['end_date']);
 
     if (end == null) {
       return DateFormat('dd MMM yyyy').format(start);
     }
 
     return '${DateFormat('dd MMM yyyy').format(start)}'
-        ' – '
+        ' - '
         '${DateFormat('dd MMM yyyy').format(end)}';
   }
 
-  Widget summaryCard(
+  Widget summary(
     String title,
-    double amount,
+    double value,
     IconData icon,
   ) {
     return Expanded(
@@ -775,17 +621,18 @@ class _BudgetPageState extends State<BudgetPage> {
             crossAxisAlignment:
                 CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 22),
-              const SizedBox(height: 8),
+              Icon(icon),
+              const SizedBox(height: 6),
               Text(
                 title,
                 style: const TextStyle(
                   fontSize: 12,
+                  color: Colors.grey,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
-                '৳${amount.toStringAsFixed(0)}',
+                '৳${value.toStringAsFixed(0)}',
                 style: const TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
@@ -802,140 +649,122 @@ class _BudgetPageState extends State<BudgetPage> {
     Map<String, dynamic> budget,
   ) {
     final type =
-        (budget['type'] ?? 'expense').toString();
+        budget['type']?.toString() ?? 'expense';
 
-    final amount = _toDouble(budget['amount']);
+    final planned =
+        toDouble(budget['amount']);
+
+    final income = type == 'income';
 
     return FutureBuilder<double>(
       future: calculateActual(budget),
       builder: (context, snapshot) {
         final actual = snapshot.data ?? 0;
-        final isIncome = type == 'income';
 
-        final difference = isIncome
-            ? amount - actual
-            : amount - actual;
-
-        final exceeded = isIncome
-            ? actual < amount
-            : actual > amount;
-
-        final progress = amount <= 0
+        final progress = planned <= 0
             ? 0.0
-            : (actual / amount).clamp(0.0, 1.0);
+            : (actual / planned).clamp(0.0, 1.0);
 
-        final progressColor = exceeded
-            ? Colors.orange
-            : Colors.green;
+        final exceeded = income
+            ? actual < planned
+            : actual > planned;
+
+        final remaining =
+            (planned - actual).abs();
 
         return Card(
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.only(
+            bottom: 12,
+          ),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
               children: [
                 Row(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
                   children: [
                     CircleAvatar(
-                      backgroundColor: isIncome
-                          ? Colors.green.withValues(
-                              alpha: 0.12,
-                            )
-                          : Colors.red.withValues(
-                              alpha: 0.12,
-                            ),
                       child: Icon(
-                        isIncome
+                        income
                             ? Icons.trending_up
                             : Icons.trending_down,
-                        color: isIncome
-                            ? Colors.green
-                            : Colors.red,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment:
                             CrossAxisAlignment.start,
                         children: [
                           Text(
-                            budget['title']?.toString() ??
+                            budget['title']
+                                    ?.toString() ??
                                 'Budget',
                             style: const TextStyle(
-                              fontSize: 16,
                               fontWeight: FontWeight.bold,
+                              fontSize: 16,
                             ),
                           ),
-                          const SizedBox(height: 4),
                           Text(
-                            '${isIncome ? 'Income' : 'Expense'}'
-                            ' • ${categoryName(budget['category_id'])}',
-                            style: TextStyle(
-                              color: Colors.grey.shade700,
+                            '${income ? 'Income' : 'Expense'} • '
+                            '${categoryName(budget['category_id'])}',
+                            style: const TextStyle(
                               fontSize: 12,
+                              color: Colors.grey,
                             ),
                           ),
-                          const SizedBox(height: 2),
                           Text(
                             periodText(budget),
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
+                            style: const TextStyle(
                               fontSize: 12,
+                              color: Colors.grey,
                             ),
                           ),
                         ],
                       ),
                     ),
                     PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'edit') {
+                      onSelected: (v) {
+                        if (v == 'edit') {
                           showBudgetDialog(
                             existing: budget,
                           );
-                        } else if (value == 'delete') {
+                        } else {
                           deleteBudget(budget);
                         }
                       },
-                      itemBuilder: (context) {
-                        return const [
-                          PopupMenuItem(
-                            value: 'edit',
-                            child: Text('Edit'),
-                          ),
-                          PopupMenuItem(
-                            value: 'delete',
-                            child: Text('Delete'),
-                          ),
-                        ];
-                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: Text('Edit'),
+                        ),
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Text('Delete'),
+                        ),
+                      ],
                     ),
                   ],
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
                 Row(
                   mainAxisAlignment:
                       MainAxisAlignment.spaceBetween,
                   children: [
-                    _amountColumn(
+                    amountText(
                       'Planned',
-                      amount,
+                      planned,
                     ),
-                    _amountColumn(
+                    amountText(
                       'Actual',
                       actual,
                     ),
-                    _amountColumn(
-                      isIncome
+                    amountText(
+                      income
                           ? 'Shortfall'
                           : 'Remaining',
-                      difference.abs(),
+                      remaining,
                     ),
                   ],
                 ),
@@ -948,31 +777,28 @@ class _BudgetPageState extends State<BudgetPage> {
                   child: LinearProgressIndicator(
                     value: progress,
                     minHeight: 8,
-                    backgroundColor:
-                        Colors.grey.shade200,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(
-                      progressColor,
-                    ),
                   ),
                 ),
 
-                const SizedBox(height: 8),
+                const SizedBox(height: 7),
 
-                Text(
-                  isIncome
-                      ? (exceeded
-                          ? 'Income target not reached'
-                          : 'Income target reached')
-                      : (exceeded
-                          ? 'Budget exceeded'
-                          : 'Within budget'),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: exceeded
-                        ? Colors.orange.shade800
-                        : Colors.green.shade700,
-                    fontWeight: FontWeight.w600,
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    income
+                        ? (exceeded
+                            ? 'Income target not reached'
+                            : 'Income target reached')
+                        : (exceeded
+                            ? 'Budget exceeded'
+                            : 'Within budget'),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: exceeded
+                          ? Colors.orange
+                          : Colors.green,
+                    ),
                   ),
                 ),
               ],
@@ -983,7 +809,7 @@ class _BudgetPageState extends State<BudgetPage> {
     );
   }
 
-  Widget _amountColumn(
+  Widget amountText(
     String title,
     double amount,
   ) {
@@ -993,9 +819,9 @@ class _BudgetPageState extends State<BudgetPage> {
       children: [
         Text(
           title,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 11,
-            color: Colors.grey.shade600,
+            color: Colors.grey,
           ),
         ),
         const SizedBox(height: 3),
@@ -1003,195 +829,176 @@ class _BudgetPageState extends State<BudgetPage> {
           '৳${amount.toStringAsFixed(0)}',
           style: const TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: 14,
           ),
         ),
       ],
     );
   }
 
-  double _toDouble(dynamic value) {
-    if (value == null) return 0;
+  double toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
 
-    if (value is num) {
-      return value.toDouble();
-    }
-
-    return double.tryParse(value.toString()) ?? 0;
+    return double.tryParse(
+          value?.toString() ?? '',
+        ) ??
+        0;
   }
 
-  DateTime? _parseDate(dynamic value) {
+  DateTime? parseDate(dynamic value) {
     if (value == null) return null;
 
-    final text = value.toString().trim();
-
-    if (text.isEmpty) return null;
-
-    return DateTime.tryParse(text);
+    return DateTime.tryParse(
+      value.toString(),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final actualSavings =
-        actualIncome - actualExpense;
-
     final plannedSavings =
         plannedIncome - plannedExpense;
 
+    final actualSavings =
+        actualIncome - actualExpense;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Budget Planning'),
+        title: const Text(
+          'Budget Planning',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         actions: [
           IconButton(
-            onPressed: isLoading ? null : loadData,
+            onPressed: loadData,
             icon: const Icon(Icons.refresh),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: isLoading
-            ? null
-            : () => showBudgetDialog(),
+
+      floatingActionButton:
+          FloatingActionButton.extended(
+        onPressed: () => showBudgetDialog(),
         icon: const Icon(Icons.add),
         label: const Text('Budget'),
       ),
-      body: isLoading
+
+      body: loading
           ? const Center(
               child: CircularProgressIndicator(),
             )
           : RefreshIndicator(
               onRefresh: loadData,
-              child: budgets.isEmpty
-                  ? ListView(
-                      physics:
-                          const AlwaysScrollableScrollPhysics(),
-                      children: const [
-                        SizedBox(height: 160),
-                        Icon(
-                          Icons.account_balance_wallet_outlined,
-                          size: 64,
-                          color: Colors.grey,
-                        ),
-                        SizedBox(height: 16),
-                        Center(
-                          child: Text(
-                            'No budgets yet',
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        Center(
-                          child: Text(
-                            'Create a monthly or custom budget.',
-                            style: TextStyle(
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : ListView(
-                      physics:
-                          const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(
-                        12,
-                        12,
-                        12,
-                        90,
+              child: ListView(
+                physics:
+                    const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(
+                  12,
+                  12,
+                  12,
+                  90,
+                ),
+                children: [
+                  Row(
+                    children: [
+                      summary(
+                        'Planned Income',
+                        plannedIncome,
+                        Icons.trending_up,
                       ),
-                      children: [
-                        Row(
-                          children: [
-                            summaryCard(
-                              'Planned Income',
-                              plannedIncome,
-                              Icons.trending_up,
-                            ),
-                            const SizedBox(width: 8),
-                            summaryCard(
-                              'Actual Income',
-                              actualIncome,
-                              Icons.payments_outlined,
-                            ),
-                          ],
+                      const SizedBox(width: 8),
+                      summary(
+                        'Actual Income',
+                        actualIncome,
+                        Icons.payments,
+                      ),
+                    ],
+                  ),
+
+                  Row(
+                    children: [
+                      summary(
+                        'Planned Expense',
+                        plannedExpense,
+                        Icons.trending_down,
+                      ),
+                      const SizedBox(width: 8),
+                      summary(
+                        'Actual Expense',
+                        actualExpense,
+                        Icons.shopping_cart,
+                      ),
+                    ],
+                  ),
+
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.savings_outlined,
+                      ),
+                      title: const Text(
+                        'Savings',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
                         ),
-
-                        Row(
-                          children: [
-                            summaryCard(
-                              'Planned Expense',
-                              plannedExpense,
-                              Icons.trending_down,
-                            ),
-                            const SizedBox(width: 8),
-                            summaryCard(
-                              'Actual Expense',
-                              actualExpense,
-                              Icons.shopping_cart_outlined,
-                            ),
-                          ],
-                        ),
-
-                        Card(
-                          child: Padding(
-                            padding:
-                                const EdgeInsets.all(14),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.savings_outlined,
-                                  size: 28,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Savings',
-                                        style: TextStyle(
-                                          fontWeight:
-                                              FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Planned: ৳${plannedSavings.toStringAsFixed(0)}'
-                                        '   •   '
-                                        'Actual: ৳${actualSavings.toStringAsFixed(0)}',
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 8),
-
-                        const Text(
-                          'Your Budgets',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        ...budgets.map(
-                          budgetCard,
-                        ),
-                      ],
+                      ),
+                      subtitle: Text(
+                        'Planned: ৳${plannedSavings.toStringAsFixed(0)}'
+                        '  •  '
+                        'Actual: ৳${actualSavings.toStringAsFixed(0)}',
+                      ),
                     ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  const Text(
+                    'Your Budgets',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  if (budgets.isEmpty)
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(28),
+                        child: Center(
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons
+                                    .account_balance_wallet_outlined,
+                                size: 55,
+                                color: Colors.grey,
+                              ),
+                              SizedBox(height: 10),
+                              Text(
+                                'No budgets yet',
+                                style: TextStyle(
+                                  fontWeight:
+                                      FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 5),
+                              Text(
+                                'Create your first budget.',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  ...budgets.map(budgetCard),
+                ],
+              ),
             ),
     );
   }
