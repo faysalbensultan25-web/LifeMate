@@ -1,20 +1,14 @@
+
 name: Build LifeMate APK
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      # --------------------------------------------------
-      # 1. Checkout
-      # --------------------------------------------------
-name: Build LifeMate APK
-
-on:
-  workflow_dispatch:
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -125,11 +119,18 @@ jobs:
               )
 
               if not re.search(r'compileSdk(?:Version)?', content):
-                  content = content.replace(
-                      "android {",
-                      "android {\n    compileSdk 36",
-                      1
-                  )
+                  if file.suffix == ".kts":
+                      content = content.replace(
+                          "android {",
+                          "android {\n    compileSdk = 36",
+                          1
+                      )
+                  else:
+                      content = content.replace(
+                          "android {",
+                          "android {\n    compileSdk 36",
+                          1
+                      )
 
               file.write_text(content)
 
@@ -137,7 +138,7 @@ jobs:
           PY
 
       # --------------------------------------------------
-      # 8. Force Flutter plugin Android compileSdk = 36
+      # 8. Force Flutter plugin compileSdk = 36
       # --------------------------------------------------
       - name: Force Flutter plugin compileSdk 36
         run: |
@@ -167,9 +168,7 @@ jobs:
                       if not android_folder.exists():
                           continue
 
-                      for file in android_folder.glob(
-                          "build.gradle*"
-                      ):
+                      for file in android_folder.glob("build.gradle*"):
                           content = file.read_text()
 
                           updated = re.sub(
@@ -182,11 +181,18 @@ jobs:
                               r'compileSdk(?:Version)?',
                               updated
                           ):
-                              updated = (
-                                  "android {\n"
-                                  "    compileSdk 36\n"
-                                  + updated
-                              )
+                              if file.suffix == ".kts":
+                                  updated = updated.replace(
+                                      "android {",
+                                      "android {\n    compileSdk = 36",
+                                      1
+                                  )
+                              else:
+                                  updated = updated.replace(
+                                      "android {",
+                                      "android {\n    compileSdk 36",
+                                      1
+                                  )
 
                           if updated != content:
                               file.write_text(updated)
@@ -213,6 +219,7 @@ jobs:
           echo "========================================"
 
           cat android/app/build.gradle || true
+          cat android/app/build.gradle.kts || true
 
           echo ""
           echo "========================================"
@@ -311,3 +318,4 @@ jobs:
         with:
           name: LifeMate-APK
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
