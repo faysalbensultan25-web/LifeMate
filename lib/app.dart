@@ -4,6 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'core/theme/app_theme.dart';
 import 'features/home/home_page.dart';
 
+final ValueNotifier<ThemeMode> lifeMateThemeMode =
+    ValueNotifier(ThemeMode.light);
+
 class LifeMateApp extends StatefulWidget {
   const LifeMateApp({super.key});
 
@@ -12,8 +15,6 @@ class LifeMateApp extends StatefulWidget {
 }
 
 class _LifeMateAppState extends State<LifeMateApp> {
-  ThemeMode _themeMode = ThemeMode.system;
-
   @override
   void initState() {
     super.initState();
@@ -22,53 +23,42 @@ class _LifeMateAppState extends State<LifeMateApp> {
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    final theme = prefs.getString('theme') ?? 'Light';
 
-    final theme = prefs.getString('theme') ?? 'system';
-
-    ThemeMode selectedTheme;
-
-    switch (theme) {
-      case 'light':
-        selectedTheme = ThemeMode.light;
-        break;
-
+    switch (theme.toLowerCase()) {
       case 'dark':
-        selectedTheme = ThemeMode.dark;
+        lifeMateThemeMode.value = ThemeMode.dark;
         break;
-
+      case 'system':
+      case 'system default':
+        lifeMateThemeMode.value = ThemeMode.system;
+        break;
       default:
-        selectedTheme = ThemeMode.system;
+        lifeMateThemeMode.value = ThemeMode.light;
     }
-
-    if (!mounted) return;
-
-    setState(() {
-      _themeMode = selectedTheme;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'LifeMate',
-      debugShowCheckedModeBanner: false,
-
-      theme: AppTheme.lightTheme,
-
-      // আপনার বর্তমান AppTheme-এ darkTheme নেই,
-      // তাই আপাতত Material-এর dark theme ব্যবহার করা হচ্ছে।
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: AppTheme.primaryBlue,
-          brightness: Brightness.dark,
-        ),
-      ),
-
-      themeMode: _themeMode,
-
-      home: const HomePage(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: lifeMateThemeMode,
+      builder: (context, mode, child) {
+        return MaterialApp(
+          title: 'LifeMate',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          darkTheme: ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.dark,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: AppTheme.primaryBlue,
+              brightness: Brightness.dark,
+            ),
+          ),
+          themeMode: mode,
+          home: const HomePage(),
+        );
+      },
     );
   }
 }
