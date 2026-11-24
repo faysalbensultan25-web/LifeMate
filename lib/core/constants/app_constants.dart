@@ -11,5 +11,5 @@ class AppConstants {
 
   static const String accentColorName = 'Teal';
 
-  static const int databaseVersion = 1;
+  static const int databaseVersion = 4;
 }
