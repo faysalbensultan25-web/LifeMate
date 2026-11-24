@@ -32,6 +32,14 @@ class _BackupPageState extends State<BackupPage> {
     return join(directory, 'lifemate.db');
   }
 
+  void showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   Future<void> loadBackups() async {
     try {
       final db = await AppDatabase.database;
@@ -58,25 +66,14 @@ class _BackupPageState extends State<BackupPage> {
     }
   }
 
-  void showMessage(String message) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
-
   Future<void> createBackup() async {
     if (isProcessing) return;
 
-    setState(() {
-      isProcessing = true;
-    });
+    setState(() => isProcessing = true);
 
     try {
       final db = await AppDatabase.database;
 
-      // Complete pending SQLite write operations.
       await db.rawQuery('PRAGMA wal_checkpoint(FULL)');
 
       final databasePath = await getDatabasePath();
@@ -88,19 +85,18 @@ class _BackupPageState extends State<BackupPage> {
 
       final now = DateTime.now();
 
-      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(now);
+      final timestamp =
+          DateFormat('yyyyMMdd_HHmmss').format(now);
 
       final backupPath = join(
         dirname(databasePath),
         'lifemate_backup_$timestamp.db',
       );
 
-      // Close database before copying.
       await AppDatabase.close();
 
       await originalFile.copy(backupPath);
 
-      // Reopen database.
       final reopenedDb = await AppDatabase.database;
 
       await reopenedDb.insert('backups', {
@@ -112,7 +108,6 @@ class _BackupPageState extends State<BackupPage> {
 
       showMessage('Backup created successfully.');
     } catch (e) {
-      // Try reopening the database if necessary.
       try {
         await AppDatabase.database;
       } catch (_) {}
@@ -120,9 +115,7 @@ class _BackupPageState extends State<BackupPage> {
       showMessage('Backup failed: $e');
     } finally {
       if (mounted) {
-        setState(() {
-          isProcessing = false;
-        });
+        setState(() => isProcessing = false);
       }
     }
   }
@@ -130,11 +123,7 @@ class _BackupPageState extends State<BackupPage> {
   Future<bool> validateBackup(String path) async {
     final file = File(path);
 
-    if (!await file.exists()) {
-      return false;
-    }
-
-    if (await file.length() == 0) {
+    if (!await file.exists() || await file.length() == 0) {
       return false;
     }
 
@@ -198,7 +187,7 @@ class _BackupPageState extends State<BackupPage> {
         title: const Text('Restore Backup?'),
         content: const Text(
           'Restoring this backup will replace your current '
-          'LifeMate database. Any changes made after this backup '
+          'LifeMate database. Changes made after this backup '
           'will be lost. Continue?',
         ),
         actions: [
@@ -220,49 +209,69 @@ class _BackupPageState extends State<BackupPage> {
 
     if (confirm != true) return;
 
-    setState(() {
-      isProcessing = true;
-    });
+    setState(() => isProcessing = true);
 
     try {
       final databasePath = await getDatabasePath();
 
       final originalFile = File(databasePath);
-
       final tempPath = '$databasePath.restore_temp';
       final tempFile = File(tempPath);
 
-      // Copy backup to temporary location first.
+      // Prepare restore file.
       await File(backupPath).copy(tempPath);
+
+      // Keep a rollback copy of the current database.
+      final safetyPath = '$databasePath.before_restore';
+      final safetyFile = File(safetyPath);
 
       await AppDatabase.close();
 
-      // Remove existing database and sidecar files.
-      final walFile = File('$databasePath-wal');
-      final shmFile = File('$databasePath-shm');
-
-      if (await walFile.exists()) {
-        await walFile.delete();
-      }
-
-      if (await shmFile.exists()) {
-        await shmFile.delete();
-      }
-
       if (await originalFile.exists()) {
-        await originalFile.delete();
+        await originalFile.copy(safetyPath);
       }
 
-      // Replace database.
-      await tempFile.copy(databasePath);
-      await tempFile.delete();
+      try {
+        final walFile = File('$databasePath-wal');
+        final shmFile = File('$databasePath-shm');
 
-      // Open restored database.
-      await AppDatabase.database;
+        if (await walFile.exists()) await walFile.delete();
+        if (await shmFile.exists()) await shmFile.delete();
 
-      await loadBackups();
+        if (await originalFile.exists()) {
+          await originalFile.delete();
+        }
 
-      showMessage('Backup restored successfully. Please reopen the app.');
+        await tempFile.copy(databasePath);
+        await tempFile.delete();
+
+        await AppDatabase.database;
+
+        // Restore successful.
+        if (await safetyFile.exists()) {
+          await safetyFile.delete();
+        }
+
+        await loadBackups();
+
+        showMessage('Backup restored successfully.');
+      } catch (restoreError) {
+        // Roll back if restore fails.
+        await AppDatabase.close();
+
+        if (await safetyFile.exists()) {
+          if (await originalFile.exists()) {
+            await originalFile.delete();
+          }
+
+          await safetyFile.copy(databasePath);
+          await safetyFile.delete();
+        }
+
+        await AppDatabase.database;
+
+        rethrow;
+      }
     } catch (e) {
       showMessage('Restore failed: $e');
     } finally {
@@ -271,9 +280,7 @@ class _BackupPageState extends State<BackupPage> {
       } catch (_) {}
 
       if (mounted) {
-        setState(() {
-          isProcessing = false;
-        });
+        setState(() => isProcessing = false);
       }
     }
   }
@@ -292,15 +299,61 @@ class _BackupPageState extends State<BackupPage> {
         return;
       }
 
-      final path = result.files.single.path!;
-
-      await restoreBackup(path);
+      await restoreBackup(result.files.single.path!);
     } catch (e) {
       showMessage('Could not select backup: $e');
     }
   }
 
-  Future<void> deleteBackup(Map<String, Object?> backup) async {
+  Future<void> exportBackup() async {
+    if (isProcessing) return;
+
+    setState(() => isProcessing = true);
+
+    try {
+      final db = await AppDatabase.database;
+
+      await db.rawQuery('PRAGMA wal_checkpoint(FULL)');
+
+      final databasePath = await getDatabasePath();
+      final databaseFile = File(databasePath);
+
+      if (!await databaseFile.exists()) {
+        throw Exception('Database file not found.');
+      }
+
+      final bytes = await databaseFile.readAsBytes();
+
+      final timestamp =
+          DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+
+      final savedPath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Export LifeMate Backup',
+        fileName: 'LifeMate_Backup_$timestamp.db',
+        type: FileType.custom,
+        allowedExtensions: ['db'],
+        bytes: bytes,
+      );
+
+      if (savedPath == null) {
+        showMessage('Export cancelled.');
+      } else {
+        showMessage('Backup exported successfully.');
+      }
+    } catch (e) {
+      showMessage('Export failed: $e');
+    } finally {
+      if (mounted) {
+        setState(() => isProcessing = false);
+      }
+    }
+  }
+
+  Future<void> deleteBackup(
+    Map<String, Object?> backup,
+  ) async {
+    if (isProcessing) return;
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -310,11 +363,15 @@ class _BackupPageState extends State<BackupPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () {
+              Navigator.pop(dialogContext, false);
+            },
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: () {
+              Navigator.pop(dialogContext, true);
+            },
             child: const Text('Delete'),
           ),
         ],
@@ -363,16 +420,23 @@ class _BackupPageState extends State<BackupPage> {
         ),
         title: Text(
           title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
         ),
         subtitle: Text(subtitle),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+        ),
         onTap: isProcessing ? null : onTap,
       ),
     );
   }
 
-  Widget backupHistoryItem(Map<String, Object?> backup) {
+  Widget backupHistoryItem(
+    Map<String, Object?> backup,
+  ) {
     final path = backup['file_path'].toString();
 
     final date = DateTime.tryParse(
@@ -394,7 +458,9 @@ class _BackupPageState extends State<BackupPage> {
         ),
         title: Text(
           formattedDate,
-          style: const TextStyle(fontWeight: FontWeight.w600),
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+          ),
         ),
         subtitle: Text(
           exists ? 'Backup available' : 'Backup file missing',
@@ -430,13 +496,15 @@ class _BackupPageState extends State<BackupPage> {
         title: const Text('Backup & Restore'),
         actions: [
           IconButton(
-            onPressed: loadBackups,
+            onPressed: isProcessing ? null : loadBackups,
             icon: const Icon(Icons.refresh),
           ),
         ],
       ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
           : Stack(
               children: [
                 ListView(
@@ -447,7 +515,8 @@ class _BackupPageState extends State<BackupPage> {
                       child: const Padding(
                         padding: EdgeInsets.all(16),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
                           children: [
                             Icon(
                               Icons.shield,
@@ -464,9 +533,9 @@ class _BackupPageState extends State<BackupPage> {
                             ),
                             SizedBox(height: 6),
                             Text(
-                              'Create a local backup of your To-Do, '
-                              'Notes, Finance, Events, Profile and '
-                              'other app data.',
+                              'Create and manage local backups of '
+                              'your To-Do, Notes, Finance, Events, '
+                              'Profile and other app data.',
                             ),
                           ],
                         ),
@@ -478,15 +547,26 @@ class _BackupPageState extends State<BackupPage> {
                     actionCard(
                       icon: Icons.backup,
                       title: 'Create Backup',
-                      subtitle: 'Save all LifeMate database information',
+                      subtitle:
+                          'Save all LifeMate database information',
                       onTap: createBackup,
                       color: Colors.green,
                     ),
 
                     actionCard(
+                      icon: Icons.file_download,
+                      title: 'Export Backup',
+                      subtitle:
+                          'Save a backup to your phone or another location',
+                      onTap: exportBackup,
+                      color: Colors.purple,
+                    ),
+
+                    actionCard(
                       icon: Icons.restore,
                       title: 'Import Backup',
-                      subtitle: 'Select a LifeMate .db backup from your phone',
+                      subtitle:
+                          'Select a LifeMate .db backup from your phone',
                       onTap: importBackup,
                       color: Colors.orange,
                     ),
@@ -517,7 +597,9 @@ class _BackupPageState extends State<BackupPage> {
                           child: Center(
                             child: Text(
                               'No backup available yet.',
-                              style: TextStyle(color: Colors.grey),
+                              style: TextStyle(
+                                color: Colors.grey,
+                              ),
                             ),
                           ),
                         ),
@@ -528,10 +610,9 @@ class _BackupPageState extends State<BackupPage> {
                     const SizedBox(height: 20),
 
                     const Text(
-                      'Important: Backups created here are stored '
-                      'inside the app private storage. Export a copy '
-                      'to another safe location before uninstalling '
-                      'LifeMate or clearing app data.',
+                      'Important: Internal backups may be lost '
+                      'if you uninstall LifeMate or clear app data. '
+                      'Use Export Backup to keep a separate copy.',
                       style: TextStyle(
                         color: Colors.grey,
                         fontSize: 12,
