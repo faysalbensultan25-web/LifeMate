@@ -11,6 +11,19 @@ jobs:
       # --------------------------------------------------
       # 1. Checkout
       # --------------------------------------------------
+name: Build LifeMate APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # --------------------------------------------------
+      # 1. Checkout
+      # --------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -22,6 +35,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
 
       # --------------------------------------------------
       # 3. Flutter
@@ -104,14 +118,12 @@ jobs:
 
               content = file.read_text()
 
-              # Replace existing compileSdk values
               content = re.sub(
                   r'(?m)^(\s*compileSdk(?:Version)?\s*(?:=\s*)?)(?:flutter\.compileSdkVersion|\d+)',
                   r'\g<1>36',
                   content
               )
 
-              # If compileSdk does not exist, add it
               if not re.search(r'compileSdk(?:Version)?', content):
                   content = content.replace(
                       "android {",
@@ -134,22 +146,18 @@ jobs:
           import re
           import os
 
-          roots = [
-              Path(os.path.expanduser(
+          pub_root = Path(
+              os.path.expanduser(
                   "~/.pub-cache/hosted/pub.dev"
-              )),
-              Path(".dart_tool/package_config.json").parent
-          ]
+              )
+          )
 
-          changed = []
-
-          # Specifically target the plugins involved in the error
           target_names = [
               "file_picker",
               "flutter_plugin_android_lifecycle",
           ]
 
-          pub_root = roots[0]
+          changed = []
 
           if pub_root.exists():
               for name in target_names:
@@ -159,7 +167,9 @@ jobs:
                       if not android_folder.exists():
                           continue
 
-                      for file in android_folder.glob("build.gradle*"):
+                      for file in android_folder.glob(
+                          "build.gradle*"
+                      ):
                           content = file.read_text()
 
                           updated = re.sub(
@@ -225,21 +235,47 @@ jobs:
             -exec cat {} \; || true
 
       # --------------------------------------------------
-      # 10. Clean Flutter
+      # 10. Flutter Clean
       # --------------------------------------------------
       - name: Flutter Clean
         run: |
           flutter clean
 
       # --------------------------------------------------
-      # 11. Get dependencies again
+      # 11. Flutter Pub Get Again
       # --------------------------------------------------
       - name: Flutter Pub Get Again
         run: |
           flutter pub get
 
       # --------------------------------------------------
-      # 12. Build APK
+      # 12. Gradle dependency warm-up with retry
+      # --------------------------------------------------
+      - name: Download Gradle dependencies
+        working-directory: android
+        run: |
+          echo "Downloading Gradle dependencies..."
+
+          for attempt in 1 2 3 4 5; do
+            echo "Gradle dependency attempt: $attempt"
+
+            if ./gradlew dependencies --no-daemon --stacktrace; then
+              echo "Gradle dependencies downloaded successfully."
+              exit 0
+            fi
+
+            echo "Attempt $attempt failed."
+
+            if [ "$attempt" -lt 5 ]; then
+              sleep $((attempt * 20))
+            fi
+          done
+
+          echo "Gradle dependency download failed after 5 attempts."
+          exit 1
+
+      # --------------------------------------------------
+      # 13. Build APK with retry
       # --------------------------------------------------
       - name: Build APK
         env:
@@ -247,11 +283,28 @@ jobs:
             -Dorg.gradle.daemon=false
             -Dorg.gradle.parallel=true
             -Dorg.gradle.caching=true
+            -Dorg.gradle.jvmargs=-Xmx4g
         run: |
-          flutter build apk --release
+          for attempt in 1 2 3 4 5; do
+            echo "APK build attempt: $attempt"
+
+            if flutter build apk --release; then
+              echo "APK build successful."
+              exit 0
+            fi
+
+            echo "Build attempt $attempt failed."
+
+            if [ "$attempt" -lt 5 ]; then
+              sleep $((attempt * 20))
+            fi
+          done
+
+          echo "APK build failed after 5 attempts."
+          exit 1
 
       # --------------------------------------------------
-      # 13. Upload APK
+      # 14. Upload APK
       # --------------------------------------------------
       - name: Upload APK
         uses: actions/upload-artifact@v4
