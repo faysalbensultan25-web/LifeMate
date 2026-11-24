@@ -19,7 +19,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
 
       onCreate: (db, version) async {
         // To-Do
@@ -90,18 +90,23 @@ class AppDatabase {
         ''');
 
         // Budgets
+        // Version 3:
+        // type = income / expense
+        // category_id = optional category
         await db.execute('''
           CREATE TABLE budgets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
             amount REAL NOT NULL,
+            type TEXT NOT NULL DEFAULT 'expense',
+            category_id INTEGER,
             period TEXT NOT NULL,
             start_date TEXT NOT NULL,
             end_date TEXT
           )
         ''');
 
-        // Profile - Version 2
+        // Profile
         await db.execute('''
           CREATE TABLE profiles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -146,6 +151,7 @@ class AppDatabase {
 
       // Upgrade existing LifeMate database
       onUpgrade: (db, oldVersion, newVersion) async {
+        // Version 1 → Version 2
         if (oldVersion < 2) {
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN birth_date TEXT',
@@ -185,6 +191,23 @@ class AppDatabase {
 
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN about TEXT',
+          );
+        }
+
+        // Version 2 → Version 3
+        if (oldVersion < 3) {
+          await db.execute(
+            '''
+            ALTER TABLE budgets
+            ADD COLUMN type TEXT NOT NULL DEFAULT 'expense'
+            ''',
+          );
+
+          await db.execute(
+            '''
+            ALTER TABLE budgets
+            ADD COLUMN category_id INTEGER
+            ''',
           );
         }
       },
