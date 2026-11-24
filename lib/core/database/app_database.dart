@@ -89,10 +89,7 @@ class AppDatabase {
           )
         ''');
 
-        // Budgets
-        // Version 3:
-        // type = income / expense
-        // category_id = optional category
+        // Budgets - Version 3
         await db.execute('''
           CREATE TABLE budgets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -149,9 +146,8 @@ class AppDatabase {
         ''');
       },
 
-      // Upgrade existing LifeMate database
       onUpgrade: (db, oldVersion, newVersion) async {
-        // Version 1 → Version 2
+        // Version 1 -> Version 2
         if (oldVersion < 2) {
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN birth_date TEXT',
@@ -194,20 +190,14 @@ class AppDatabase {
           );
         }
 
-        // Version 2 → Version 3
+        // Version 2 -> Version 3
         if (oldVersion < 3) {
           await db.execute(
-            '''
-            ALTER TABLE budgets
-            ADD COLUMN type TEXT NOT NULL DEFAULT 'expense'
-            ''',
+            "ALTER TABLE budgets ADD COLUMN type TEXT NOT NULL DEFAULT 'expense'",
           );
 
           await db.execute(
-            '''
-            ALTER TABLE budgets
-            ADD COLUMN category_id INTEGER
-            ''',
+            'ALTER TABLE budgets ADD COLUMN category_id INTEGER',
           );
         }
       },
