@@ -8,6 +8,7 @@ import '../finance/finance_page.dart';
 import '../notes/notes_page.dart';
 import '../profile/profile_page.dart';
 import '../reports/pdf_reports_page.dart';
+import '../settings/settings_page.dart';
 import '../statistics/budget_page.dart';
 import '../statistics/statistics_page.dart';
 import '../todo/todo_page.dart';
@@ -20,12 +21,10 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int currentIndex = 0;
+  String profileName = 'LifeMate';
+  String? profilePhoto;
 
-  List<Map<String, dynamic>> activities = [];
-
-  String? profilePhotoPath;
-  String? profileName;
+  List<Map<String, dynamic>> recentActivities = [];
 
   @override
   void initState() {
@@ -34,130 +33,129 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> loadHomeData() async {
-    await Future.wait([
-      loadActivities(),
-      loadProfile(),
-    ]);
-  }
-
-  Future<void> loadProfile() async {
     final db = await AppDatabase.database;
 
-    final result = await db.query(
+    final profiles = await db.query(
       'profiles',
       orderBy: 'id ASC',
       limit: 1,
     );
 
-    String? newPhotoPath;
-    String? newProfileName;
+    if (profiles.isNotEmpty) {
+      final profile = profiles.first;
 
-    if (result.isNotEmpty) {
-      final profile = result.first;
+      final name = profile['name']?.toString().trim();
+      final photo = profile['photo_path']?.toString();
 
-      final savedPhoto = profile['photo_path']?.toString();
-      final savedName = profile['name']?.toString();
+      if (mounted) {
+        setState(() {
+          if (name != null && name.isNotEmpty) {
+            profileName = name;
+          } else {
+            profileName = 'LifeMate';
+          }
 
-      if (savedPhoto != null &&
-          savedPhoto.isNotEmpty &&
-          File(savedPhoto).existsSync()) {
-        newPhotoPath = savedPhoto;
-      }
-
-      if (savedName != null && savedName.isNotEmpty) {
-        newProfileName = savedName;
+          if (photo != null && photo.isNotEmpty) {
+            profilePhoto = photo;
+          }
+        });
       }
     }
 
-    if (!mounted) return;
-
-    setState(() {
-      profilePhotoPath = newPhotoPath;
-      profileName = newProfileName;
-    });
+    await loadRecentActivities();
   }
 
-  Future<void> loadActivities() async {
+  Future<void> loadRecentActivities() async {
     final db = await AppDatabase.database;
+
+    final List<Map<String, dynamic>> activities = [];
 
     final todos = await db.query(
       'todos',
       orderBy: 'id DESC',
-      limit: 3,
+      limit: 5,
     );
+
+    for (final todo in todos) {
+      activities.add({
+        'type': 'todo',
+        'title': todo['title']?.toString() ?? 'To-Do',
+        'subtitle': todo['is_completed'] == 1
+            ? 'Completed'
+            : 'Pending',
+        'date': todo['created_at']?.toString() ?? '',
+        'icon': Icons.task_alt,
+      });
+    }
 
     final notes = await db.query(
       'notes',
       orderBy: 'id DESC',
-      limit: 3,
+      limit: 5,
     );
+
+    for (final note in notes) {
+      activities.add({
+        'type': 'note',
+        'title': note['title']?.toString() ?? 'Note',
+        'subtitle': 'Note',
+        'date': note['created_at']?.toString() ?? '',
+        'icon': Icons.note_alt,
+      });
+    }
 
     final incomes = await db.query(
       'incomes',
       orderBy: 'id DESC',
-      limit: 3,
+      limit: 5,
     );
+
+    for (final income in incomes) {
+      activities.add({
+        'type': 'income',
+        'title': income['description']?.toString() ??
+            income['category']?.toString() ??
+            'Income',
+        'subtitle': 'Income: ${income['amount'] ?? 0}',
+        'date': income['date']?.toString() ?? '',
+        'icon': Icons.arrow_downward,
+      });
+    }
 
     final expenses = await db.query(
       'expenses',
       orderBy: 'id DESC',
-      limit: 3,
+      limit: 5,
     );
 
-    final result = <Map<String, dynamic>>[];
-
-    for (final todo in todos) {
-      result.add({
-        'type': 'todo',
-        'title': todo['title'],
-        'subtitle': 'To-Do',
-        'date': todo['created_at'],
-      });
-    }
-
-    for (final note in notes) {
-      result.add({
-        'type': 'note',
-        'title': note['title'],
-        'subtitle': 'Note',
-        'date': note['created_at'],
-      });
-    }
-
-    for (final income in incomes) {
-      result.add({
-        'type': 'income',
-        'title': 'Income: ৳${income['amount']}',
-        'subtitle': income['description'] ?? 'Income',
-        'date': income['created_at'],
-      });
-    }
-
     for (final expense in expenses) {
-      result.add({
+      activities.add({
         'type': 'expense',
-        'title': 'Expense: ৳${expense['amount']}',
-        'subtitle': expense['description'] ?? 'Expense',
-        'date': expense['created_at'],
+        'title': expense['description']?.toString() ??
+            expense['category']?.toString() ??
+            'Expense',
+        'subtitle': 'Expense: ${expense['amount'] ?? 0}',
+        'date': expense['date']?.toString() ?? '',
+        'icon': Icons.arrow_upward,
       });
     }
 
-    result.sort((a, b) {
-      final aDate = DateTime.tryParse(a['date'] as String);
-      final bDate = DateTime.tryParse(b['date'] as String);
+    activities.sort((a, b) {
+      final aDate = DateTime.tryParse(a['date']?.toString() ?? '');
+      final bDate = DateTime.tryParse(b['date']?.toString() ?? '');
 
-      if (aDate == null || bDate == null) {
-        return 0;
-      }
+      if (aDate == null && bDate == null) return 0;
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
 
       return bDate.compareTo(aDate);
     });
 
-    if (!mounted) return;
-
-    setState(() {
-      activities = result.take(8).toList();
-    });
+    if (mounted) {
+      setState(() {
+        recentActivities = activities.take(10).toList();
+      });
+    }
   }
 
   Future<void> openTodo() async {
@@ -168,7 +166,7 @@ class _HomePageState extends State<HomePage> {
       ),
     );
 
-    await loadActivities();
+    await loadHomeData();
   }
 
   Future<void> openNotes() async {
@@ -179,7 +177,7 @@ class _HomePageState extends State<HomePage> {
       ),
     );
 
-    await loadActivities();
+    await loadHomeData();
   }
 
   Future<void> openFinance() async {
@@ -190,7 +188,7 @@ class _HomePageState extends State<HomePage> {
       ),
     );
 
-    await loadActivities();
+    await loadHomeData();
   }
 
   Future<void> openEvents() async {
@@ -201,7 +199,7 @@ class _HomePageState extends State<HomePage> {
       ),
     );
 
-    await loadActivities();
+    await loadHomeData();
   }
 
   Future<void> openStatistics() async {
@@ -212,7 +210,7 @@ class _HomePageState extends State<HomePage> {
       ),
     );
 
-    await loadActivities();
+    await loadHomeData();
   }
 
   Future<void> openBudget() async {
@@ -223,7 +221,7 @@ class _HomePageState extends State<HomePage> {
       ),
     );
 
-    await loadActivities();
+    await loadHomeData();
   }
 
   Future<void> openProfile() async {
@@ -234,8 +232,7 @@ class _HomePageState extends State<HomePage> {
       ),
     );
 
-    await loadProfile();
-    await loadActivities();
+    await loadHomeData();
   }
 
   Future<void> openPdfReports() async {
@@ -245,88 +242,71 @@ class _HomePageState extends State<HomePage> {
         builder: (_) => const PdfReportsPage(),
       ),
     );
-
-    await loadActivities();
   }
 
-  // ------------------------------------------------------------
-  // QUICK ADD
-  // ------------------------------------------------------------
+  Future<void> openSettings() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const SettingsPage(),
+      ),
+    );
+
+    await loadHomeData();
+  }
 
   void showQuickAdd() {
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
-      builder: (sheetContext) {
+      builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              16,
-              8,
-              16,
-              24,
-            ),
+            padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Quick Add',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                const Text(
+                  'Quick Add',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
 
-                _quickAddTile(
-                  sheetContext,
-                  'To-Do',
-                  Icons.check_circle_outline,
-                  () {
-                    Navigator.pop(sheetContext);
+                ListTile(
+                  leading: const Icon(Icons.task_alt),
+                  title: const Text('Add To-Do'),
+                  onTap: () {
+                    Navigator.pop(context);
                     openTodo();
                   },
                 ),
 
-                _quickAddTile(
-                  sheetContext,
-                  'Income',
-                  Icons.trending_up,
-                  () {
-                    Navigator.pop(sheetContext);
+                ListTile(
+                  leading: const Icon(Icons.account_balance_wallet),
+                  title: const Text('Add Finance'),
+                  onTap: () {
+                    Navigator.pop(context);
                     openFinance();
                   },
                 ),
 
-                _quickAddTile(
-                  sheetContext,
-                  'Expense',
-                  Icons.trending_down,
-                  () {
-                    Navigator.pop(sheetContext);
-                    openFinance();
-                  },
-                ),
-
-                _quickAddTile(
-                  sheetContext,
-                  'Note',
-                  Icons.note_alt_outlined,
-                  () {
-                    Navigator.pop(sheetContext);
+                ListTile(
+                  leading: const Icon(Icons.note_alt),
+                  title: const Text('Add Note'),
+                  onTap: () {
+                    Navigator.pop(context);
                     openNotes();
                   },
                 ),
 
-                _quickAddTile(
-                  sheetContext,
-                  'Event',
-                  Icons.event_outlined,
-                  () {
-                    Navigator.pop(sheetContext);
+                ListTile(
+                  leading: const Icon(Icons.event),
+                  title: const Text('Add Event'),
+                  onTap: () {
+                    Navigator.pop(context);
                     openEvents();
                   },
                 ),
@@ -338,349 +318,214 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _quickAddTile(
-    BuildContext context,
-    String title,
-    IconData icon,
-    VoidCallback onTap,
-  ) {
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: const Color(0xFFE7F0FF),
-        child: Icon(
-          icon,
-          color: const Color(0xFF1877F2),
-        ),
-      ),
-      title: Text(title),
-      trailing: const Icon(
-        Icons.chevron_right,
-      ),
-      onTap: onTap,
-    );
-  }
+  void showSearchPanel() {
+    final controller = TextEditingController();
 
-  // ------------------------------------------------------------
-  // SEARCH
-  // ------------------------------------------------------------
-
-  Future<List<Map<String, dynamic>>> searchAll(
-    String query,
-  ) async {
-    final text = query.trim();
-
-    if (text.isEmpty) return [];
-
-    final db = await AppDatabase.database;
-    final pattern = '%$text%';
-
-    final result = <Map<String, dynamic>>[];
-
-    final todos = await db.query(
-      'todos',
-      where: 'title LIKE ?',
-      whereArgs: [pattern],
-      orderBy: 'id DESC',
-      limit: 20,
-    );
-
-    for (final item in todos) {
-      result.add({
-        'type': 'To-Do',
-        'title': item['title'],
-        'subtitle': 'To-Do',
-        'action': 'todo',
-      });
-    }
-
-    final notes = await db.query(
-      'notes',
-      where: 'title LIKE ? OR content LIKE ?',
-      whereArgs: [pattern, pattern],
-      orderBy: 'id DESC',
-      limit: 20,
-    );
-
-    for (final item in notes) {
-      result.add({
-        'type': 'Note',
-        'title': item['title'],
-        'subtitle': item['content'],
-        'action': 'note',
-      });
-    }
-
-    final incomes = await db.query(
-      'incomes',
-      where: 'description LIKE ?',
-      whereArgs: [pattern],
-      orderBy: 'id DESC',
-      limit: 20,
-    );
-
-    for (final item in incomes) {
-      result.add({
-        'type': 'Income',
-        'title': 'Income: ৳${item['amount']}',
-        'subtitle': item['description'] ?? 'Income',
-        'action': 'finance',
-      });
-    }
-
-    final expenses = await db.query(
-      'expenses',
-      where: 'description LIKE ?',
-      whereArgs: [pattern],
-      orderBy: 'id DESC',
-      limit: 20,
-    );
-
-    for (final item in expenses) {
-      result.add({
-        'type': 'Expense',
-        'title': 'Expense: ৳${item['amount']}',
-        'subtitle': item['description'] ?? 'Expense',
-        'action': 'finance',
-      });
-    }
-
-    final events = await db.query(
-      'events',
-      where: 'title LIKE ? OR description LIKE ?',
-      whereArgs: [pattern, pattern],
-      orderBy: 'id DESC',
-      limit: 20,
-    );
-
-    for (final item in events) {
-      result.add({
-        'type': 'Event',
-        'title': item['title'],
-        'subtitle': item['description'] ?? 'Event',
-        'action': 'events',
-      });
-    }
-
-    return result;
-  }
-
-  void openSearch() {
-    final searchController = TextEditingController();
-
-    showSearchResults(searchController);
-  }
-
-  void showSearchResults(
-    TextEditingController controller,
-  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return SafeArea(
-              child: Padding(
-                padding: EdgeInsets.only(
-                  left: 16,
-                  right: 16,
-                  bottom:
-                      MediaQuery.of(context).viewInsets.bottom +
-                          16,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 10,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Search LifeMate',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
                 ),
-                child: SizedBox(
-                  height: MediaQuery.of(context).size.height *
-                      0.78,
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Search LifeMate',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      TextField(
-                        controller: controller,
-                        autofocus: true,
-                        onChanged: (_) {
-                          setSheetState(() {});
-                        },
-                        decoration: InputDecoration(
-                          hintText:
-                              'Search To-Do, Notes, Finance, Events...',
-                          prefixIcon:
-                              const Icon(Icons.search),
-                          suffixIcon: controller.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  onPressed: () {
-                                    controller.clear();
-                                    setSheetState(() {});
-                                  },
-                                  icon: const Icon(
-                                    Icons.clear,
-                                  ),
-                                ),
-                          border: OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(14),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      Expanded(
-                        child: FutureBuilder<
-                            List<Map<String, dynamic>>>(
-                          future: searchAll(
-                            controller.text,
-                          ),
-                          builder: (
-                            context,
-                            snapshot,
-                          ) {
-                            if (controller.text.trim().isEmpty) {
-                              return const Center(
-                                child: Text(
-                                  'Type something to search.',
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              );
-                            }
-
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Center(
-                                child:
-                                    CircularProgressIndicator(),
-                              );
-                            }
-
-                            if (snapshot.hasError) {
-                              return Center(
-                                child: Text(
-                                  'Search failed: ${snapshot.error}',
-                                ),
-                              );
-                            }
-
-                            final results =
-                                snapshot.data ?? [];
-
-                            if (results.isEmpty) {
-                              return const Center(
-                                child: Text(
-                                  'No results found.',
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              );
-                            }
-
-                            return ListView.builder(
-                              itemCount: results.length,
-                              itemBuilder: (
-                                context,
-                                index,
-                              ) {
-                                final item =
-                                    results[index];
-
-                                return Card(
-                                  child: ListTile(
-                                    leading: const CircleAvatar(
-                                      backgroundColor:
-                                          Color(0xFFE7F0FF),
-                                      child: Icon(
-                                        Icons.search,
-                                        color:
-                                            Color(0xFF1877F2),
-                                      ),
-                                    ),
-                                    title: Text(
-                                      item['title']
-                                          .toString(),
-                                      maxLines: 1,
-                                      overflow:
-                                          TextOverflow.ellipsis,
-                                    ),
-                                    subtitle: Text(
-                                      '${item['type']} • '
-                                      '${item['subtitle']}',
-                                      maxLines: 2,
-                                      overflow:
-                                          TextOverflow.ellipsis,
-                                    ),
-                                    trailing: const Icon(
-                                      Icons.chevron_right,
-                                    ),
-                                    onTap: () {
-                                      Navigator.pop(
-                                        sheetContext,
-                                      );
-
-                                      _openSearchResult(
-                                        item['action']
-                                            .toString(),
-                                      );
-                                    },
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                    ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Search To-Do, Notes, Finance, Events',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
               ),
-            );
-          },
+              const SizedBox(height: 16),
+              const Text(
+                'Search results will appear here.',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
         );
       },
-    ).whenComplete(controller.dispose);
+    );
   }
 
-  void _openSearchResult(String action) {
-    if (action == 'todo') {
-      openTodo();
-    } else if (action == 'note') {
-      openNotes();
-    } else if (action == 'finance') {
-      openFinance();
-    } else if (action == 'events') {
-      openEvents();
-    }
+  void showAlerts() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Notifications will be available here.'),
+      ),
+    );
   }
 
-  Widget _profileHomeIcon() {
-    final hasPhoto =
-        profilePhotoPath != null &&
-        profilePhotoPath!.isNotEmpty &&
-        File(profilePhotoPath!).existsSync();
+  void showMore() {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.person),
+                title: const Text('Profile'),
+                onTap: () {
+                  Navigator.pop(context);
+                  openProfile();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.settings),
+                title: const Text('Settings'),
+                onTap: () {
+                  Navigator.pop(context);
+                  openSettings();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf),
+                title: const Text('PDF Reports'),
+                onTap: () {
+                  Navigator.pop(context);
+                  openPdfReports();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
-    if (hasPhoto) {
+  Widget buildProfileAvatar() {
+    if (profilePhoto != null &&
+        profilePhoto!.isNotEmpty &&
+        File(profilePhoto!).existsSync()) {
       return CircleAvatar(
-        radius: 16,
+        radius: 21,
         backgroundImage: FileImage(
-          File(profilePhotoPath!),
+          File(profilePhoto!),
         ),
       );
     }
 
-    return const Icon(
-      Icons.account_circle_outlined,
+    return const CircleAvatar(
+      radius: 21,
+      child: Icon(Icons.person),
+    );
+  }
+
+  Widget featureCard(
+    String title,
+    IconData icon,
+    bool active,
+    VoidCallback? onTap,
+  ) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: active ? onTap : null,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 30,
+                color: active
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.grey,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                active ? 'Open' : 'Coming soon',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: active ? Colors.green : Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget buildRecentActivity() {
+    if (recentActivities.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              Icon(
+                Icons.history,
+                size: 42,
+                color: Colors.grey.shade400,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'No recent activity',
+                style: TextStyle(
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      child: Column(
+        children: recentActivities.map((activity) {
+          return ListTile(
+            leading: CircleAvatar(
+              child: Icon(
+                activity['icon'] as IconData,
+                size: 20,
+              ),
+            ),
+            title: Text(
+              activity['title']?.toString() ?? '',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text(
+              activity['subtitle']?.toString() ?? '',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 
@@ -696,156 +541,193 @@ class _HomePageState extends State<HomePage> {
         ),
         actions: [
           IconButton(
-            onPressed: openSearch,
             icon: const Icon(Icons.search),
-            tooltip: 'Search',
+            onPressed: showSearchPanel,
           ),
           IconButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Notifications will be available here.',
-                  ),
-                ),
-              );
-            },
-            icon: const Icon(
-              Icons.notifications_outlined,
+            icon: const Icon(Icons.notifications_none),
+            onPressed: showAlerts,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: GestureDetector(
+              onTap: openProfile,
+              child: buildProfileAvatar(),
             ),
-          ),
-          IconButton(
-            onPressed: openProfile,
-            icon: _profileHomeIcon(),
-            tooltip: profileName ?? 'Profile',
           ),
         ],
       ),
 
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          GridView.count(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.25,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              _featureCard(
-                'To-Do',
-                Icons.task_alt,
-                true,
-                openTodo,
+      body: RefreshIndicator(
+        onRefresh: loadHomeData,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Row(
+                  children: [
+                    buildProfileAvatar(),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Welcome',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            profileName,
+                            style: const TextStyle(
+                              fontSize: 21,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              _featureCard(
-                'Finance',
-                Icons.account_balance_wallet,
-                true,
-                openFinance,
-              ),
-              _featureCard(
-                'Notes',
-                Icons.note_alt,
-                true,
-                openNotes,
-              ),
-              _featureCard(
-                'Events',
-                Icons.event,
-                true,
-                openEvents,
-              ),
-              _featureCard(
-                'Statistics',
-                Icons.bar_chart,
-                true,
-                openStatistics,
-              ),
-              _featureCard(
-                'Budget',
-                Icons.savings,
-                true,
-                openBudget,
-              ),
-              _featureCard(
-                'Profile',
-                Icons.person,
-                true,
-                openProfile,
-              ),
-              _featureCard(
-                'PDF Reports',
-                Icons.picture_as_pdf,
-                true,
-                openPdfReports,
-              ),
-              _featureCard(
-                'Backup',
-                Icons.backup,
-                false,
-                null,
-              ),
-              _featureCard(
-                'Settings',
-                Icons.settings,
-                false,
-                null,
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 24),
-
-          const Text(
-            'Recent Activity',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
             ),
-          ),
 
-          const SizedBox(height: 12),
+            const SizedBox(height: 18),
 
-          if (activities.isEmpty)
-            _emptyActivity()
-          else
-            ...activities.map(_activityCard),
+            const Text(
+              'Features',
+              style: TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
 
-          const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
-          _financeCard(),
-        ],
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 1.25,
+              children: [
+                featureCard(
+                  'To-Do',
+                  Icons.task_alt,
+                  true,
+                  openTodo,
+                ),
+                featureCard(
+                  'Finance',
+                  Icons.account_balance_wallet,
+                  true,
+                  openFinance,
+                ),
+                featureCard(
+                  'Notes',
+                  Icons.note_alt,
+                  true,
+                  openNotes,
+                ),
+                featureCard(
+                  'Events',
+                  Icons.event,
+                  true,
+                  openEvents,
+                ),
+                featureCard(
+                  'Statistics',
+                  Icons.bar_chart,
+                  true,
+                  openStatistics,
+                ),
+                featureCard(
+                  'Budget',
+                  Icons.savings,
+                  true,
+                  openBudget,
+                ),
+                featureCard(
+                  'Profile',
+                  Icons.person,
+                  true,
+                  openProfile,
+                ),
+                featureCard(
+                  'PDF Reports',
+                  Icons.picture_as_pdf,
+                  true,
+                  openPdfReports,
+                ),
+                featureCard(
+                  'Backup',
+                  Icons.backup,
+                  false,
+                  null,
+                ),
+                featureCard(
+                  'Settings',
+                  Icons.settings,
+                  true,
+                  openSettings,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 24),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Recent Activity',
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  onPressed: loadRecentActivities,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 4),
+
+            buildRecentActivity(),
+          ],
+        ),
       ),
 
       bottomNavigationBar: NavigationBar(
-        selectedIndex: currentIndex,
+        selectedIndex: 0,
         onDestinationSelected: (index) {
-          setState(() {
-            currentIndex = index;
-          });
+          switch (index) {
+            case 0:
+              break;
 
-          if (index == 1) {
-            openTodo();
-          } else if (index == 2) {
-            showQuickAdd();
-          } else if (index == 3) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Notifications will be available here.',
-                ),
-              ),
-            );
-          } else if (index == 4) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'More options will be available here.',
-                ),
-              ),
-            );
+            case 1:
+              openTodo();
+              break;
+
+            case 2:
+              showQuickAdd();
+              break;
+
+            case 3:
+              showAlerts();
+              break;
+
+            case 4:
+              showMore();
+              break;
           }
         },
         destinations: const [
@@ -865,147 +747,16 @@ class _HomePageState extends State<HomePage> {
             label: 'Add',
           ),
           NavigationDestination(
-            icon: Icon(Icons.notifications_outlined),
+            icon: Icon(Icons.notifications_none),
             selectedIcon: Icon(Icons.notifications),
             label: 'Alerts',
           ),
           NavigationDestination(
-            icon: Icon(Icons.menu),
-            selectedIcon: Icon(Icons.menu_open),
+            icon: Icon(Icons.more_horiz),
+            selectedIcon: Icon(Icons.more_horiz),
             label: 'More',
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _featureCard(
-    String title,
-    IconData icon,
-    bool active,
-    VoidCallback? onTap,
-  ) {
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 38,
-              color: active
-                  ? const Color(0xFF1877F2)
-                  : Colors.grey,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              active ? 'Open' : 'Coming soon',
-              style: TextStyle(
-                fontSize: 11,
-                color: active
-                    ? const Color(0xFF1877F2)
-                    : Colors.grey,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _activityCard(
-    Map<String, dynamic> activity,
-  ) {
-    final type = activity['type'] as String;
-
-    final isTodo = type == 'todo';
-    final isNote = type == 'note';
-    final isIncome = type == 'income';
-
-    final icon = isTodo
-        ? Icons.task_alt
-        : isNote
-            ? Icons.note_alt
-            : isIncome
-                ? Icons.trending_up
-                : Icons.trending_down;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        onTap: isTodo
-            ? openTodo
-            : isNote
-                ? openNotes
-                : openFinance,
-        leading: CircleAvatar(
-          backgroundColor: const Color(0xFFE7F0FF),
-          child: Icon(
-            icon,
-            color: const Color(0xFF1877F2),
-          ),
-        ),
-        title: Text(
-          activity['title'] as String,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(
-          activity['subtitle'] as String,
-        ),
-        trailing: const Icon(
-          Icons.chevron_right,
-        ),
-      ),
-    );
-  }
-
-  Widget _emptyActivity() {
-    return const Card(
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Center(
-          child: Text(
-            'No recent activity',
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _financeCard() {
-    return Card(
-      child: ListTile(
-        onTap: openFinance,
-        leading: const CircleAvatar(
-          backgroundColor: Color(0xFFE7F0FF),
-          child: Icon(
-            Icons.account_balance_wallet,
-            color: Color(0xFF1877F2),
-          ),
-        ),
-        title: const Text(
-          'Finance',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: const Text(
-          'Manage your income and expenses',
-        ),
-        trailing: const Icon(
-          Icons.chevron_right,
-        ),
       ),
     );
   }
