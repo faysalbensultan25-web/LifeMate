@@ -19,7 +19,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 3,
+      version: 5,
 
       onCreate: (db, version) async {
         // To-Do
@@ -89,7 +89,7 @@ class AppDatabase {
           )
         ''');
 
-        // Budgets - Version 3
+        // Budgets
         await db.execute('''
           CREATE TABLE budgets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -121,7 +121,94 @@ class AppDatabase {
             designation TEXT,
             blood_group TEXT,
             emergency_contact TEXT,
-            about TEXT
+            about TEXT,
+            skills TEXT,
+            languages TEXT,
+            training TEXT,
+            experience TEXT,
+            achievements TEXT,
+            career_objective TEXT
+          )
+        ''');
+
+        // Education - Multiple records
+        await db.execute('''
+          CREATE TABLE profile_education (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id INTEGER NOT NULL DEFAULT 1,
+            qualification TEXT NOT NULL,
+            institution TEXT,
+            subject TEXT,
+            result TEXT,
+            passing_year TEXT,
+            start_year TEXT,
+            end_year TEXT,
+            created_at TEXT NOT NULL
+          )
+        ''');
+
+        // Training and Certifications - Multiple records
+        await db.execute('''
+          CREATE TABLE profile_training (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id INTEGER NOT NULL DEFAULT 1,
+            title TEXT NOT NULL,
+            institution TEXT,
+            duration TEXT,
+            completion_year TEXT,
+            certificate_details TEXT,
+            created_at TEXT NOT NULL
+          )
+        ''');
+
+        // Work Experience - Multiple records
+        await db.execute('''
+          CREATE TABLE profile_experience (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id INTEGER NOT NULL DEFAULT 1,
+            designation TEXT NOT NULL,
+            workplace TEXT,
+            location TEXT,
+            employment_type TEXT,
+            start_date TEXT,
+            end_date TEXT,
+            is_current INTEGER NOT NULL DEFAULT 0,
+            responsibilities TEXT,
+            created_at TEXT NOT NULL
+          )
+        ''');
+
+        // Skills - Multiple records
+        await db.execute('''
+          CREATE TABLE profile_skills (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id INTEGER NOT NULL DEFAULT 1,
+            skill_name TEXT NOT NULL,
+            proficiency TEXT,
+            created_at TEXT NOT NULL
+          )
+        ''');
+
+        // Languages - Multiple records
+        await db.execute('''
+          CREATE TABLE profile_languages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id INTEGER NOT NULL DEFAULT 1,
+            language_name TEXT NOT NULL,
+            proficiency TEXT,
+            created_at TEXT NOT NULL
+          )
+        ''');
+
+        // Achievements - Multiple records
+        await db.execute('''
+          CREATE TABLE profile_achievements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id INTEGER NOT NULL DEFAULT 1,
+            title TEXT NOT NULL,
+            description TEXT,
+            achievement_date TEXT,
+            created_at TEXT NOT NULL
           )
         ''');
 
@@ -136,7 +223,7 @@ class AppDatabase {
           )
         ''');
 
-        // Backup information
+        // Backups
         await db.execute('''
           CREATE TABLE backups (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -200,7 +287,126 @@ class AppDatabase {
             'ALTER TABLE budgets ADD COLUMN category_id INTEGER',
           );
         }
+
+        // Version 3 -> Version 4
+        if (oldVersion < 4) {
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN skills TEXT',
+          );
+
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN languages TEXT',
+          );
+
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN training TEXT',
+          );
+
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN experience TEXT',
+          );
+
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN achievements TEXT',
+          );
+
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN career_objective TEXT',
+          );
+        }
+
+        // Version 4 -> Version 5
+        if (oldVersion < 5) {
+          // Education
+          await db.execute('''
+            CREATE TABLE profile_education (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              profile_id INTEGER NOT NULL DEFAULT 1,
+              qualification TEXT NOT NULL,
+              institution TEXT,
+              subject TEXT,
+              result TEXT,
+              passing_year TEXT,
+              start_year TEXT,
+              end_year TEXT,
+              created_at TEXT NOT NULL
+            )
+          ''');
+
+          // Training
+          await db.execute('''
+            CREATE TABLE profile_training (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              profile_id INTEGER NOT NULL DEFAULT 1,
+              title TEXT NOT NULL,
+              institution TEXT,
+              duration TEXT,
+              completion_year TEXT,
+              certificate_details TEXT,
+              created_at TEXT NOT NULL
+            )
+          ''');
+
+          // Work Experience
+          await db.execute('''
+            CREATE TABLE profile_experience (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              profile_id INTEGER NOT NULL DEFAULT 1,
+              designation TEXT NOT NULL,
+              workplace TEXT,
+              location TEXT,
+              employment_type TEXT,
+              start_date TEXT,
+              end_date TEXT,
+              is_current INTEGER NOT NULL DEFAULT 0,
+              responsibilities TEXT,
+              created_at TEXT NOT NULL
+            )
+          ''');
+
+          // Skills
+          await db.execute('''
+            CREATE TABLE profile_skills (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              profile_id INTEGER NOT NULL DEFAULT 1,
+              skill_name TEXT NOT NULL,
+              proficiency TEXT,
+              created_at TEXT NOT NULL
+            )
+          ''');
+
+          // Languages
+          await db.execute('''
+            CREATE TABLE profile_languages (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              profile_id INTEGER NOT NULL DEFAULT 1,
+              language_name TEXT NOT NULL,
+              proficiency TEXT,
+              created_at TEXT NOT NULL
+            )
+          ''');
+
+          // Achievements
+          await db.execute('''
+            CREATE TABLE profile_achievements (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              profile_id INTEGER NOT NULL DEFAULT 1,
+              title TEXT NOT NULL,
+              description TEXT,
+              achievement_date TEXT,
+              created_at TEXT NOT NULL
+            )
+          ''');
+        }
       },
     );
+  }
+
+  // Close database
+  static Future<void> close() async {
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+    }
   }
 }
