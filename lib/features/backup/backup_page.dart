@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:path/path.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 import '../../core/database/app_database.dart';
@@ -29,14 +29,16 @@ class _BackupPageState extends State<BackupPage> {
 
   Future<String> getDatabasePath() async {
     final directory = await getDatabasesPath();
-    return join(directory, 'lifemate.db');
+    return p.join(directory, 'lifemate.db');
   }
 
   void showMessage(String message) {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+      SnackBar(
+        content: Text(message),
+      ),
     );
   }
 
@@ -62,68 +64,96 @@ class _BackupPageState extends State<BackupPage> {
         isLoading = false;
       });
 
-      showMessage('Could not load backup history: $e');
+      showMessage(
+        'Could not load backup history: $e',
+      );
     }
   }
 
   Future<void> createBackup() async {
     if (isProcessing) return;
 
-    setState(() => isProcessing = true);
+    setState(() {
+      isProcessing = true;
+    });
 
     try {
       final db = await AppDatabase.database;
 
-      await db.rawQuery('PRAGMA wal_checkpoint(FULL)');
+      await db.rawQuery(
+        'PRAGMA wal_checkpoint(FULL)',
+      );
 
       final databasePath = await getDatabasePath();
+
       final originalFile = File(databasePath);
 
       if (!await originalFile.exists()) {
-        throw Exception('Database file not found.');
+        throw Exception(
+          'Database file not found.',
+        );
       }
 
       final now = DateTime.now();
 
-      final timestamp =
-          DateFormat('yyyyMMdd_HHmmss').format(now);
+      final timestamp = DateFormat(
+        'yyyyMMdd_HHmmss',
+      ).format(now);
 
-      final backupPath = join(
-        dirname(databasePath),
+      final backupPath = p.join(
+        p.dirname(databasePath),
         'lifemate_backup_$timestamp.db',
       );
 
       await AppDatabase.close();
 
-      await originalFile.copy(backupPath);
+      await originalFile.copy(
+        backupPath,
+      );
 
-      final reopenedDb = await AppDatabase.database;
+      final reopenedDb =
+          await AppDatabase.database;
 
-      await reopenedDb.insert('backups', {
-        'file_path': backupPath,
-        'created_at': now.toIso8601String(),
-      });
+      await reopenedDb.insert(
+        'backups',
+        {
+          'file_path': backupPath,
+          'created_at': now.toIso8601String(),
+        },
+      );
 
       await loadBackups();
 
-      showMessage('Backup created successfully.');
+      showMessage(
+        'Backup created successfully.',
+      );
     } catch (e) {
       try {
         await AppDatabase.database;
       } catch (_) {}
 
-      showMessage('Backup failed: $e');
+      showMessage(
+        'Backup failed: $e',
+      );
     } finally {
       if (mounted) {
-        setState(() => isProcessing = false);
+        setState(() {
+          isProcessing = false;
+        });
       }
     }
   }
 
-  Future<bool> validateBackup(String path) async {
+  Future<bool> validateBackup(
+    String path,
+  ) async {
     final file = File(path);
 
-    if (!await file.exists() || await file.length() == 0) {
+    if (!await file.exists()) {
+      return false;
+    }
+
+    if (await file.length() == 0) {
       return false;
     }
 
@@ -136,11 +166,14 @@ class _BackupPageState extends State<BackupPage> {
       );
 
       final result = await testDb.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type = 'table'",
+        "SELECT name FROM sqlite_master "
+        "WHERE type = 'table'",
       );
 
       final tables = result
-          .map((row) => row['name'].toString())
+          .map(
+            (row) => row['name'].toString(),
+          )
           .toSet();
 
       const requiredTables = {
@@ -161,7 +194,9 @@ class _BackupPageState extends State<BackupPage> {
         'profile_achievements',
       };
 
-      return tables.containsAll(requiredTables);
+      return tables.containsAll(
+        requiredTables,
+      );
     } catch (_) {
       return false;
     } finally {
@@ -169,94 +204,141 @@ class _BackupPageState extends State<BackupPage> {
     }
   }
 
-  Future<void> restoreBackup(String backupPath) async {
+  Future<void> restoreBackup(
+    String backupPath,
+  ) async {
     if (isProcessing) return;
 
-    final valid = await validateBackup(backupPath);
+    final valid = await validateBackup(
+      backupPath,
+    );
 
     if (!valid) {
-      showMessage('Invalid or incompatible backup file.');
+      showMessage(
+        'Invalid or incompatible backup file.',
+      );
       return;
     }
 
     if (!mounted) return;
 
-    final confirm = await showDialog<bool>(
+    final confirm =
+        await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Restore Backup?'),
-        content: const Text(
-          'Restoring this backup will replace your current '
-          'LifeMate database. Changes made after this backup '
-          'will be lost. Continue?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext, false);
-            },
-            child: const Text('Cancel'),
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text(
+            'Restore Backup?',
           ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(dialogContext, true);
-            },
-            child: const Text('Restore'),
+          content: const Text(
+            'Restoring this backup will replace '
+            'your current LifeMate database. '
+            'Changes made after this backup '
+            'will be lost. Continue?',
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
+              },
+              child: const Text(
+                'Cancel',
+              ),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
+              },
+              child: const Text(
+                'Restore',
+              ),
+            ),
+          ],
+        );
+      },
     );
 
     if (confirm != true) return;
 
-    setState(() => isProcessing = true);
+    setState(() {
+      isProcessing = true;
+    });
 
     try {
-      final databasePath = await getDatabasePath();
+      final databasePath =
+          await getDatabasePath();
 
-      final originalFile = File(databasePath);
-      final tempPath = '$databasePath.restore_temp';
+      final originalFile =
+          File(databasePath);
+
+      final tempPath =
+          '$databasePath.restore_temp';
+
       final tempFile = File(tempPath);
 
-      // Prepare restore file.
-      await File(backupPath).copy(tempPath);
+      await File(backupPath).copy(
+        tempPath,
+      );
 
-      // Keep a rollback copy of the current database.
-      final safetyPath = '$databasePath.before_restore';
-      final safetyFile = File(safetyPath);
+      final safetyPath =
+          '$databasePath.before_restore';
+
+      final safetyFile =
+          File(safetyPath);
 
       await AppDatabase.close();
 
       if (await originalFile.exists()) {
-        await originalFile.copy(safetyPath);
+        await originalFile.copy(
+          safetyPath,
+        );
       }
 
       try {
-        final walFile = File('$databasePath-wal');
-        final shmFile = File('$databasePath-shm');
+        final walFile =
+            File('$databasePath-wal');
 
-        if (await walFile.exists()) await walFile.delete();
-        if (await shmFile.exists()) await shmFile.delete();
+        final shmFile =
+            File('$databasePath-shm');
+
+        if (await walFile.exists()) {
+          await walFile.delete();
+        }
+
+        if (await shmFile.exists()) {
+          await shmFile.delete();
+        }
 
         if (await originalFile.exists()) {
           await originalFile.delete();
         }
 
-        await tempFile.copy(databasePath);
-        await tempFile.delete();
+        await tempFile.copy(
+          databasePath,
+        );
+
+        if (await tempFile.exists()) {
+          await tempFile.delete();
+        }
 
         await AppDatabase.database;
 
-        // Restore successful.
         if (await safetyFile.exists()) {
           await safetyFile.delete();
         }
 
         await loadBackups();
 
-        showMessage('Backup restored successfully.');
+        showMessage(
+          'Backup restored successfully.',
+        );
       } catch (restoreError) {
-        // Roll back if restore fails.
         await AppDatabase.close();
 
         if (await safetyFile.exists()) {
@@ -264,7 +346,10 @@ class _BackupPageState extends State<BackupPage> {
             await originalFile.delete();
           }
 
-          await safetyFile.copy(databasePath);
+          await safetyFile.copy(
+            databasePath,
+          );
+
           await safetyFile.delete();
         }
 
@@ -273,14 +358,18 @@ class _BackupPageState extends State<BackupPage> {
         rethrow;
       }
     } catch (e) {
-      showMessage('Restore failed: $e');
+      showMessage(
+        'Restore failed: $e',
+      );
     } finally {
       try {
         await AppDatabase.database;
       } catch (_) {}
 
       if (mounted) {
-        setState(() => isProcessing = false);
+        setState(() {
+          isProcessing = false;
+        });
       }
     }
   }
@@ -289,62 +378,99 @@ class _BackupPageState extends State<BackupPage> {
     if (isProcessing) return;
 
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result =
+          await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['db'],
         allowMultiple: false,
       );
 
-      if (result == null || result.files.single.path == null) {
+      if (result == null) {
         return;
       }
 
-      await restoreBackup(result.files.single.path!);
+      final selectedFile =
+          result.files.single;
+
+      if (selectedFile.path == null) {
+        showMessage(
+          'Could not access selected backup file.',
+        );
+        return;
+      }
+
+      await restoreBackup(
+        selectedFile.path!,
+      );
     } catch (e) {
-      showMessage('Could not select backup: $e');
+      showMessage(
+        'Could not select backup: $e',
+      );
     }
   }
 
   Future<void> exportBackup() async {
     if (isProcessing) return;
 
-    setState(() => isProcessing = true);
+    setState(() {
+      isProcessing = true;
+    });
 
     try {
       final db = await AppDatabase.database;
 
-      await db.rawQuery('PRAGMA wal_checkpoint(FULL)');
+      await db.rawQuery(
+        'PRAGMA wal_checkpoint(FULL)',
+      );
 
-      final databasePath = await getDatabasePath();
-      final databaseFile = File(databasePath);
+      final databasePath =
+          await getDatabasePath();
+
+      final databaseFile =
+          File(databasePath);
 
       if (!await databaseFile.exists()) {
-        throw Exception('Database file not found.');
+        throw Exception(
+          'Database file not found.',
+        );
       }
 
-      final bytes = await databaseFile.readAsBytes();
+      final bytes =
+          await databaseFile.readAsBytes();
 
-      final timestamp =
-          DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final timestamp = DateFormat(
+        'yyyyMMdd_HHmmss',
+      ).format(DateTime.now());
 
-      final savedPath = await FilePicker.platform.saveFile(
-        dialogTitle: 'Export LifeMate Backup',
-        fileName: 'LifeMate_Backup_$timestamp.db',
+      final savedPath =
+          await FilePicker.platform.saveFile(
+        dialogTitle:
+            'Export LifeMate Backup',
+        fileName:
+            'LifeMate_Backup_$timestamp.db',
         type: FileType.custom,
         allowedExtensions: ['db'],
         bytes: bytes,
       );
 
       if (savedPath == null) {
-        showMessage('Export cancelled.');
+        showMessage(
+          'Export cancelled.',
+        );
       } else {
-        showMessage('Backup exported successfully.');
+        showMessage(
+          'Backup exported successfully.',
+        );
       }
     } catch (e) {
-      showMessage('Export failed: $e');
+      showMessage(
+        'Export failed: $e',
+      );
     } finally {
       if (mounted) {
-        setState(() => isProcessing = false);
+        setState(() {
+          isProcessing = false;
+        });
       }
     }
   }
@@ -354,53 +480,78 @@ class _BackupPageState extends State<BackupPage> {
   ) async {
     if (isProcessing) return;
 
-    final confirm = await showDialog<bool>(
+    final confirm =
+        await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Backup?'),
-        content: const Text(
-          'This will permanently delete this backup file.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext, false);
-            },
-            child: const Text('Cancel'),
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text(
+            'Delete Backup?',
           ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(dialogContext, true);
-            },
-            child: const Text('Delete'),
+          content: const Text(
+            'This will permanently delete '
+            'this backup file.',
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
+              },
+              child: const Text(
+                'Cancel',
+              ),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
+              },
+              child: const Text(
+                'Delete',
+              ),
+            ),
+          ],
+        );
+      },
     );
 
     if (confirm != true) return;
 
     try {
-      final path = backup['file_path'].toString();
+      final path =
+          backup['file_path'].toString();
+
       final file = File(path);
 
       if (await file.exists()) {
         await file.delete();
       }
 
-      final db = await AppDatabase.database;
+      final db =
+          await AppDatabase.database;
 
       await db.delete(
         'backups',
         where: 'id = ?',
-        whereArgs: [backup['id']],
+        whereArgs: [
+          backup['id'],
+        ],
       );
 
       await loadBackups();
 
-      showMessage('Backup deleted.');
+      showMessage(
+        'Backup deleted.',
+      );
     } catch (e) {
-      showMessage('Delete failed: $e');
+      showMessage(
+        'Delete failed: $e',
+      );
     }
   }
 
@@ -413,10 +564,15 @@ class _BackupPageState extends State<BackupPage> {
   }) {
     return Card(
       child: ListTile(
-        contentPadding: const EdgeInsets.all(14),
+        contentPadding:
+            const EdgeInsets.all(14),
         leading: CircleAvatar(
-          backgroundColor: color.withValues(alpha: 0.12),
-          child: Icon(icon, color: color),
+          backgroundColor:
+              color.withValues(alpha: 0.12),
+          child: Icon(
+            icon,
+            color: color,
+          ),
         ),
         title: Text(
           title,
@@ -424,12 +580,15 @@ class _BackupPageState extends State<BackupPage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        subtitle: Text(subtitle),
+        subtitle: Text(
+          subtitle,
+        ),
         trailing: const Icon(
           Icons.arrow_forward_ios,
           size: 16,
         ),
-        onTap: isProcessing ? null : onTap,
+        onTap:
+            isProcessing ? null : onTap,
       ),
     );
   }
@@ -437,7 +596,8 @@ class _BackupPageState extends State<BackupPage> {
   Widget backupHistoryItem(
     Map<String, Object?> backup,
   ) {
-    final path = backup['file_path'].toString();
+    final path =
+        backup['file_path'].toString();
 
     final date = DateTime.tryParse(
       backup['created_at'].toString(),
@@ -445,16 +605,22 @@ class _BackupPageState extends State<BackupPage> {
 
     final formattedDate = date == null
         ? 'Unknown date'
-        : DateFormat('dd MMM yyyy, hh:mm a').format(date);
+        : DateFormat(
+            'dd MMM yyyy, hh:mm a',
+          ).format(date);
 
-    final exists = File(path).existsSync();
+    final exists =
+        File(path).existsSync();
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin:
+          const EdgeInsets.only(bottom: 10),
       child: ListTile(
         leading: Icon(
           Icons.insert_drive_file,
-          color: exists ? Colors.green : Colors.grey,
+          color: exists
+              ? Colors.green
+              : Colors.grey,
         ),
         title: Text(
           formattedDate,
@@ -463,9 +629,12 @@ class _BackupPageState extends State<BackupPage> {
           ),
         ),
         subtitle: Text(
-          exists ? 'Backup available' : 'Backup file missing',
+          exists
+              ? 'Backup available'
+              : 'Backup file missing',
         ),
-        trailing: PopupMenuButton<String>(
+        trailing:
+            PopupMenuButton<String>(
           onSelected: (value) {
             if (value == 'restore') {
               restoreBackup(path);
@@ -477,11 +646,15 @@ class _BackupPageState extends State<BackupPage> {
             if (exists)
               const PopupMenuItem(
                 value: 'restore',
-                child: Text('Restore'),
+                child: Text(
+                  'Restore',
+                ),
               ),
             const PopupMenuItem(
               value: 'delete',
-              child: Text('Delete'),
+              child: Text(
+                'Delete',
+              ),
             ),
           ],
         ),
@@ -493,48 +666,66 @@ class _BackupPageState extends State<BackupPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Backup & Restore'),
+        title: const Text(
+          'Backup & Restore',
+        ),
         actions: [
           IconButton(
-            onPressed: isProcessing ? null : loadBackups,
-            icon: const Icon(Icons.refresh),
+            onPressed:
+                isProcessing
+                    ? null
+                    : loadBackups,
+            icon: const Icon(
+              Icons.refresh,
+            ),
           ),
         ],
       ),
       body: isLoading
           ? const Center(
-              child: CircularProgressIndicator(),
+              child:
+                  CircularProgressIndicator(),
             )
           : Stack(
               children: [
                 ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding:
+                      const EdgeInsets.all(16),
                   children: [
                     Card(
-                      color: Colors.blue.shade50,
+                      color:
+                          Colors.blue.shade50,
                       child: const Padding(
-                        padding: EdgeInsets.all(16),
+                        padding:
+                            EdgeInsets.all(16),
                         child: Column(
                           crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                              CrossAxisAlignment
+                                  .start,
                           children: [
                             Icon(
                               Icons.shield,
                               size: 35,
                               color: Colors.blue,
                             ),
-                            SizedBox(height: 10),
+                            SizedBox(
+                              height: 10,
+                            ),
                             Text(
                               'Protect Your LifeMate Data',
                               style: TextStyle(
                                 fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                                fontWeight:
+                                    FontWeight.bold,
                               ),
                             ),
-                            SizedBox(height: 6),
+                            SizedBox(
+                              height: 6,
+                            ),
                             Text(
-                              'Create and manage local backups of '
-                              'your To-Do, Notes, Finance, Events, '
+                              'Create and manage local '
+                              'backups of your To-Do, '
+                              'Notes, Finance, Events, '
                               'Profile and other app data.',
                             ),
                           ],
@@ -542,36 +733,47 @@ class _BackupPageState extends State<BackupPage> {
                       ),
                     ),
 
-                    const SizedBox(height: 15),
+                    const SizedBox(
+                      height: 15,
+                    ),
 
                     actionCard(
                       icon: Icons.backup,
-                      title: 'Create Backup',
+                      title:
+                          'Create Backup',
                       subtitle:
-                          'Save all LifeMate database information',
+                          'Save all LifeMate '
+                          'database information',
                       onTap: createBackup,
                       color: Colors.green,
                     ),
 
                     actionCard(
-                      icon: Icons.file_download,
-                      title: 'Export Backup',
+                      icon:
+                          Icons.file_download,
+                      title:
+                          'Export Backup',
                       subtitle:
-                          'Save a backup to your phone or another location',
+                          'Save a backup to your '
+                          'phone or another location',
                       onTap: exportBackup,
                       color: Colors.purple,
                     ),
 
                     actionCard(
                       icon: Icons.restore,
-                      title: 'Import Backup',
+                      title:
+                          'Import Backup',
                       subtitle:
-                          'Select a LifeMate .db backup from your phone',
+                          'Select a LifeMate '
+                          '.db backup from your phone',
                       onTap: importBackup,
                       color: Colors.orange,
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(
+                      height: 24,
+                    ),
 
                     Row(
                       children: [
@@ -580,20 +782,26 @@ class _BackupPageState extends State<BackupPage> {
                             'Backup History',
                             style: TextStyle(
                               fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                              fontWeight:
+                                  FontWeight.bold,
                             ),
                           ),
                         ),
-                        Text('${backups.length} backups'),
+                        Text(
+                          '${backups.length} backups',
+                        ),
                       ],
                     ),
 
-                    const SizedBox(height: 12),
+                    const SizedBox(
+                      height: 12,
+                    ),
 
                     if (backups.isEmpty)
                       const Card(
                         child: Padding(
-                          padding: EdgeInsets.all(24),
+                          padding:
+                              EdgeInsets.all(24),
                           child: Center(
                             child: Text(
                               'No backup available yet.',
@@ -605,14 +813,19 @@ class _BackupPageState extends State<BackupPage> {
                         ),
                       )
                     else
-                      ...backups.map(backupHistoryItem),
+                      ...backups.map(
+                        backupHistoryItem,
+                      ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(
+                      height: 20,
+                    ),
 
                     const Text(
-                      'Important: Internal backups may be lost '
-                      'if you uninstall LifeMate or clear app data. '
-                      'Use Export Backup to keep a separate copy.',
+                      'Important: Internal backups may '
+                      'be lost if you uninstall LifeMate '
+                      'or clear app data. Use Export Backup '
+                      'to keep a separate copy.',
                       style: TextStyle(
                         color: Colors.grey,
                         fontSize: 12,
@@ -627,13 +840,19 @@ class _BackupPageState extends State<BackupPage> {
                     child: const Center(
                       child: Card(
                         child: Padding(
-                          padding: EdgeInsets.all(24),
+                          padding:
+                              EdgeInsets.all(24),
                           child: Column(
-                            mainAxisSize: MainAxisSize.min,
+                            mainAxisSize:
+                                MainAxisSize.min,
                             children: [
                               CircularProgressIndicator(),
-                              SizedBox(height: 15),
-                              Text('Please wait...'),
+                              SizedBox(
+                                height: 15,
+                              ),
+                              Text(
+                                'Please wait...',
+                              ),
                             ],
                           ),
                         ),
