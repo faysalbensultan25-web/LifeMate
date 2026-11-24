@@ -1,8 +1,8 @@
+
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../core/database/app_database.dart';
 
@@ -14,34 +14,58 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  final _formKey = GlobalKey<FormState>();
-
-  final Map<String, TextEditingController> controllers = {
-    'name': TextEditingController(),
-    'phone': TextEditingController(),
-    'email': TextEditingController(),
-    'address': TextEditingController(),
-    'permanent_address': TextEditingController(),
-    'birth_date': TextEditingController(),
-    'gender': TextEditingController(),
-    'blood_group': TextEditingController(),
-    'emergency_contact': TextEditingController(),
-    'occupation': TextEditingController(),
-    'workplace': TextEditingController(),
-    'designation': TextEditingController(),
-    'career_objective': TextEditingController(),
-    'about': TextEditingController(),
-  };
-
-  bool isLoading = true;
-  bool isSaving = false;
+  final Map<String, TextEditingController> controllers = {};
 
   int? profileId;
   String? photoPath;
 
+  String gender = '';
+  String bloodGroup = '';
+
+  bool isLoading = true;
+  bool isSaving = false;
+
+  final List<String> genderOptions = [
+    'Male',
+    'Female',
+    'Other',
+    'Prefer not to say',
+  ];
+
+  final List<String> bloodGroups = [
+    'A+',
+    'A-',
+    'B+',
+    'B-',
+    'AB+',
+    'AB-',
+    'O+',
+    'O-',
+  ];
+
   @override
   void initState() {
     super.initState();
+
+    const fields = [
+      'name',
+      'phone',
+      'email',
+      'address',
+      'permanent_address',
+      'birth_date',
+      'occupation',
+      'workplace',
+      'designation',
+      'emergency_contact',
+      'about',
+      'career_objective',
+    ];
+
+    for (final field in fields) {
+      controllers[field] = TextEditingController();
+    }
+
     loadProfile();
   }
 
@@ -53,30 +77,38 @@ class _ProfilePageState extends State<ProfilePage> {
     super.dispose();
   }
 
+  // =========================================================
+  // LOAD PROFILE
+  // =========================================================
+
   Future<void> loadProfile() async {
     try {
       final db = await AppDatabase.database;
 
       final result = await db.query(
         'profiles',
-        orderBy: 'id ASC',
         limit: 1,
+        orderBy: 'id ASC',
       );
 
       if (result.isNotEmpty) {
-        final data = result.first;
+        final profile = result.first;
 
-        profileId = data['id'] as int?;
-        photoPath = data['photo_path'] as String?;
+        profileId = profile['id'] as int?;
 
-        for (final key in controllers.keys) {
-          controllers[key]!.text = data[key]?.toString() ?? '';
+        for (final entry in controllers.entries) {
+          entry.value.text =
+              profile[entry.key]?.toString() ?? '';
         }
+
+        photoPath = profile['photo_path']?.toString();
+
+        gender = profile['gender']?.toString() ?? '';
+        bloodGroup =
+            profile['blood_group']?.toString() ?? '';
       }
     } catch (e) {
-      if (mounted) {
-        showMessage('Profile load failed: $e');
-      }
+      showMessage('Could not load profile: $e');
     }
 
     if (mounted) {
@@ -86,8 +118,36 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  // =========================================================
+  // ENSURE PROFILE ID
+  // =========================================================
+
+  Future<int> ensureProfileId() async {
+    if (profileId != null) {
+      return profileId!;
+    }
+
+    final db = await AppDatabase.database;
+
+    final id = await db.insert(
+      'profiles',
+      {'name': ''},
+    );
+
+    profileId = id;
+
+    if (mounted) {
+      setState(() {});
+    }
+
+    return id;
+  }
+
+  // =========================================================
+  // SAVE PROFILE
+  // =========================================================
+
   Future<void> saveProfile() async {
-    if (!_formKey.currentState!.validate()) return;
     if (isSaving) return;
 
     setState(() {
@@ -97,35 +157,18 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final db = await AppDatabase.database;
 
-      final data = <String, Object?>{
-        'name': controllers['name']!.text.trim(),
-        'phone': controllers['phone']!.text.trim(),
-        'email': controllers['email']!.text.trim(),
-        'address': controllers['address']!.text.trim(),
-        'permanent_address':
-            controllers['permanent_address']!.text.trim(),
-        'birth_date': controllers['birth_date']!.text.trim(),
-        'gender': controllers['gender']!.text.trim(),
-        'blood_group': controllers['blood_group']!.text.trim(),
-        'emergency_contact':
-            controllers['emergency_contact']!.text.trim(),
-        'occupation': controllers['occupation']!.text.trim(),
-        'workplace': controllers['workplace']!.text.trim(),
-        'designation': controllers['designation']!.text.trim(),
-        'career_objective':
-            controllers['career_objective']!.text.trim(),
-        'about': controllers['about']!.text.trim(),
-        'photo_path': photoPath,
-      };
+      final data = <String, Object?>{};
 
-      data.removeWhere(
-        (key, value) =>
-            value == null || (value is String && value.isEmpty),
-      );
+      for (final entry in controllers.entries) {
+        data[entry.key] = entry.value.text.trim();
+      }
+
+      data['gender'] = gender.isEmpty ? null : gender;
+      data['blood_group'] =
+          bloodGroup.isEmpty ? null : bloodGroup;
+      data['photo_path'] = photoPath;
 
       if (profileId == null) {
-        data['created_at'] = DateTime.now().toIso8601String();
-
         profileId = await db.insert('profiles', data);
       } else {
         await db.update(
@@ -138,60 +181,40 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (mounted) {
         showMessage('Profile saved successfully.');
+        setState(() {});
       }
     } catch (e) {
-      if (mounted) {
-        showMessage('Save failed: $e');
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          isSaving = false;
-        });
-      }
+      showMessage('Profile save failed: $e');
     }
-  }
 
-  Future<void> pickPhoto() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-      );
-
-      if (result == null || result.files.single.path == null) {
-        return;
-      }
-
+    if (mounted) {
       setState(() {
-        photoPath = result.files.single.path;
+        isSaving = false;
       });
-    } catch (e) {
-      showMessage('Could not select photo: $e');
     }
   }
 
-  Future<void> removePhoto() async {
-    setState(() {
-      photoPath = null;
-    });
-  }
+  // =========================================================
+  // CLEAR PROFILE
+  // =========================================================
 
   Future<void> clearProfile() async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (context) => AlertDialog(
         title: const Text('Clear Profile?'),
         content: const Text(
-          'Do you want to delete your personal profile information? '
-          'Education, training and other records will remain unchanged.',
+          'This will clear your personal information. '
+          'Your Education, Training, Experience and other '
+          'records will remain saved.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Clear'),
           ),
         ],
@@ -204,62 +227,139 @@ class _ProfilePageState extends State<ProfilePage> {
       final db = await AppDatabase.database;
 
       if (profileId != null) {
-        await db.delete(
+        final data = <String, Object?>{};
+
+        for (final entry in controllers.entries) {
+          data[entry.key] = '';
+        }
+
+        data['gender'] = null;
+        data['blood_group'] = null;
+        data['photo_path'] = null;
+
+        await db.update(
           'profiles',
+          data,
           where: 'id = ?',
           whereArgs: [profileId],
         );
       }
 
-      profileId = null;
-      photoPath = null;
-
       for (final controller in controllers.values) {
         controller.clear();
       }
 
-      if (mounted) {
-        setState(() {});
-        showMessage('Personal profile cleared.');
-      }
+      setState(() {
+        photoPath = null;
+        gender = '';
+        bloodGroup = '';
+      });
+
+      showMessage('Personal information cleared.');
     } catch (e) {
       showMessage('Could not clear profile: $e');
     }
   }
 
-  Future<void> selectBirthDate() async {
-    final initialDate = DateTime.tryParse(
-          controllers['birth_date']!.text,
-        ) ??
-        DateTime(2000);
+  // =========================================================
+  // PICK PROFILE PHOTO
+  // =========================================================
 
-    final selected = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-    );
+  Future<void> pickPhoto() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
 
-    if (selected != null) {
-      controllers['birth_date']!.text =
-          DateFormat('yyyy-MM-dd').format(selected);
+      if (result == null || result.files.isEmpty) return;
+
+      final path = result.files.single.path;
+
+      if (path == null) {
+        showMessage('Could not access selected image.');
+        return;
+      }
+
+      setState(() {
+        photoPath = path;
+      });
+    } catch (e) {
+      showMessage('Image selection failed: $e');
     }
   }
 
-  void showMessage(String message) {
-    if (!mounted) return;
+  // =========================================================
+  // REUSABLE TEXT FIELD
+  // =========================================================
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+  Widget textField(
+    String key,
+    String label, {
+    bool multiline = false,
+    TextInputType? keyboardType,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        controller: controllers[key],
+        keyboardType: keyboardType,
+        maxLines: multiline ? 4 : 1,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+          alignLabelWithHint: multiline,
+        ),
+      ),
     );
   }
 
+  // =========================================================
+  // DROPDOWN
+  // =========================================================
+
+  Widget dropdownField({
+    required String label,
+    required String value,
+    required List<String> options,
+    required ValueChanged<String> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DropdownButtonFormField<String>(
+        value: options.contains(value) ? value : null,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+        items: options.map((item) {
+          return DropdownMenuItem(
+            value: item,
+            child: Text(item),
+          );
+        }).toList(),
+        onChanged: (newValue) {
+          if (newValue != null) {
+            onChanged(newValue);
+          }
+        },
+      ),
+    );
+  }
+
+  // =========================================================
+  // SECTION HEADER
+  // =========================================================
+
   Widget sectionTitle(String title, IconData icon) {
     return Padding(
-      padding: const EdgeInsets.only(top: 22, bottom: 10),
+      padding: const EdgeInsets.only(
+        top: 18,
+        bottom: 12,
+      ),
       child: Row(
         children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary),
+          Icon(icon, color: Colors.blue),
           const SizedBox(width: 10),
           Text(
             title,
@@ -273,142 +373,51 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget textField(
-    String key,
-    String label, {
-    int maxLines = 1,
-    TextInputType? keyboardType,
-    bool readOnly = false,
-    VoidCallback? onTap,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextFormField(
-        controller: controllers[key],
-        maxLines: maxLines,
-        keyboardType: keyboardType,
-        readOnly: readOnly,
-        onTap: onTap,
-        decoration: InputDecoration(
-          labelText: label,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          filled: true,
-          fillColor: Colors.white,
-        ),
-      ),
+  // =========================================================
+  // MESSAGE
+  // =========================================================
+
+  void showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
     );
   }
 
-  Widget personalInformation() {
-    return Column(
-      children: [
-        Center(
-          child: Column(
-            children: [
-              CircleAvatar(
-                radius: 48,
-                backgroundColor: Colors.blue.shade50,
-                backgroundImage:
-                    photoPath != null && File(photoPath!).existsSync()
-                        ? FileImage(File(photoPath!))
-                        : null,
-                child: photoPath == null
-                    ? const Icon(
-                        Icons.person,
-                        size: 50,
-                        color: Colors.blue,
-                      )
-                    : null,
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: [
-                  TextButton.icon(
-                    onPressed: pickPhoto,
-                    icon: const Icon(Icons.photo),
-                    label: const Text('Change Photo'),
-                  ),
-                  if (photoPath != null)
-                    TextButton(
-                      onPressed: removePhoto,
-                      child: const Text('Remove'),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-
-        textField('name', 'Full Name'),
-        textField(
-          'birth_date',
-          'Date of Birth',
-          readOnly: true,
-          onTap: selectBirthDate,
-        ),
-        textField('gender', 'Gender'),
-        textField(
-          'phone',
-          'Phone Number',
-          keyboardType: TextInputType.phone,
-        ),
-        textField(
-          'email',
-          'Email Address',
-          keyboardType: TextInputType.emailAddress,
-        ),
-        textField('address', 'Present Address', maxLines: 2),
-        textField('permanent_address', 'Permanent Address', maxLines: 2),
-        textField('blood_group', 'Blood Group'),
-        textField(
-          'emergency_contact',
-          'Emergency Contact',
-          keyboardType: TextInputType.phone,
-        ),
-      ],
-    );
-  }
-
-  Widget careerInformation() {
-    return Column(
-      children: [
-        textField(
-          'career_objective',
-          'Career Objective',
-          maxLines: 4,
-        ),
-        textField('occupation', 'Current Occupation'),
-        textField('workplace', 'Current Workplace'),
-        textField('designation', 'Current Designation'),
-        textField('about', 'About Me', maxLines: 4),
-      ],
-    );
-  }
+  // =========================================================
+  // RECORD SECTION BUILDER
+  // =========================================================
 
   Widget multiRecordSection({
     required String title,
     required IconData icon,
     required String table,
-    required List<RecordField> fields,
     required String titleKey,
+    required List<RecordField> fields,
   }) {
     return RecordSection(
       title: title,
       icon: icon,
       table: table,
-      fields: fields,
       titleKey: titleKey,
+      fields: fields,
+      profileId: profileId,
+      onEnsureProfileId: ensureProfileId,
     );
   }
+
+  // =========================================================
+  // BUILD
+  // =========================================================
 
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
       );
     }
 
@@ -418,23 +427,135 @@ class _ProfilePageState extends State<ProfilePage> {
         actions: [
           IconButton(
             onPressed: clearProfile,
-            tooltip: 'Clear Personal Profile',
-            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Clear Profile',
+            icon: const Icon(Icons.cleaning_services_outlined),
           ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            sectionTitle('Personal Information', Icons.person),
-            personalInformation(),
+            // PROFILE PHOTO
 
-            sectionTitle('Career Information', Icons.work),
-            careerInformation(),
+            Center(
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 52,
+                    backgroundColor: Colors.blue.shade50,
+                    backgroundImage:
+                        photoPath != null &&
+                                File(photoPath!).existsSync()
+                            ? FileImage(File(photoPath!))
+                            : null,
+                    child: photoPath == null ||
+                            !File(photoPath!).existsSync()
+                        ? const Icon(
+                            Icons.person,
+                            size: 55,
+                            color: Colors.blue,
+                          )
+                        : null,
+                  ),
+                  TextButton.icon(
+                    onPressed: pickPhoto,
+                    icon: const Icon(Icons.camera_alt),
+                    label: const Text('Choose Profile Photo'),
+                  ),
+                ],
+              ),
+            ),
 
-            const Divider(height: 30),
+            // PERSONAL INFORMATION
+
+            sectionTitle(
+              'Personal Information',
+              Icons.person,
+            ),
+
+            textField('name', 'Full Name'),
+            textField(
+              'phone',
+              'Phone Number',
+              keyboardType: TextInputType.phone,
+            ),
+            textField(
+              'email',
+              'Email Address',
+              keyboardType: TextInputType.emailAddress,
+            ),
+
+            dropdownField(
+              label: 'Gender',
+              value: gender,
+              options: genderOptions,
+              onChanged: (value) {
+                setState(() => gender = value);
+              },
+            ),
+
+            dropdownField(
+              label: 'Blood Group',
+              value: bloodGroup,
+              options: bloodGroups,
+              onChanged: (value) {
+                setState(() => bloodGroup = value);
+              },
+            ),
+
+            textField('birth_date', 'Date of Birth'),
+            textField('address', 'Present Address'),
+            textField(
+              'permanent_address',
+              'Permanent Address',
+              multiline: true,
+            ),
+            textField(
+              'emergency_contact',
+              'Emergency Contact',
+              keyboardType: TextInputType.phone,
+            ),
+
+            // PROFESSIONAL INFORMATION
+
+            sectionTitle(
+              'Professional Information',
+              Icons.work,
+            ),
+
+            textField('occupation', 'Occupation'),
+            textField('workplace', 'Workplace'),
+            textField('designation', 'Designation'),
+
+            // CAREER OBJECTIVE
+
+            sectionTitle(
+              'Career Objective',
+              Icons.flag,
+            ),
+
+            textField(
+              'career_objective',
+              'Career Objective',
+              multiline: true,
+            ),
+
+            // ABOUT
+
+            sectionTitle(
+              'About Me',
+              Icons.info_outline,
+            ),
+
+            textField(
+              'about',
+              'About Me',
+              multiline: true,
+            ),
+
+            // EDUCATION
 
             multiRecordSection(
               title: 'Education',
@@ -442,7 +563,11 @@ class _ProfilePageState extends State<ProfilePage> {
               table: 'profile_education',
               titleKey: 'qualification',
               fields: [
-                RecordField('qualification', 'Degree / Qualification', required: true),
+                RecordField(
+                  'qualification',
+                  'Qualification',
+                  required: true,
+                ),
                 RecordField('institution', 'Institution'),
                 RecordField('subject', 'Subject / Group'),
                 RecordField('result', 'Result / GPA'),
@@ -452,19 +577,31 @@ class _ProfilePageState extends State<ProfilePage> {
               ],
             ),
 
+            // TRAINING
+
             multiRecordSection(
-              title: 'Training & Certifications',
-              icon: Icons.workspace_premium,
+              title: 'Training',
+              icon: Icons.cast_for_education,
               table: 'profile_training',
               titleKey: 'title',
               fields: [
-                RecordField('title', 'Training / Certificate Title', required: true),
-                RecordField('institution', 'Training Institute'),
+                RecordField(
+                  'title',
+                  'Training Title',
+                  required: true,
+                ),
+                RecordField('institution', 'Training Institution'),
                 RecordField('duration', 'Duration'),
                 RecordField('completion_year', 'Completion Year'),
-                RecordField('certificate_details', 'Certificate Details', multiline: true),
+                RecordField(
+                  'certificate_details',
+                  'Certificate Details',
+                  multiline: true,
+                ),
               ],
             ),
+
+            // EXPERIENCE
 
             multiRecordSection(
               title: 'Work Experience',
@@ -472,15 +609,30 @@ class _ProfilePageState extends State<ProfilePage> {
               table: 'profile_experience',
               titleKey: 'designation',
               fields: [
-                RecordField('designation', 'Job Title / Designation', required: true),
+                RecordField(
+                  'designation',
+                  'Job Title / Designation',
+                  required: true,
+                ),
                 RecordField('workplace', 'Company / Workplace'),
                 RecordField('location', 'Job Location'),
                 RecordField('employment_type', 'Employment Type'),
                 RecordField('start_date', 'Joining Date'),
                 RecordField('end_date', 'Ending Date'),
-                RecordField('responsibilities', 'Responsibilities', multiline: true),
+                RecordField(
+                  'responsibilities',
+                  'Responsibilities',
+                  multiline: true,
+                ),
+                RecordField(
+                  'is_current',
+                  'Currently Working Here',
+                  isSwitch: true,
+                ),
               ],
             ),
+
+            // SKILLS
 
             multiRecordSection(
               title: 'Skills',
@@ -488,10 +640,16 @@ class _ProfilePageState extends State<ProfilePage> {
               table: 'profile_skills',
               titleKey: 'skill_name',
               fields: [
-                RecordField('skill_name', 'Skill Name', required: true),
+                RecordField(
+                  'skill_name',
+                  'Skill Name',
+                  required: true,
+                ),
                 RecordField('proficiency', 'Proficiency'),
               ],
             ),
+
+            // LANGUAGES
 
             multiRecordSection(
               title: 'Languages',
@@ -499,10 +657,16 @@ class _ProfilePageState extends State<ProfilePage> {
               table: 'profile_languages',
               titleKey: 'language_name',
               fields: [
-                RecordField('language_name', 'Language', required: true),
+                RecordField(
+                  'language_name',
+                  'Language',
+                  required: true,
+                ),
                 RecordField('proficiency', 'Proficiency'),
               ],
             ),
+
+            // ACHIEVEMENTS
 
             multiRecordSection(
               title: 'Achievements',
@@ -510,8 +674,16 @@ class _ProfilePageState extends State<ProfilePage> {
               table: 'profile_achievements',
               titleKey: 'title',
               fields: [
-                RecordField('title', 'Achievement Title', required: true),
-                RecordField('description', 'Description', multiline: true),
+                RecordField(
+                  'title',
+                  'Achievement Title',
+                  required: true,
+                ),
+                RecordField(
+                  'description',
+                  'Description',
+                  multiline: true,
+                ),
                 RecordField('achievement_date', 'Date / Year'),
               ],
             ),
@@ -519,20 +691,23 @@ class _ProfilePageState extends State<ProfilePage> {
             const SizedBox(height: 24),
 
             SizedBox(
+              width: double.infinity,
               height: 52,
               child: FilledButton.icon(
                 onPressed: isSaving ? null : saveProfile,
                 icon: isSaving
                     ? const SizedBox(
-                        height: 18,
                         width: 18,
+                        height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           color: Colors.white,
                         ),
                       )
                     : const Icon(Icons.save),
-                label: Text(isSaving ? 'Saving...' : 'Save Profile'),
+                label: Text(
+                  isSaving ? 'Saving...' : 'Save Profile',
+                ),
               ),
             ),
 
@@ -544,28 +719,38 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 }
 
-// Record field configuration
+// ============================================================
+// RECORD FIELD MODEL
+// ============================================================
+
 class RecordField {
   final String key;
   final String label;
   final bool required;
   final bool multiline;
+  final bool isSwitch;
 
   const RecordField(
     this.key,
     this.label, {
     this.required = false,
     this.multiline = false,
+    this.isSwitch = false,
   });
 }
 
-// Reusable multiple-record section
+// ============================================================
+// MULTIPLE RECORD SECTION
+// ============================================================
+
 class RecordSection extends StatefulWidget {
   final String title;
   final IconData icon;
   final String table;
   final String titleKey;
   final List<RecordField> fields;
+  final int? profileId;
+  final Future<int> Function() onEnsureProfileId;
 
   const RecordSection({
     super.key,
@@ -574,6 +759,8 @@ class RecordSection extends StatefulWidget {
     required this.table,
     required this.titleKey,
     required this.fields,
+    required this.profileId,
+    required this.onEnsureProfileId,
   });
 
   @override
@@ -590,35 +777,60 @@ class _RecordSectionState extends State<RecordSection> {
     loadRecords();
   }
 
+  @override
+  void didUpdateWidget(covariant RecordSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.profileId != widget.profileId) {
+      loadRecords();
+    }
+  }
+
+  // LOAD
+
   Future<void> loadRecords() async {
+    final id = widget.profileId;
+
+    if (id == null) {
+      if (mounted) {
+        setState(() {
+          records = [];
+          isLoading = false;
+        });
+      }
+      return;
+    }
+
     try {
       final db = await AppDatabase.database;
 
       final result = await db.query(
         widget.table,
         where: 'profile_id = ?',
-        whereArgs: [1],
+        whereArgs: [id],
         orderBy: 'id DESC',
       );
 
-      if (mounted) {
-        setState(() {
-          records = result;
-          isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
+      if (!mounted) return;
 
-        showMessage('Could not load ${widget.title}: $e');
-      }
+      setState(() {
+        records = result;
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() => isLoading = false);
+
+      showMessage('Could not load records: $e');
     }
   }
 
-  Future<void> openRecordForm({Map<String, Object?>? record}) async {
+  // ADD / EDIT
+
+  Future<void> openRecordForm({
+    Map<String, Object?>? record,
+  }) async {
     final formKey = GlobalKey<FormState>();
 
     final Map<String, TextEditingController> formControllers = {};
@@ -630,6 +842,7 @@ class _RecordSectionState extends State<RecordSection> {
     }
 
     bool isSaving = false;
+    bool currentlyWorking = record?['is_current'] == 1;
 
     final saved = await showDialog<bool>(
       context: context,
@@ -650,6 +863,19 @@ class _RecordSectionState extends State<RecordSection> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: widget.fields.map((field) {
+                        if (field.isSwitch) {
+                          return SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(field.label),
+                            value: currentlyWorking,
+                            onChanged: (value) {
+                              setDialogState(() {
+                                currentlyWorking = value;
+                              });
+                            },
+                          );
+                        }
+
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: TextFormField(
@@ -677,16 +903,20 @@ class _RecordSectionState extends State<RecordSection> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () {
-                    Navigator.pop(dialogContext, false);
-                  },
+                  onPressed: isSaving
+                      ? null
+                      : () {
+                          Navigator.pop(dialogContext, false);
+                        },
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
                   onPressed: isSaving
                       ? null
                       : () async {
-                          if (!formKey.currentState!.validate()) return;
+                          if (!formKey.currentState!.validate()) {
+                            return;
+                          }
 
                           setDialogState(() {
                             isSaving = true;
@@ -694,34 +924,44 @@ class _RecordSectionState extends State<RecordSection> {
 
                           try {
                             final db = await AppDatabase.database;
+                            final id =
+                                await widget.onEnsureProfileId();
 
-                            final data = <String, Object?>{
-                              'profile_id': 1,
-                              'created_at':
-                                  DateTime.now().toIso8601String(),
-                            };
+                            final data = <String, Object?>{};
 
                             for (final field in widget.fields) {
-                              final value =
-                                  formControllers[field.key]!.text.trim();
+                              if (field.isSwitch) {
+                                data[field.key] =
+                                    currentlyWorking ? 1 : 0;
+                              } else {
+                                final value =
+                                    formControllers[field.key]!
+                                        .text
+                                        .trim();
 
-                              data[field.key] =
-                                  value.isEmpty ? null : value;
+                                data[field.key] =
+                                    value.isEmpty ? null : value;
+                              }
+                            }
+
+                            if (widget.table ==
+                                    'profile_experience' &&
+                                currentlyWorking) {
+                              data['end_date'] = null;
                             }
 
                             if (record == null) {
+                              data['profile_id'] = id;
+                              data['created_at'] =
+                                  DateTime.now().toIso8601String();
+
                               await db.insert(widget.table, data);
                             } else {
-                              data.remove('created_at');
-
                               await db.update(
                                 widget.table,
                                 data,
                                 where: 'id = ? AND profile_id = ?',
-                                whereArgs: [
-                                  record['id'],
-                                  1,
-                                ],
+                                whereArgs: [record['id'], id],
                               );
                             }
 
@@ -733,11 +973,14 @@ class _RecordSectionState extends State<RecordSection> {
                               isSaving = false;
                             });
 
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Save failed: $e'),
-                              ),
-                            );
+                            if (dialogContext.mounted) {
+                              ScaffoldMessenger.of(dialogContext)
+                                  .showSnackBar(
+                                SnackBar(
+                                  content: Text('Save failed: $e'),
+                                ),
+                              );
+                            }
                           }
                         },
                   child: Text(isSaving ? 'Saving...' : 'Save'),
@@ -758,7 +1001,11 @@ class _RecordSectionState extends State<RecordSection> {
     }
   }
 
-  Future<void> deleteRecord(Map<String, Object?> record) async {
+  // DELETE
+
+  Future<void> deleteRecord(
+    Map<String, Object?> record,
+  ) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -768,11 +1015,13 @@ class _RecordSectionState extends State<RecordSection> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () =>
+                Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: () =>
+                Navigator.pop(dialogContext, true),
             child: const Text('Delete'),
           ),
         ],
@@ -783,11 +1032,14 @@ class _RecordSectionState extends State<RecordSection> {
 
     try {
       final db = await AppDatabase.database;
+      final id = widget.profileId;
+
+      if (id == null) return;
 
       await db.delete(
         widget.table,
         where: 'id = ? AND profile_id = ?',
-        whereArgs: [record['id'], 1],
+        whereArgs: [record['id'], id],
       );
 
       await loadRecords();
@@ -798,6 +1050,8 @@ class _RecordSectionState extends State<RecordSection> {
     }
   }
 
+  // MESSAGE
+
   void showMessage(String message) {
     if (!mounted) return;
 
@@ -805,6 +1059,8 @@ class _RecordSectionState extends State<RecordSection> {
       SnackBar(content: Text(message)),
     );
   }
+
+  // BUILD
 
   @override
   Widget build(BuildContext context) {
@@ -840,7 +1096,9 @@ class _RecordSectionState extends State<RecordSection> {
             ),
 
             if (isLoading)
-              const Center(child: CircularProgressIndicator())
+              const Center(
+                child: CircularProgressIndicator(),
+              )
             else if (records.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 10),
@@ -855,13 +1113,22 @@ class _RecordSectionState extends State<RecordSection> {
                     record[widget.titleKey]?.toString() ?? '';
 
                 final subtitle = widget.fields
-                    .where((field) =>
-                        field.key != widget.titleKey &&
-                        record[field.key] != null &&
-                        record[field.key].toString().isNotEmpty)
+                    .where((field) {
+                      if (field.key == widget.titleKey ||
+                          field.isSwitch) {
+                        return false;
+                      }
+
+                      final value = record[field.key];
+
+                      return value != null &&
+                          value.toString().trim().isNotEmpty;
+                    })
                     .map((field) =>
                         '${field.label}: ${record[field.key]}')
                     .join('\n');
+
+                final isCurrent = record['is_current'] == 1;
 
                 return Card(
                   color: Colors.grey.shade50,
@@ -874,9 +1141,24 @@ class _RecordSectionState extends State<RecordSection> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    subtitle: subtitle.isEmpty
-                        ? null
-                        : Text(subtitle),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (subtitle.isNotEmpty)
+                          Text(subtitle),
+                        if (isCurrent)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 5),
+                            child: Text(
+                              'Currently working here',
+                              style: TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                     isThreeLine: subtitle.contains('\n'),
                     trailing: PopupMenuButton<String>(
                       onSelected: (value) {
