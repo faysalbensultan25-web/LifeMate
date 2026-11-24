@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../../core/database/app_database.dart';
@@ -13,6 +12,7 @@ class BudgetPage extends StatefulWidget {
 class _BudgetPageState extends State<BudgetPage> {
   List<Map<String, dynamic>> budgets = [];
   bool isLoading = true;
+  bool isActionRunning = false;
 
   @override
   void initState() {
@@ -39,27 +39,31 @@ class _BudgetPageState extends State<BudgetPage> {
   Future<void> showBudgetDialog({
     Map<String, dynamic>? budget,
   }) async {
+    if (isActionRunning) return;
+
     final titleController = TextEditingController(
-      text: budget?['title'] ?? '',
+      text: budget?['title']?.toString() ?? '',
     );
 
     final amountController = TextEditingController(
       text: budget?['amount']?.toString() ?? '',
     );
 
-    String period = budget?['period'] ?? 'Monthly';
+    String timeFrame = budget?['period']?.toString() ?? 'Monthly';
 
     DateTime startDate = budget != null
-        ? DateTime.parse(budget['start_date'])
+        ? DateTime.parse(budget['start_date'].toString())
         : DateTime.now();
 
     DateTime? endDate = budget?['end_date'] != null
-        ? DateTime.parse(budget!['end_date'])
+        ? DateTime.parse(budget!['end_date'].toString())
         : null;
 
     await showDialog(
       context: context,
       builder: (dialogContext) {
+        bool saving = false;
+
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
@@ -72,12 +76,16 @@ class _BudgetPageState extends State<BudgetPage> {
                   children: [
                     TextField(
                       controller: titleController,
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
                         labelText: 'Budget Title',
+                        hintText: 'Example: Monthly Family Budget',
                         border: OutlineInputBorder(),
                       ),
                     ),
+
                     const SizedBox(height: 12),
+
                     TextField(
                       controller: amountController,
                       keyboardType: const TextInputType.numberWithOptions(
@@ -85,145 +93,209 @@ class _BudgetPageState extends State<BudgetPage> {
                       ),
                       decoration: const InputDecoration(
                         labelText: 'Budget Amount',
+                        prefixText: '৳ ',
                         border: OutlineInputBorder(),
                       ),
                     ),
+
                     const SizedBox(height: 12),
+
                     DropdownButtonFormField<String>(
-                      value: period,
+                      value: timeFrame,
                       decoration: const InputDecoration(
-                        labelText: 'Budget Period',
+                        labelText: 'Time Frame',
                         border: OutlineInputBorder(),
                       ),
                       items: const [
-                        DropdownMenuItem(
-                          value: 'Weekly',
-                          child: Text('Weekly'),
-                        ),
                         DropdownMenuItem(
                           value: 'Monthly',
                           child: Text('Monthly'),
                         ),
                         DropdownMenuItem(
-                          value: 'Yearly',
-                          child: Text('Yearly'),
+                          value: 'Custom',
+                          child: Text('Custom'),
                         ),
                       ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          setDialogState(() {
-                            period = value;
-                          });
-                        }
-                      },
+                      onChanged: saving
+                          ? null
+                          : (value) {
+                              if (value == null) return;
+
+                              setDialogState(() {
+                                timeFrame = value;
+
+                                if (value == 'Monthly') {
+                                  endDate = null;
+                                }
+                              });
+                            },
                     ),
-                    const SizedBox(height: 12),
+
+                    const SizedBox(height: 8),
+
                     ListTile(
                       contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.calendar_month),
                       title: const Text('Start Date'),
-                      subtitle: Text(
-                        '${startDate.day}/${startDate.month}/${startDate.year}',
-                      ),
-                      trailing: const Icon(Icons.calendar_month),
-                      onTap: () async {
-                        final selected = await showDatePicker(
-                          context: context,
-                          initialDate: startDate,
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
+                      subtitle: Text(formatDateTime(startDate)),
+                      onTap: saving
+                          ? null
+                          : () async {
+                              final selected = await showDatePicker(
+                                context: context,
+                                initialDate: startDate,
+                                firstDate: DateTime(2000),
+                                lastDate: DateTime(2100),
+                              );
 
-                        if (selected != null) {
-                          setDialogState(() {
-                            startDate = selected;
-                          });
-                        }
-                      },
-                    ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('End Date (Optional)'),
-                      subtitle: Text(
-                        endDate == null
-                            ? 'Not selected'
-                            : '${endDate!.day}/${endDate!.month}/${endDate!.year}',
-                      ),
-                      trailing: const Icon(Icons.calendar_month),
-                      onTap: () async {
-                        final selected = await showDatePicker(
-                          context: context,
-                          initialDate: endDate ?? startDate,
-                          firstDate: startDate,
-                          lastDate: DateTime(2100),
-                        );
+                              if (selected == null) return;
 
-                        if (selected != null) {
-                          setDialogState(() {
-                            endDate = selected;
-                          });
-                        }
-                      },
+                              setDialogState(() {
+                                startDate = selected;
+
+                                if (endDate != null &&
+                                    endDate!.isBefore(startDate)) {
+                                  endDate = null;
+                                }
+                              });
+                            },
                     ),
-                    if (endDate != null)
-                      TextButton(
-                        onPressed: () {
-                          setDialogState(() {
-                            endDate = null;
-                          });
-                        },
-                        child: const Text('Remove End Date'),
+
+                    if (timeFrame == 'Custom') ...[
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.event),
+                        title: const Text('End Date'),
+                        subtitle: Text(
+                          endDate == null
+                              ? 'Select end date'
+                              : formatDateTime(endDate!),
+                        ),
+                        onTap: saving
+                            ? null
+                            : () async {
+                                final selected = await showDatePicker(
+                                  context: context,
+                                  initialDate: endDate ?? startDate,
+                                  firstDate: startDate,
+                                  lastDate: DateTime(2100),
+                                );
+
+                                if (selected == null) return;
+
+                                setDialogState(() {
+                                  endDate = selected;
+                                });
+                              },
                       ),
+                    ],
                   ],
                 ),
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
+                  onPressed: saving
+                      ? null
+                      : () => Navigator.pop(dialogContext),
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
-                  onPressed: () async {
-                    final title = titleController.text.trim();
-                    final amount = double.tryParse(
-                      amountController.text.trim(),
-                    );
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          // Prevent double tap / double action.
+                          if (saving) return;
 
-                    if (title.isEmpty || amount == null || amount <= 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Enter a valid title and amount'),
-                        ),
-                      );
-                      return;
-                    }
+                          final title = titleController.text.trim();
+                          final amount = double.tryParse(
+                            amountController.text.trim(),
+                          );
 
-                    final db = await AppDatabase.database;
+                          if (title.isEmpty ||
+                              amount == null ||
+                              amount <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Enter a valid title and amount',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
 
-                    final data = {
-                      'title': title,
-                      'amount': amount,
-                      'period': period,
-                      'start_date': startDate.toIso8601String(),
-                      'end_date': endDate?.toIso8601String(),
-                    };
+                          if (timeFrame == 'Custom' && endDate == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Please select an end date',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
 
-                    if (budget == null) {
-                      await db.insert('budgets', data);
-                    } else {
-                      await db.update(
-                        'budgets',
-                        data,
-                        where: 'id = ?',
-                        whereArgs: [budget['id']],
-                      );
-                    }
+                          setDialogState(() {
+                            saving = true;
+                          });
 
-                    if (!mounted) return;
+                          try {
+                            final db = await AppDatabase.database;
 
-                    Navigator.pop(dialogContext);
-                    await loadBudgets();
-                  },
-                  child: const Text('Save'),
+                            final data = <String, dynamic>{
+                              'title': title,
+                              'amount': amount,
+                              'period': timeFrame,
+                              'start_date':
+                                  startDate.toIso8601String(),
+                              'end_date': timeFrame == 'Custom'
+                                  ? endDate?.toIso8601String()
+                                  : null,
+                            };
+
+                            if (budget == null) {
+                              await db.insert(
+                                'budgets',
+                                data,
+                              );
+                            } else {
+                              await db.update(
+                                'budgets',
+                                data,
+                                where: 'id = ?',
+                                whereArgs: [budget['id']],
+                              );
+                            }
+
+                            if (!mounted) return;
+
+                            Navigator.pop(dialogContext);
+                            await loadBudgets();
+                          } catch (e) {
+                            if (!mounted) return;
+
+                            setDialogState(() {
+                              saving = false;
+                            });
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Could not save budget: $e',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                  child: saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Save'),
                 ),
               ],
             );
@@ -237,27 +309,35 @@ class _BudgetPageState extends State<BudgetPage> {
   }
 
   Future<void> deleteBudget(int id) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Budget'),
-        content: const Text(
-          'Are you sure you want to delete this budget?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
+    if (isActionRunning) return;
 
-    if (confirm == true) {
+    setState(() {
+      isActionRunning = true;
+    });
+
+    try {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Delete Budget'),
+          content: const Text(
+            'Are you sure you want to delete this budget?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
+
       final db = await AppDatabase.database;
 
       await db.delete(
@@ -267,12 +347,22 @@ class _BudgetPageState extends State<BudgetPage> {
       );
 
       await loadBudgets();
+    } finally {
+      if (mounted) {
+        setState(() {
+          isActionRunning = false;
+        });
+      }
     }
   }
 
-  String formatDate(String value) {
-    final date = DateTime.parse(value);
+  String formatDateTime(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  String formatAmount(dynamic value) {
+    final amount = double.tryParse(value.toString()) ?? 0;
+    return amount.toStringAsFixed(2);
   }
 
   @override
@@ -281,12 +371,18 @@ class _BudgetPageState extends State<BudgetPage> {
       appBar: AppBar(
         title: const Text('Budget Planning'),
       ),
+
       floatingActionButton: FloatingActionButton(
-        onPressed: () => showBudgetDialog(),
+        onPressed: isActionRunning
+            ? null
+            : () => showBudgetDialog(),
         child: const Icon(Icons.add),
       ),
+
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
           : budgets.isEmpty
               ? const Center(
                   child: Column(
@@ -305,7 +401,10 @@ class _BudgetPageState extends State<BudgetPage> {
                           color: Colors.grey,
                         ),
                       ),
-                      Text('Tap + to create your first budget'),
+                      SizedBox(height: 4),
+                      Text(
+                        'Tap + to create your first budget',
+                      ),
                     ],
                   ),
                 )
@@ -318,7 +417,9 @@ class _BudgetPageState extends State<BudgetPage> {
                       final budget = budgets[index];
 
                       return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
+                        margin: const EdgeInsets.only(
+                          bottom: 12,
+                        ),
                         child: ListTile(
                           leading: const CircleAvatar(
                             backgroundColor: Color(0xFFE7F0FF),
@@ -327,38 +428,62 @@ class _BudgetPageState extends State<BudgetPage> {
                               color: Color(0xFF1877F2),
                             ),
                           ),
+
                           title: Text(
-                            budget['title'],
+                            budget['title']?.toString() ?? '',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                             ),
                           ),
+
                           subtitle: Padding(
                             padding: const EdgeInsets.only(top: 6),
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  '৳ ${budget['amount']} • ${budget['period']}',
+                                  '৳ ${formatAmount(budget['amount'])}',
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Start: ${formatDate(budget['start_date'])}',
+                                  'Time Frame: ${budget['period']}',
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Start: ${formatDateTime(
+                                    DateTime.parse(
+                                      budget['start_date'].toString(),
+                                    ),
+                                  )}',
                                 ),
                                 if (budget['end_date'] != null)
                                   Text(
-                                    'End: ${formatDate(budget['end_date'])}',
+                                    'End: ${formatDateTime(
+                                      DateTime.parse(
+                                        budget['end_date'].toString(),
+                                      ),
+                                    )}',
                                   ),
                               ],
                             ),
                           ),
+
                           isThreeLine: true,
+
                           trailing: PopupMenuButton<String>(
+                            enabled: !isActionRunning,
                             onSelected: (value) {
+                              if (isActionRunning) return;
+
                               if (value == 'edit') {
-                                showBudgetDialog(budget: budget);
+                                showBudgetDialog(
+                                  budget: budget,
+                                );
                               } else if (value == 'delete') {
-                                deleteBudget(budget['id'] as int);
+                                deleteBudget(
+                                  budget['id'] as int,
+                                );
                               }
                             },
                             itemBuilder: (context) => const [
