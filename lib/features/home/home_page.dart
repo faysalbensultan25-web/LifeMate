@@ -14,7 +14,14 @@ import '../statistics/statistics_page.dart';
 import '../todo/todo_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final String language;
+  final ValueChanged<String>? onLanguageChanged;
+
+  const HomePage({
+    super.key,
+    this.language = 'English',
+    this.onLanguageChanged,
+  });
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -49,15 +56,11 @@ class _HomePageState extends State<HomePage> {
 
       if (mounted) {
         setState(() {
-          if (name != null && name.isNotEmpty) {
-            profileName = name;
-          } else {
-            profileName = 'LifeMate';
-          }
+          profileName =
+              name != null && name.isNotEmpty ? name : 'LifeMate';
 
-          if (photo != null && photo.isNotEmpty) {
-            profilePhoto = photo;
-          }
+          profilePhoto =
+              photo != null && photo.isNotEmpty ? photo : null;
         });
       }
     }
@@ -80,9 +83,8 @@ class _HomePageState extends State<HomePage> {
       activities.add({
         'type': 'todo',
         'title': todo['title']?.toString() ?? 'To-Do',
-        'subtitle': todo['is_completed'] == 1
-            ? 'Completed'
-            : 'Pending',
+        'subtitle':
+            todo['is_completed'] == 1 ? 'Completed' : 'Pending',
         'date': todo['created_at']?.toString() ?? '',
         'icon': Icons.task_alt,
       });
@@ -141,8 +143,12 @@ class _HomePageState extends State<HomePage> {
     }
 
     activities.sort((a, b) {
-      final aDate = DateTime.tryParse(a['date']?.toString() ?? '');
-      final bDate = DateTime.tryParse(b['date']?.toString() ?? '');
+      final aDate = DateTime.tryParse(
+        a['date']?.toString() ?? '',
+      );
+      final bDate = DateTime.tryParse(
+        b['date']?.toString() ?? '',
+      );
 
       if (aDate == null && bDate == null) return 0;
       if (aDate == null) return 1;
@@ -165,7 +171,6 @@ class _HomePageState extends State<HomePage> {
         builder: (_) => const TodoPage(),
       ),
     );
-
     await loadHomeData();
   }
 
@@ -176,7 +181,6 @@ class _HomePageState extends State<HomePage> {
         builder: (_) => const NotesPage(),
       ),
     );
-
     await loadHomeData();
   }
 
@@ -187,7 +191,6 @@ class _HomePageState extends State<HomePage> {
         builder: (_) => const FinancePage(),
       ),
     );
-
     await loadHomeData();
   }
 
@@ -198,7 +201,6 @@ class _HomePageState extends State<HomePage> {
         builder: (_) => const EventsPage(),
       ),
     );
-
     await loadHomeData();
   }
 
@@ -209,7 +211,6 @@ class _HomePageState extends State<HomePage> {
         builder: (_) => const StatisticsPage(),
       ),
     );
-
     await loadHomeData();
   }
 
@@ -220,7 +221,6 @@ class _HomePageState extends State<HomePage> {
         builder: (_) => const BudgetPage(),
       ),
     );
-
     await loadHomeData();
   }
 
@@ -231,7 +231,6 @@ class _HomePageState extends State<HomePage> {
         builder: (_) => const ProfilePage(),
       ),
     );
-
     await loadHomeData();
   }
 
@@ -251,7 +250,6 @@ class _HomePageState extends State<HomePage> {
         builder: (_) => const SettingsPage(),
       ),
     );
-
     await loadHomeData();
   }
 
@@ -274,7 +272,6 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-
                 ListTile(
                   leading: const Icon(Icons.task_alt),
                   title: const Text('Add To-Do'),
@@ -283,16 +280,15 @@ class _HomePageState extends State<HomePage> {
                     openTodo();
                   },
                 ),
-
                 ListTile(
-                  leading: const Icon(Icons.account_balance_wallet),
+                  leading:
+                      const Icon(Icons.account_balance_wallet),
                   title: const Text('Add Finance'),
                   onTap: () {
                     Navigator.pop(context);
                     openFinance();
                   },
                 ),
-
                 ListTile(
                   leading: const Icon(Icons.note_alt),
                   title: const Text('Add Note'),
@@ -301,7 +297,6 @@ class _HomePageState extends State<HomePage> {
                     openNotes();
                   },
                 ),
-
                 ListTile(
                   leading: const Icon(Icons.event),
                   title: const Text('Add Event'),
@@ -331,7 +326,8 @@ class _HomePageState extends State<HomePage> {
             left: 20,
             right: 20,
             top: 10,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+            bottom:
+                MediaQuery.of(context).viewInsets.bottom + 20,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -348,7 +344,8 @@ class _HomePageState extends State<HomePage> {
                 controller: controller,
                 autofocus: true,
                 decoration: InputDecoration(
-                  hintText: 'Search To-Do, Notes, Finance, Events',
+                  hintText:
+                      'Search To-Do, Notes, Finance, Events',
                   prefixIcon: const Icon(Icons.search),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -370,7 +367,8 @@ class _HomePageState extends State<HomePage> {
   void showAlerts() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Notifications will be available here.'),
+        content:
+            Text('Notifications will be available here.'),
       ),
     );
   }
@@ -468,7 +466,8 @@ class _HomePageState extends State<HomePage> {
                 active ? 'Open' : 'Coming soon',
                 style: TextStyle(
                   fontSize: 11,
-                  color: active ? Colors.green : Colors.grey,
+                  color:
+                      active ? Colors.green : Colors.grey,
                 ),
               ),
             ],
@@ -493,9 +492,7 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 8),
               const Text(
                 'No recent activity',
-                style: TextStyle(
-                  color: Colors.grey,
-                ),
+                style: TextStyle(color: Colors.grey),
               ),
             ],
           ),
@@ -535,9 +532,7 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: const Text(
           'LifeMate',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
@@ -557,11 +552,11 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-
       body: RefreshIndicator(
         onRefresh: loadHomeData,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+          padding:
+              const EdgeInsets.fromLTRB(16, 12, 16, 100),
           children: [
             Card(
               child: Padding(
@@ -596,9 +591,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 18),
-
             const Text(
               'Features',
               style: TextStyle(
@@ -606,13 +599,12 @@ class _HomePageState extends State<HomePage> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 10),
-
             GridView.count(
               crossAxisCount: 2,
               shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
+              physics:
+                  const NeverScrollableScrollPhysics(),
               crossAxisSpacing: 10,
               mainAxisSpacing: 10,
               childAspectRatio: 1.25,
@@ -679,11 +671,10 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
-
             const SizedBox(height: 24),
-
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment:
+                  MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
                   'Recent Activity',
@@ -698,33 +689,26 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
-
             const SizedBox(height: 4),
-
             buildRecentActivity(),
           ],
         ),
       ),
-
       bottomNavigationBar: NavigationBar(
         selectedIndex: 0,
         onDestinationSelected: (index) {
           switch (index) {
             case 0:
               break;
-
             case 1:
               openTodo();
               break;
-
             case 2:
               showQuickAdd();
               break;
-
             case 3:
               showAlerts();
               break;
-
             case 4:
               showMore();
               break;
