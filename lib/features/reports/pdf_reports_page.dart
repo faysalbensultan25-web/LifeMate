@@ -1,3 +1,4 @@
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -15,7 +16,8 @@ class PdfReportsPage extends StatefulWidget {
 }
 
 class _PdfReportsPageState extends State<PdfReportsPage> {
-  bool isGenerating = false;
+  bool isGeneratingFinancial = false;
+  bool isGeneratingProfile = false;
 
   String formatDate(dynamic value) {
     if (value == null) return '';
@@ -28,9 +30,13 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
     }
   }
 
+  // ============================================================
+  // FINANCIAL STATEMENT PDF
+  // ============================================================
+
   Future<void> generateFinancialStatement() async {
     setState(() {
-      isGenerating = true;
+      isGeneratingFinancial = true;
     });
 
     try {
@@ -234,17 +240,352 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('PDF generation failed: $e'),
+          content: Text(
+            'Financial PDF generation failed: $e',
+          ),
         ),
       );
     } finally {
       if (mounted) {
         setState(() {
-          isGenerating = false;
+          isGeneratingFinancial = false;
         });
       }
     }
   }
+
+  // ============================================================
+  // PROFILE PDF
+  // ============================================================
+
+  Future<void> generateProfilePdf() async {
+    setState(() {
+      isGeneratingProfile = true;
+    });
+
+    try {
+      final db = await AppDatabase.database;
+
+      final profiles = await db.query(
+        'profiles',
+        orderBy: 'id DESC',
+        limit: 1,
+      );
+
+      if (profiles.isEmpty) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No profile information found. Please save your profile first.',
+            ),
+          ),
+        );
+
+        return;
+      }
+
+      final profile = profiles.first;
+
+      pw.MemoryImage? profileImage;
+
+      final photoPath = profile['photo_path']?.toString();
+
+      if (photoPath != null &&
+          photoPath.isNotEmpty &&
+          File(photoPath).existsSync()) {
+        try {
+          final imageBytes = await File(photoPath).readAsBytes();
+          profileImage = pw.MemoryImage(imageBytes);
+        } catch (_) {
+          profileImage = null;
+        }
+      }
+
+      String value(String key) {
+        final data = profile[key];
+
+        if (data == null) {
+          return 'Not provided';
+        }
+
+        final text = data.toString().trim();
+
+        if (text.isEmpty) {
+          return 'Not provided';
+        }
+
+        return text;
+      }
+
+      final pdf = pw.Document();
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+          build: (context) {
+            return [
+              // Header
+              pw.Row(
+                crossAxisAlignment:
+                    pw.CrossAxisAlignment.start,
+                children: [
+                  if (profileImage != null)
+                    pw.Container(
+                      width: 90,
+                      height: 90,
+                      margin: const pw.EdgeInsets.only(
+                        right: 20,
+                      ),
+                      child: pw.ClipRRect(
+                        horizontalRadius: 8,
+                        verticalRadius: 8,
+                        child: pw.Image(
+                          profileImage!,
+                          fit: pw.BoxFit.cover,
+                        ),
+                      ),
+                    ),
+
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment:
+                          pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'LifeMate',
+                          style: pw.TextStyle(
+                            fontSize: 26,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+
+                        pw.SizedBox(height: 6),
+
+                        pw.Text(
+                          'Personal Profile',
+                          style: pw.TextStyle(
+                            fontSize: 18,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+
+                        pw.SizedBox(height: 8),
+
+                        pw.Text(
+                          value('name'),
+                          style: pw.TextStyle(
+                            fontSize: 16,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              pw.SizedBox(height: 25),
+
+              pw.Divider(),
+
+              pw.SizedBox(height: 15),
+
+              // Personal Information
+              pw.Text(
+                'Personal Information',
+                style: pw.TextStyle(
+                  fontSize: 17,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+
+              pw.SizedBox(height: 12),
+
+              _profileTable([
+                ['Full Name', value('name')],
+                ['Birth Date', formatDate(profile['birth_date'])],
+                ['Gender', value('gender')],
+                ['Blood Group', value('blood_group')],
+              ]),
+
+              pw.SizedBox(height: 20),
+
+              // Contact Information
+              pw.Text(
+                'Contact Information',
+                style: pw.TextStyle(
+                  fontSize: 17,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+
+              pw.SizedBox(height: 12),
+
+              _profileTable([
+                ['Phone', value('phone')],
+                ['Email', value('email')],
+                ['Current Address', value('address')],
+                [
+                  'Permanent Address',
+                  value('permanent_address'),
+                ],
+                [
+                  'Emergency Contact',
+                  value('emergency_contact'),
+                ],
+              ]),
+
+              pw.SizedBox(height: 20),
+
+              // Professional Information
+              pw.Text(
+                'Education & Professional Information',
+                style: pw.TextStyle(
+                  fontSize: 17,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+
+              pw.SizedBox(height: 12),
+
+              _profileTable([
+                ['Education', value('education')],
+                ['Occupation', value('occupation')],
+                ['Workplace', value('workplace')],
+                ['Designation', value('designation')],
+              ]),
+
+              pw.SizedBox(height: 20),
+
+              // About
+              pw.Text(
+                'About',
+                style: pw.TextStyle(
+                  fontSize: 17,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+
+              pw.SizedBox(height: 10),
+
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.all(12),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(
+                    color: PdfColors.grey400,
+                  ),
+                  borderRadius:
+                      pw.BorderRadius.circular(6),
+                ),
+                child: pw.Text(
+                  value('about'),
+                  style: const pw.TextStyle(
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+
+              pw.SizedBox(height: 30),
+
+              pw.Divider(),
+
+              pw.SizedBox(height: 8),
+
+              pw.Text(
+                'Generated by LifeMate',
+                style: const pw.TextStyle(
+                  fontSize: 9,
+                  color: PdfColors.grey600,
+                ),
+              ),
+
+              pw.SizedBox(height: 4),
+
+              pw.Text(
+                'Generated: ${DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now())}',
+                style: const pw.TextStyle(
+                  fontSize: 9,
+                  color: PdfColors.grey600,
+                ),
+              ),
+            ];
+          },
+        ),
+      );
+
+      await Printing.layoutPdf(
+        onLayout: (format) async => pdf.save(),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Profile PDF generation failed: $e',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isGeneratingProfile = false;
+        });
+      }
+    }
+  }
+
+  // ============================================================
+  // PROFILE TABLE
+  // ============================================================
+
+  pw.Widget _profileTable(
+    List<List<String>> rows,
+  ) {
+    return pw.Table(
+      border: pw.TableBorder.all(
+        color: PdfColors.grey400,
+        width: 0.5,
+      ),
+      columnWidths: {
+        0: const pw.FlexColumnWidth(1.2),
+        1: const pw.FlexColumnWidth(2),
+      },
+      children: rows.map((row) {
+        return pw.TableRow(
+          children: [
+            pw.Container(
+              padding: const pw.EdgeInsets.all(8),
+              child: pw.Text(
+                row[0],
+                style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(8),
+              child: pw.Text(
+                row[1],
+                style: const pw.TextStyle(
+                  fontSize: 9,
+                ),
+              ),
+            ),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -255,14 +596,19 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // ------------------------------------------------------
+          // Financial Statement
+          // ------------------------------------------------------
+
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
                   const Icon(
-                    Icons.picture_as_pdf,
+                    Icons.account_balance_wallet_outlined,
                     size: 48,
                     color: Color(0xFF1877F2),
                   ),
@@ -289,22 +635,95 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: isGenerating
+                      onPressed: isGeneratingFinancial ||
+                              isGeneratingProfile
                           ? null
                           : generateFinancialStatement,
-                      icon: isGenerating
+                      icon: isGeneratingFinancial
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(
+                              child:
+                                  CircularProgressIndicator(
                                 strokeWidth: 2,
                               ),
                             )
-                          : const Icon(Icons.picture_as_pdf),
+                          : const Icon(
+                              Icons.picture_as_pdf,
+                            ),
                       label: Text(
-                        isGenerating
+                        isGeneratingFinancial
                             ? 'Generating...'
                             : 'Generate Financial Statement',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ------------------------------------------------------
+          // Profile PDF
+          // ------------------------------------------------------
+
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.person_outline,
+                    size: 48,
+                    color: Color(0xFF1877F2),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  const Text(
+                    'Profile PDF',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  const Text(
+                    'Generate a professional PDF containing '
+                    'your profile information and profile photo.',
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: isGeneratingFinancial ||
+                              isGeneratingProfile
+                          ? null
+                          : generateProfilePdf,
+                      icon: isGeneratingProfile
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child:
+                                  CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.picture_as_pdf,
+                            ),
+                      label: Text(
+                        isGeneratingProfile
+                            ? 'Generating...'
+                            : 'Generate Profile PDF',
                       ),
                     ),
                   ),
