@@ -301,4 +301,398 @@ class _ProfilePageState extends State<ProfilePage> {
         keyboardType: keyboardType,
         maxLines: maxLines,
         decoration: InputDecoration(
-         
+          labelText: label,
+          hintText: hint,
+          prefixIcon: Icon(
+            icon,
+            color: const Color(0xFF1877F2),
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget sectionTitle(String title) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(
+          top: 10,
+          bottom: 12,
+        ),
+        child: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget profilePhoto() {
+    final hasPhoto =
+        photoPath != null &&
+        photoPath!.isNotEmpty &&
+        File(photoPath!).existsSync();
+
+    return Stack(
+      children: [
+        CircleAvatar(
+          radius: 58,
+          backgroundColor: const Color(0xFFE7F0FF),
+          backgroundImage:
+              hasPhoto ? FileImage(File(photoPath!)) : null,
+          child: hasPhoto
+              ? null
+              : const Icon(
+                  Icons.person,
+                  size: 65,
+                  color: Color(0xFF1877F2),
+                ),
+        ),
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: Material(
+            color: const Color(0xFF1877F2),
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: selectPhoto,
+              child: const Padding(
+                padding: EdgeInsets.all(10),
+                child: Icon(
+                  Icons.camera_alt,
+                  color: Colors.white,
+                  size: 21,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    phoneController.dispose();
+    emailController.dispose();
+    addressController.dispose();
+    permanentAddressController.dispose();
+    educationController.dispose();
+    occupationController.dispose();
+    workplaceController.dispose();
+    designationController.dispose();
+    emergencyContactController.dispose();
+    aboutController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Profile'),
+        actions: [
+          if (profileId != null)
+            IconButton(
+              onPressed: clearProfile,
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Clear Profile',
+            ),
+        ],
+      ),
+      body: isLoading
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  profilePhoto(),
+
+                  const SizedBox(height: 12),
+
+                  const Text(
+                    'Personal Profile',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 5),
+
+                  const Text(
+                    'All profile information is optional.',
+                    style: TextStyle(
+                      color: Colors.grey,
+                    ),
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  sectionTitle('Basic Information'),
+
+                  textField(
+                    label: 'Full Name',
+                    hint: 'Enter your full name',
+                    icon: Icons.person_outline,
+                    controller: nameController,
+                  ),
+
+                  InkWell(
+                    onTap: selectBirthDate,
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: 'Birth Date',
+                        prefixIcon: const Icon(
+                          Icons.cake_outlined,
+                          color: Color(0xFF1877F2),
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: Text(
+                        formattedBirthDate(),
+                        style: TextStyle(
+                          color: birthDate == null
+                              ? Colors.grey
+                              : Colors.black,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 15),
+
+                  DropdownButtonFormField<String>(
+                    value: gender,
+                    decoration: InputDecoration(
+                      labelText: 'Gender',
+                      prefixIcon: const Icon(
+                        Icons.wc_outlined,
+                        color: Color(0xFF1877F2),
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Male',
+                        child: Text('Male'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Female',
+                        child: Text('Female'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Other',
+                        child: Text('Other'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        gender = value;
+                      });
+                    },
+                  ),
+
+                  const SizedBox(height: 15),
+
+                  textField(
+                    label: 'Mobile Number',
+                    hint: 'Enter mobile number',
+                    icon: Icons.phone_outlined,
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                  ),
+
+                  textField(
+                    label: 'Email Address',
+                    hint: 'Enter email address',
+                    icon: Icons.email_outlined,
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+
+                  sectionTitle('Address'),
+
+                  textField(
+                    label: 'Current Address',
+                    hint: 'Enter current address',
+                    icon: Icons.location_on_outlined,
+                    controller: addressController,
+                    maxLines: 3,
+                  ),
+
+                  textField(
+                    label: 'Permanent Address',
+                    hint: 'Enter permanent address',
+                    icon: Icons.home_outlined,
+                    controller: permanentAddressController,
+                    maxLines: 3,
+                  ),
+
+                  sectionTitle('Education & Work'),
+
+                  textField(
+                    label: 'Education',
+                    hint: 'Example: Bachelor / Master',
+                    icon: Icons.school_outlined,
+                    controller: educationController,
+                  ),
+
+                  textField(
+                    label: 'Occupation',
+                    hint: 'Enter your occupation',
+                    icon: Icons.work_outline,
+                    controller: occupationController,
+                  ),
+
+                  textField(
+                    label: 'Workplace',
+                    hint: 'Enter workplace',
+                    icon: Icons.business_outlined,
+                    controller: workplaceController,
+                  ),
+
+                  textField(
+                    label: 'Designation',
+                    hint: 'Enter your designation',
+                    icon: Icons.badge_outlined,
+                    controller: designationController,
+                  ),
+
+                  sectionTitle('Other Information'),
+
+                  DropdownButtonFormField<String>(
+                    value: bloodGroup,
+                    decoration: InputDecoration(
+                      labelText: 'Blood Group',
+                      prefixIcon: const Icon(
+                        Icons.bloodtype_outlined,
+                        color: Color(0xFF1877F2),
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'A+',
+                        child: Text('A+'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'A-',
+                        child: Text('A-'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'B+',
+                        child: Text('B+'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'B-',
+                        child: Text('B-'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'AB+',
+                        child: Text('AB+'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'AB-',
+                        child: Text('AB-'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'O+',
+                        child: Text('O+'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'O-',
+                        child: Text('O-'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        bloodGroup = value;
+                      });
+                    },
+                  ),
+
+                  const SizedBox(height: 15),
+
+                  textField(
+                    label: 'Emergency Contact',
+                    hint: 'Enter emergency contact number',
+                    icon: Icons.contact_phone_outlined,
+                    controller: emergencyContactController,
+                    keyboardType: TextInputType.phone,
+                  ),
+
+                  textField(
+                    label: 'About Me',
+                    hint: 'Write something about yourself',
+                    icon: Icons.info_outline,
+                    controller: aboutController,
+                    maxLines: 5,
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton.icon(
+                      onPressed: isSaving ? null : saveProfile,
+                      icon: isSaving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.save_outlined),
+                      label: Text(
+                        isSaving
+                            ? 'Saving...'
+                            : 'Save Profile',
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            const Color(0xFF1877F2),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+    );
+  }
+}
