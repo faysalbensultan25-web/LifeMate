@@ -7,13 +7,15 @@ class AppTheme {
 
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
+    brightness: Brightness.light,
 
     colorScheme: ColorScheme.fromSeed(
       seedColor: primaryBlue,
       brightness: Brightness.light,
     ),
 
-    scaffoldBackgroundColor: const Color(0xFFF5F7FA),
+    scaffoldBackgroundColor:
+        const Color(0xFFF5F7FA),
 
     appBarTheme: const AppBarTheme(
       centerTitle: false,
@@ -26,18 +28,55 @@ class AppTheme {
       elevation: 1,
       color: Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.all(
+          Radius.circular(16),
+        ),
       ),
     ),
 
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+    floatingActionButtonTheme:
+        const FloatingActionButtonThemeData(
       backgroundColor: primaryBlue,
       foregroundColor: Colors.white,
     ),
 
-    navigationBarTheme: const NavigationBarThemeData(
+    navigationBarTheme:
+        const NavigationBarThemeData(
       backgroundColor: Colors.white,
       indicatorColor: Color(0xFFE7F0FF),
+    ),
+  );
+
+  static ThemeData darkTheme = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.dark,
+
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: primaryBlue,
+      brightness: Brightness.dark,
+    ),
+
+    scaffoldBackgroundColor:
+        const Color(0xFF121212),
+
+    appBarTheme: const AppBarTheme(
+      centerTitle: false,
+      elevation: 0,
+    ),
+
+    cardTheme: CardThemeData(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(16),
+        ),
+      ),
+    ),
+
+    floatingActionButtonTheme:
+        const FloatingActionButtonThemeData(
+      backgroundColor: primaryBlue,
+      foregroundColor: Colors.white,
     ),
   );
 }
