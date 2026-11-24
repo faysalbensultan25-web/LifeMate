@@ -1,3 +1,4 @@
+
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -19,10 +20,9 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 5,
+      version: 6,
 
       onCreate: (db, version) async {
-        // To-Do
         await db.execute('''
           CREATE TABLE todos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +32,6 @@ class AppDatabase {
           )
         ''');
 
-        // Notes
         await db.execute('''
           CREATE TABLE notes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,7 +43,6 @@ class AppDatabase {
           )
         ''');
 
-        // Income
         await db.execute('''
           CREATE TABLE incomes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,7 +54,6 @@ class AppDatabase {
           )
         ''');
 
-        // Expense
         await db.execute('''
           CREATE TABLE expenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,7 +65,6 @@ class AppDatabase {
           )
         ''');
 
-        // Categories
         await db.execute('''
           CREATE TABLE categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -78,7 +74,6 @@ class AppDatabase {
           )
         ''');
 
-        // Events
         await db.execute('''
           CREATE TABLE events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,7 +84,6 @@ class AppDatabase {
           )
         ''');
 
-        // Budgets
         await db.execute('''
           CREATE TABLE budgets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -103,7 +97,6 @@ class AppDatabase {
           )
         ''');
 
-        // Profile
         await db.execute('''
           CREATE TABLE profiles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -131,7 +124,6 @@ class AppDatabase {
           )
         ''');
 
-        // Education - Multiple records
         await db.execute('''
           CREATE TABLE profile_education (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -147,7 +139,6 @@ class AppDatabase {
           )
         ''');
 
-        // Training and Certifications - Multiple records
         await db.execute('''
           CREATE TABLE profile_training (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -161,7 +152,6 @@ class AppDatabase {
           )
         ''');
 
-        // Work Experience - Multiple records
         await db.execute('''
           CREATE TABLE profile_experience (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -178,7 +168,6 @@ class AppDatabase {
           )
         ''');
 
-        // Skills - Multiple records
         await db.execute('''
           CREATE TABLE profile_skills (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -189,7 +178,6 @@ class AppDatabase {
           )
         ''');
 
-        // Languages - Multiple records
         await db.execute('''
           CREATE TABLE profile_languages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -200,7 +188,6 @@ class AppDatabase {
           )
         ''');
 
-        // Achievements - Multiple records
         await db.execute('''
           CREATE TABLE profile_achievements (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -212,7 +199,6 @@ class AppDatabase {
           )
         ''');
 
-        // Notifications
         await db.execute('''
           CREATE TABLE notifications (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -223,7 +209,6 @@ class AppDatabase {
           )
         ''');
 
-        // Backups
         await db.execute('''
           CREATE TABLE backups (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -234,90 +219,70 @@ class AppDatabase {
       },
 
       onUpgrade: (db, oldVersion, newVersion) async {
-        // Version 1 -> Version 2
         if (oldVersion < 2) {
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN birth_date TEXT',
           );
-
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN gender TEXT',
           );
-
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN permanent_address TEXT',
           );
-
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN education TEXT',
           );
-
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN occupation TEXT',
           );
-
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN workplace TEXT',
           );
-
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN designation TEXT',
           );
-
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN blood_group TEXT',
           );
-
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN emergency_contact TEXT',
           );
-
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN about TEXT',
           );
         }
 
-        // Version 2 -> Version 3
         if (oldVersion < 3) {
           await db.execute(
             "ALTER TABLE budgets ADD COLUMN type TEXT NOT NULL DEFAULT 'expense'",
           );
-
           await db.execute(
             'ALTER TABLE budgets ADD COLUMN category_id INTEGER',
           );
         }
 
-        // Version 3 -> Version 4
         if (oldVersion < 4) {
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN skills TEXT',
           );
-
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN languages TEXT',
           );
-
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN training TEXT',
           );
-
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN experience TEXT',
           );
-
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN achievements TEXT',
           );
-
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN career_objective TEXT',
           );
         }
 
-        // Version 4 -> Version 5
         if (oldVersion < 5) {
-          // Education
           await db.execute('''
             CREATE TABLE profile_education (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -333,7 +298,6 @@ class AppDatabase {
             )
           ''');
 
-          // Training
           await db.execute('''
             CREATE TABLE profile_training (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -347,7 +311,6 @@ class AppDatabase {
             )
           ''');
 
-          // Work Experience
           await db.execute('''
             CREATE TABLE profile_experience (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -364,7 +327,6 @@ class AppDatabase {
             )
           ''');
 
-          // Skills
           await db.execute('''
             CREATE TABLE profile_skills (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -375,7 +337,6 @@ class AppDatabase {
             )
           ''');
 
-          // Languages
           await db.execute('''
             CREATE TABLE profile_languages (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -386,7 +347,6 @@ class AppDatabase {
             )
           ''');
 
-          // Achievements
           await db.execute('''
             CREATE TABLE profile_achievements (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -398,11 +358,22 @@ class AppDatabase {
             )
           ''');
         }
+
+        if (oldVersion < 6) {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS notifications (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              title TEXT NOT NULL,
+              message TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              is_read INTEGER NOT NULL DEFAULT 0
+            )
+          ''');
+        }
       },
     );
   }
 
-  // Close database
   static Future<void> close() async {
     if (_database != null) {
       await _database!.close();
