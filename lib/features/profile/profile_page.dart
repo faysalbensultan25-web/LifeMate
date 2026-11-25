@@ -18,7 +18,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
   int? profileId;
   String? photoPath;
-
   String gender = '';
   String bloodGroup = '';
 
@@ -26,22 +25,51 @@ class _ProfilePageState extends State<ProfilePage> {
   bool isSaving = false;
 
   final List<String> genderOptions = [
-    'Male',
-    'Female',
-    'Other',
-    'Prefer not to say',
+    'Male', 'Female', 'Other', 'Prefer not to say',
   ];
 
   final List<String> bloodGroups = [
-    'A+',
-    'A-',
-    'B+',
-    'B-',
-    'AB+',
-    'AB-',
-    'O+',
-    'O-',
+    'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-',
   ];
+
+  final List<String> occupationOptions = [
+    'Student',
+    'Teacher',
+    'Government Employee',
+    'Private Employee',
+    'Business Owner',
+    'Self Employed',
+    'Farmer',
+    'Freelancer',
+    'Homemaker',
+    'Unemployed',
+  ];
+
+  final List<String> designationOptions = [
+    'Student',
+    'Assistant',
+    'Officer',
+    'Senior Officer',
+    'Manager',
+    'Assistant Manager',
+    'Executive',
+    'Director',
+    'Owner',
+    'Other',
+  ];
+
+  final Map<String, List<String>> templates = {
+    'career_objective': [
+      'To build a successful career through honesty, hard work, continuous learning and professional development.',
+      'To use my knowledge, skills and experience to contribute positively to an organization and society.',
+      'To achieve professional growth by accepting responsibilities, learning new skills and working with dedication.',
+    ],
+    'about': [
+      'I am a hardworking, responsible and honest person. I enjoy learning new things and improving my skills.',
+      'I am a positive-minded person who values discipline, family, honesty and continuous personal development.',
+      'I believe in hard work, responsibility and respect. I always try to learn from experience and do my best.',
+    ],
+  };
 
   @override
   void initState() {
@@ -52,6 +80,7 @@ class _ProfilePageState extends State<ProfilePage> {
       'phone',
       'email',
       'address',
+      'location',
       'permanent_address',
       'birth_date',
       'occupation',
@@ -77,10 +106,6 @@ class _ProfilePageState extends State<ProfilePage> {
     super.dispose();
   }
 
-  // =========================================================
-  // LOAD PROFILE
-  // =========================================================
-
   Future<void> loadProfile() async {
     try {
       final db = await AppDatabase.database;
@@ -93,7 +118,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (result.isNotEmpty) {
         final profile = result.first;
-
         profileId = profile['id'] as int?;
 
         for (final entry in controllers.entries) {
@@ -102,61 +126,37 @@ class _ProfilePageState extends State<ProfilePage> {
         }
 
         photoPath = profile['photo_path']?.toString();
-
         gender = profile['gender']?.toString() ?? '';
-        bloodGroup =
-            profile['blood_group']?.toString() ?? '';
+        bloodGroup = profile['blood_group']?.toString() ?? '';
       }
     } catch (e) {
       showMessage('Could not load profile: $e');
     }
 
     if (mounted) {
-      setState(() {
-        isLoading = false;
-      });
+      setState(() => isLoading = false);
     }
   }
 
-  // =========================================================
-  // ENSURE PROFILE ID
-  // =========================================================
-
   Future<int> ensureProfileId() async {
-    if (profileId != null) {
-      return profileId!;
-    }
+    if (profileId != null) return profileId!;
 
     final db = await AppDatabase.database;
-
-    final id = await db.insert(
-      'profiles',
-      {'name': ''},
-    );
+    final id = await db.insert('profiles', {'name': ''});
 
     profileId = id;
 
-    if (mounted) {
-      setState(() {});
-    }
-
+    if (mounted) setState(() {});
     return id;
   }
-
-  // =========================================================
-  // SAVE PROFILE
-  // =========================================================
 
   Future<void> saveProfile() async {
     if (isSaving) return;
 
-    setState(() {
-      isSaving = true;
-    });
+    setState(() => isSaving = true);
 
     try {
       final db = await AppDatabase.database;
-
       final data = <String, Object?>{};
 
       for (final entry in controllers.entries) {
@@ -164,8 +164,7 @@ class _ProfilePageState extends State<ProfilePage> {
       }
 
       data['gender'] = gender.isEmpty ? null : gender;
-      data['blood_group'] =
-          bloodGroup.isEmpty ? null : bloodGroup;
+      data['blood_group'] = bloodGroup.isEmpty ? null : bloodGroup;
       data['photo_path'] = photoPath;
 
       if (profileId == null) {
@@ -187,16 +186,8 @@ class _ProfilePageState extends State<ProfilePage> {
       showMessage('Profile save failed: $e');
     }
 
-    if (mounted) {
-      setState(() {
-        isSaving = false;
-      });
-    }
+    if (mounted) setState(() => isSaving = false);
   }
-
-  // =========================================================
-  // CLEAR PROFILE
-  // =========================================================
 
   Future<void> clearProfile() async {
     final confirm = await showDialog<bool>(
@@ -261,10 +252,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // =========================================================
-  // PICK PROFILE PHOTO
-  // =========================================================
-
   Future<void> pickPhoto() async {
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -281,29 +268,29 @@ class _ProfilePageState extends State<ProfilePage> {
         return;
       }
 
-      setState(() {
-        photoPath = path;
-      });
+      setState(() => photoPath = path);
     } catch (e) {
       showMessage('Image selection failed: $e');
     }
   }
-
-  // =========================================================
-  // REUSABLE TEXT FIELD
-  // =========================================================
 
   Widget textField(
     String key,
     String label, {
     bool multiline = false,
     TextInputType? keyboardType,
+    TextCapitalization? capitalization,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
         controller: controllers[key],
         keyboardType: keyboardType,
+        textCapitalization: capitalization ??
+            (keyboardType == TextInputType.emailAddress ||
+                    keyboardType == TextInputType.phone
+                ? TextCapitalization.none
+                : TextCapitalization.sentences),
         maxLines: multiline ? 4 : 1,
         decoration: InputDecoration(
           labelText: label,
@@ -314,49 +301,117 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // =========================================================
-  // DROPDOWN
-  // =========================================================
-
   Widget dropdownField({
     required String label,
     required String value,
     required List<String> options,
     required ValueChanged<String> onChanged,
   }) {
+    final items = [...options];
+
+    if (value.isNotEmpty && !items.contains(value)) {
+      items.insert(0, value);
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: DropdownButtonFormField<String>(
-        value: options.contains(value) ? value : null,
+        value: value.isEmpty ? null : value,
+        isExpanded: true,
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
         ),
-        items: options.map((item) {
+        items: items.map((item) {
           return DropdownMenuItem(
             value: item,
             child: Text(item),
           );
         }).toList(),
         onChanged: (newValue) {
-          if (newValue != null) {
-            onChanged(newValue);
+          if (newValue != null) onChanged(newValue);
+        },
+      ),
+    );
+  }
+
+  Widget profileDropdown(String key, String label, List<String> options) {
+    final currentValue = controllers[key]!.text;
+    final items = [...options];
+
+    if (currentValue.isNotEmpty && !items.contains(currentValue)) {
+      items.insert(0, currentValue);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DropdownButtonFormField<String>(
+        value: currentValue.isEmpty ? null : currentValue,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+        items: items.map((item) {
+          return DropdownMenuItem(
+            value: item,
+            child: Text(item),
+          );
+        }).toList(),
+        onChanged: (value) {
+          if (value != null) {
+            setState(() => controllers[key]!.text = value);
           }
         },
       ),
     );
   }
 
-  // =========================================================
-  // SECTION HEADER
-  // =========================================================
+  Widget templateField(String key, String label) {
+    final options = templates[key]!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            PopupMenuButton<int>(
+              tooltip: 'Choose a template',
+              icon: const Icon(Icons.auto_awesome),
+              onSelected: (index) {
+                setState(() {
+                  controllers[key]!.text = options[index];
+                });
+              },
+              itemBuilder: (context) => List.generate(
+                options.length,
+                (index) => PopupMenuItem(
+                  value: index,
+                  child: SizedBox(
+                    width: 230,
+                    child: Text(
+                      'Template ${index + 1}',
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        textField(key, label, multiline: true),
+      ],
+    );
+  }
 
   Widget sectionTitle(String title, IconData icon) {
     return Padding(
-      padding: const EdgeInsets.only(
-        top: 18,
-        bottom: 12,
-      ),
+      padding: const EdgeInsets.only(top: 18, bottom: 12),
       child: Row(
         children: [
           Icon(icon, color: Colors.blue),
@@ -373,10 +428,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // =========================================================
-  // MESSAGE
-  // =========================================================
-
   void showMessage(String message) {
     if (!mounted) return;
 
@@ -384,10 +435,6 @@ class _ProfilePageState extends State<ProfilePage> {
       SnackBar(content: Text(message)),
     );
   }
-
-  // =========================================================
-  // RECORD SECTION BUILDER
-  // =========================================================
 
   Widget multiRecordSection({
     required String title,
@@ -407,17 +454,11 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // =========================================================
-  // BUILD
-  // =========================================================
-
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -437,19 +478,16 @@ class _ProfilePageState extends State<ProfilePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // PROFILE PHOTO
-
             Center(
               child: Column(
                 children: [
                   CircleAvatar(
                     radius: 52,
                     backgroundColor: Colors.blue.shade50,
-                    backgroundImage:
-                        photoPath != null &&
-                                File(photoPath!).existsSync()
-                            ? FileImage(File(photoPath!))
-                            : null,
+                    backgroundImage: photoPath != null &&
+                            File(photoPath!).existsSync()
+                        ? FileImage(File(photoPath!))
+                        : null,
                     child: photoPath == null ||
                             !File(photoPath!).existsSync()
                         ? const Icon(
@@ -468,12 +506,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
 
-            // PERSONAL INFORMATION
-
-            sectionTitle(
-              'Personal Information',
-              Icons.person,
-            ),
+            sectionTitle('Personal Information', Icons.person),
 
             textField('name', 'Full Name'),
             textField(
@@ -491,22 +524,19 @@ class _ProfilePageState extends State<ProfilePage> {
               label: 'Gender',
               value: gender,
               options: genderOptions,
-              onChanged: (value) {
-                setState(() => gender = value);
-              },
+              onChanged: (value) => setState(() => gender = value),
             ),
 
             dropdownField(
               label: 'Blood Group',
               value: bloodGroup,
               options: bloodGroups,
-              onChanged: (value) {
-                setState(() => bloodGroup = value);
-              },
+              onChanged: (value) => setState(() => bloodGroup = value),
             ),
 
             textField('birth_date', 'Date of Birth'),
-            textField('address', 'Present Address'),
+            textField('address', 'Present Address', multiline: true),
+            textField('location', 'Location'),
             textField(
               'permanent_address',
               'Permanent Address',
@@ -518,44 +548,25 @@ class _ProfilePageState extends State<ProfilePage> {
               keyboardType: TextInputType.phone,
             ),
 
-            // PROFESSIONAL INFORMATION
+            sectionTitle('Professional Information', Icons.work),
 
-            sectionTitle(
-              'Professional Information',
-              Icons.work,
+            profileDropdown(
+              'occupation',
+              'Occupation',
+              occupationOptions,
             ),
-
-            textField('occupation', 'Occupation'),
             textField('workplace', 'Workplace'),
-            textField('designation', 'Designation'),
-
-            // CAREER OBJECTIVE
-
-            sectionTitle(
-              'Career Objective',
-              Icons.flag,
+            profileDropdown(
+              'designation',
+              'Designation',
+              designationOptions,
             ),
 
-            textField(
-              'career_objective',
-              'Career Objective',
-              multiline: true,
-            ),
+            sectionTitle('Career Objective', Icons.flag),
+            templateField('career_objective', 'Career Objective'),
 
-            // ABOUT
-
-            sectionTitle(
-              'About Me',
-              Icons.info_outline,
-            ),
-
-            textField(
-              'about',
-              'About Me',
-              multiline: true,
-            ),
-
-            // EDUCATION
+            sectionTitle('About Me', Icons.info_outline),
+            templateField('about', 'About Me'),
 
             multiRecordSection(
               title: 'Education',
@@ -563,11 +574,7 @@ class _ProfilePageState extends State<ProfilePage> {
               table: 'profile_education',
               titleKey: 'qualification',
               fields: [
-                RecordField(
-                  'qualification',
-                  'Qualification',
-                  required: true,
-                ),
+                RecordField('qualification', 'Qualification', required: true),
                 RecordField('institution', 'Institution'),
                 RecordField('subject', 'Subject / Group'),
                 RecordField('result', 'Result / GPA'),
@@ -577,19 +584,13 @@ class _ProfilePageState extends State<ProfilePage> {
               ],
             ),
 
-            // TRAINING
-
             multiRecordSection(
               title: 'Training',
               icon: Icons.cast_for_education,
               table: 'profile_training',
               titleKey: 'title',
               fields: [
-                RecordField(
-                  'title',
-                  'Training Title',
-                  required: true,
-                ),
+                RecordField('title', 'Training Title', required: true),
                 RecordField('institution', 'Training Institution'),
                 RecordField('duration', 'Duration'),
                 RecordField('completion_year', 'Completion Year'),
@@ -600,8 +601,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ],
             ),
-
-            // EXPERIENCE
 
             multiRecordSection(
               title: 'Work Experience',
@@ -632,24 +631,16 @@ class _ProfilePageState extends State<ProfilePage> {
               ],
             ),
 
-            // SKILLS
-
             multiRecordSection(
               title: 'Skills',
               icon: Icons.psychology,
               table: 'profile_skills',
               titleKey: 'skill_name',
               fields: [
-                RecordField(
-                  'skill_name',
-                  'Skill Name',
-                  required: true,
-                ),
+                RecordField('skill_name', 'Skill Name', required: true),
                 RecordField('proficiency', 'Proficiency'),
               ],
             ),
-
-            // LANGUAGES
 
             multiRecordSection(
               title: 'Languages',
@@ -657,16 +648,10 @@ class _ProfilePageState extends State<ProfilePage> {
               table: 'profile_languages',
               titleKey: 'language_name',
               fields: [
-                RecordField(
-                  'language_name',
-                  'Language',
-                  required: true,
-                ),
+                RecordField('language_name', 'Language', required: true),
                 RecordField('proficiency', 'Proficiency'),
               ],
             ),
-
-            // ACHIEVEMENTS
 
             multiRecordSection(
               title: 'Achievements',
@@ -674,11 +659,7 @@ class _ProfilePageState extends State<ProfilePage> {
               table: 'profile_achievements',
               titleKey: 'title',
               fields: [
-                RecordField(
-                  'title',
-                  'Achievement Title',
-                  required: true,
-                ),
+                RecordField('title', 'Achievement Title', required: true),
                 RecordField(
                   'description',
                   'Description',
@@ -705,9 +686,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       )
                     : const Icon(Icons.save),
-                label: Text(
-                  isSaving ? 'Saving...' : 'Save Profile',
-                ),
+                label: Text(isSaving ? 'Saving...' : 'Save Profile'),
               ),
             ),
 
@@ -718,10 +697,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 }
-
-// ============================================================
-// RECORD FIELD MODEL
-// ============================================================
 
 class RecordField {
   final String key;
@@ -738,10 +713,6 @@ class RecordField {
     this.isSwitch = false,
   });
 }
-
-// ============================================================
-// MULTIPLE RECORD SECTION
-// ============================================================
 
 class RecordSection extends StatefulWidget {
   final String title;
@@ -786,8 +757,6 @@ class _RecordSectionState extends State<RecordSection> {
     }
   }
 
-  // LOAD
-
   Future<void> loadRecords() async {
     final id = widget.profileId;
 
@@ -819,20 +788,15 @@ class _RecordSectionState extends State<RecordSection> {
       });
     } catch (e) {
       if (!mounted) return;
-
       setState(() => isLoading = false);
-
       showMessage('Could not load records: $e');
     }
   }
-
-  // ADD / EDIT
 
   Future<void> openRecordForm({
     Map<String, Object?>? record,
   }) async {
     final formKey = GlobalKey<FormState>();
-
     final Map<String, TextEditingController> formControllers = {};
 
     for (final field in widget.fields) {
@@ -880,6 +844,8 @@ class _RecordSectionState extends State<RecordSection> {
                           padding: const EdgeInsets.only(bottom: 12),
                           child: TextFormField(
                             controller: formControllers[field.key],
+                            textCapitalization:
+                                TextCapitalization.sentences,
                             maxLines: field.multiline ? 4 : 1,
                             decoration: InputDecoration(
                               labelText: field.label,
@@ -905,27 +871,20 @@ class _RecordSectionState extends State<RecordSection> {
                 TextButton(
                   onPressed: isSaving
                       ? null
-                      : () {
-                          Navigator.pop(dialogContext, false);
-                        },
+                      : () => Navigator.pop(dialogContext, false),
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
                   onPressed: isSaving
                       ? null
                       : () async {
-                          if (!formKey.currentState!.validate()) {
-                            return;
-                          }
+                          if (!formKey.currentState!.validate()) return;
 
-                          setDialogState(() {
-                            isSaving = true;
-                          });
+                          setDialogState(() => isSaving = true);
 
                           try {
                             final db = await AppDatabase.database;
-                            final id =
-                                await widget.onEnsureProfileId();
+                            final id = await widget.onEnsureProfileId();
 
                             final data = <String, Object?>{};
 
@@ -935,17 +894,13 @@ class _RecordSectionState extends State<RecordSection> {
                                     currentlyWorking ? 1 : 0;
                               } else {
                                 final value =
-                                    formControllers[field.key]!
-                                        .text
-                                        .trim();
-
+                                    formControllers[field.key]!.text.trim();
                                 data[field.key] =
                                     value.isEmpty ? null : value;
                               }
                             }
 
-                            if (widget.table ==
-                                    'profile_experience' &&
+                            if (widget.table == 'profile_experience' &&
                                 currentlyWorking) {
                               data['end_date'] = null;
                             }
@@ -969,16 +924,12 @@ class _RecordSectionState extends State<RecordSection> {
                               Navigator.pop(dialogContext, true);
                             }
                           } catch (e) {
-                            setDialogState(() {
-                              isSaving = false;
-                            });
+                            setDialogState(() => isSaving = false);
 
                             if (dialogContext.mounted) {
                               ScaffoldMessenger.of(dialogContext)
                                   .showSnackBar(
-                                SnackBar(
-                                  content: Text('Save failed: $e'),
-                                ),
+                                SnackBar(content: Text('Save failed: $e')),
                               );
                             }
                           }
@@ -996,16 +947,10 @@ class _RecordSectionState extends State<RecordSection> {
       controller.dispose();
     }
 
-    if (saved == true) {
-      await loadRecords();
-    }
+    if (saved == true) await loadRecords();
   }
 
-  // DELETE
-
-  Future<void> deleteRecord(
-    Map<String, Object?> record,
-  ) async {
+  Future<void> deleteRecord(Map<String, Object?> record) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -1015,13 +960,11 @@ class _RecordSectionState extends State<RecordSection> {
         ),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Delete'),
           ),
         ],
@@ -1043,14 +986,11 @@ class _RecordSectionState extends State<RecordSection> {
       );
 
       await loadRecords();
-
       showMessage('Record deleted.');
     } catch (e) {
       showMessage('Delete failed: $e');
     }
   }
-
-  // MESSAGE
 
   void showMessage(String message) {
     if (!mounted) return;
@@ -1059,8 +999,6 @@ class _RecordSectionState extends State<RecordSection> {
       SnackBar(content: Text(message)),
     );
   }
-
-  // BUILD
 
   @override
   Widget build(BuildContext context) {
@@ -1096,9 +1034,7 @@ class _RecordSectionState extends State<RecordSection> {
             ),
 
             if (isLoading)
-              const Center(
-                child: CircularProgressIndicator(),
-              )
+              const Center(child: CircularProgressIndicator())
             else if (records.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 10),
@@ -1114,8 +1050,7 @@ class _RecordSectionState extends State<RecordSection> {
 
                 final subtitle = widget.fields
                     .where((field) {
-                      if (field.key == widget.titleKey ||
-                          field.isSwitch) {
+                      if (field.key == widget.titleKey || field.isSwitch) {
                         return false;
                       }
 
@@ -1144,8 +1079,7 @@ class _RecordSectionState extends State<RecordSection> {
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (subtitle.isNotEmpty)
-                          Text(subtitle),
+                        if (subtitle.isNotEmpty) Text(subtitle),
                         if (isCurrent)
                           const Padding(
                             padding: EdgeInsets.only(top: 5),
