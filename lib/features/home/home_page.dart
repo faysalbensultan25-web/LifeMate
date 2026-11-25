@@ -1,12 +1,13 @@
-
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 
 import '../../core/database/app_database.dart';
+import '../../core/services/notification_service.dart';
 import '../events/events_page.dart';
 import '../finance/finance_page.dart';
 import '../notes/notes_page.dart';
+import '../notifications/notifications_page.dart';
 import '../profile/profile_page.dart';
 import '../reports/pdf_reports_page.dart';
 import '../settings/settings_page.dart';
@@ -39,6 +40,7 @@ class _HomePageState extends State<HomePage> {
 
   int todos = 0;
   int notes = 0;
+  int unreadNotifications = 0;
 
   List<Map<String, dynamic>> recent = [];
 
@@ -51,7 +53,12 @@ class _HomePageState extends State<HomePage> {
   Future<void> load() async {
     final db = await AppDatabase.database;
 
-    final p = await db.query('profiles', limit: 1);
+    await NotificationService.generateAlerts();
+
+    final p = await db.query(
+      'profiles',
+      limit: 1,
+    );
 
     String newName = 'LifeMate';
     String newOccupation = '';
@@ -60,8 +67,10 @@ class _HomePageState extends State<HomePage> {
 
     if (p.isNotEmpty) {
       newName = (p.first['name'] ?? 'LifeMate').toString();
-      newOccupation = (p.first['occupation'] ?? '').toString();
-      newWorkplace = (p.first['workplace'] ?? '').toString();
+      newOccupation =
+          (p.first['occupation'] ?? '').toString();
+      newWorkplace =
+          (p.first['workplace'] ?? '').toString();
       newPhoto = p.first['photo_path']?.toString();
     }
 
@@ -77,13 +86,17 @@ class _HomePageState extends State<HomePage> {
 
     final newIncome = ins.fold<double>(
       0,
-      (s, e) => s + ((e['amount'] as num?)?.toDouble() ?? 0),
+      (s, e) =>
+          s + ((e['amount'] as num?)?.toDouble() ?? 0),
     );
 
     final newExpense = exs.fold<double>(
       0,
-      (s, e) => s + ((e['amount'] as num?)?.toDouble() ?? 0),
+      (s, e) =>
+          s + ((e['amount'] as num?)?.toDouble() ?? 0),
     );
+
+    final unread = await NotificationService.unreadCount();
 
     final activities = <Map<String, dynamic>>[];
 
@@ -132,6 +145,7 @@ class _HomePageState extends State<HomePage> {
 
       todos = ts.length;
       notes = ns.length;
+      unreadNotifications = unread;
 
       recent = activities.take(5).toList();
     });
@@ -140,13 +154,19 @@ class _HomePageState extends State<HomePage> {
   Future<void> go(Widget page) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => page),
+      MaterialPageRoute(
+        builder: (_) => page,
+      ),
     );
 
-    if (mounted) load();
+    if (mounted) {
+      await load();
+    }
   }
 
-  // SEARCH
+  void openNotifications() {
+    go(const NotificationsPage());
+  }
 
   void search() {
     final c = TextEditingController();
@@ -161,7 +181,8 @@ class _HomePageState extends State<HomePage> {
             controller: c,
             autofocus: true,
             decoration: const InputDecoration(
-              hintText: 'To-Do, Notes, Income, Expense...',
+              hintText:
+                  'To-Do, Notes, Income, Expense...',
               prefixIcon: Icon(Icons.search),
             ),
             onSubmitted: (v) {
@@ -192,7 +213,7 @@ class _HomePageState extends State<HomePage> {
     String table,
     String query,
   ) async {
-    final allowedTables = [
+    const allowedTables = [
       'todos',
       'notes',
       'incomes',
@@ -215,7 +236,9 @@ class _HomePageState extends State<HomePage> {
 
       if (columnName == 'id') continue;
 
-      conditions.add('CAST("$columnName" AS TEXT) LIKE ?');
+      conditions.add(
+        'CAST("$columnName" AS TEXT) LIKE ?',
+      );
       args.add('%$query%');
     }
 
@@ -261,9 +284,14 @@ class _HomePageState extends State<HomePage> {
         final details = <String>[];
 
         if (row['description'] != null &&
-            row['description'].toString().isNotEmpty &&
-            row['description'].toString() != title.toString()) {
-          details.add(row['description'].toString());
+            row['description']
+                .toString()
+                .isNotEmpty &&
+            row['description'].toString() !=
+                title.toString()) {
+          details.add(
+            row['description'].toString(),
+          );
         }
 
         if (row['content'] != null &&
@@ -292,7 +320,9 @@ class _HomePageState extends State<HomePage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Search Results (${results.length})'),
+        title: Text(
+          'Search Results (${results.length})',
+        ),
         content: SizedBox(
           width: 400,
           child: results.isEmpty
@@ -343,8 +373,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // MORE MENU
-
   void more() {
     showModalBottomSheet(
       context: context,
@@ -352,19 +380,47 @@ class _HomePageState extends State<HomePage> {
       builder: (_) => SafeArea(
         child: Wrap(
           children: [
-            item(Icons.event, 'Events', () => go(const EventsPage())),
-            item(Icons.bar_chart, 'Statistics', () => go(const StatisticsPage())),
-            item(Icons.savings, 'Budget', () => go(const BudgetPage())),
-            item(Icons.picture_as_pdf, 'PDF Reports', () => go(const PdfReportsPage())),
-            item(Icons.person, 'Profile', () => go(const ProfilePage())),
-            item(Icons.settings, 'Settings', () => go(const SettingsPage())),
+            item(
+              Icons.event,
+              'Events',
+              () => go(const EventsPage()),
+            ),
+            item(
+              Icons.bar_chart,
+              'Statistics',
+              () => go(const StatisticsPage()),
+            ),
+            item(
+              Icons.savings,
+              'Budget',
+              () => go(const BudgetPage()),
+            ),
+            item(
+              Icons.picture_as_pdf,
+              'PDF Reports',
+              () => go(const PdfReportsPage()),
+            ),
+            item(
+              Icons.person,
+              'Profile',
+              () => go(const ProfilePage()),
+            ),
+            item(
+              Icons.settings,
+              'Settings',
+              () => go(const SettingsPage()),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget item(IconData i, String t, VoidCallback f) {
+  Widget item(
+    IconData i,
+    String t,
+    VoidCallback f,
+  ) {
     return ListTile(
       leading: Icon(i),
       title: Text(t),
@@ -381,17 +437,25 @@ class _HomePageState extends State<HomePage> {
         File(photo!).existsSync()) {
       return CircleAvatar(
         radius: 35,
-        backgroundImage: FileImage(File(photo!)),
+        backgroundImage: FileImage(
+          File(photo!),
+        ),
       );
     }
 
     return const CircleAvatar(
       radius: 35,
-      child: Icon(Icons.person, size: 38),
+      child: Icon(
+        Icons.person,
+        size: 38,
+      ),
     );
   }
 
-  Widget badge(Widget child, int n) {
+  Widget badge(
+    Widget child,
+    int n,
+  ) {
     return Badge(
       isLabelVisible: n > 0,
       label: Text('$n'),
@@ -418,13 +482,23 @@ class _HomePageState extends State<HomePage> {
             borderRadius: BorderRadius.circular(18),
           ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment:
+                MainAxisAlignment.center,
             children: [
-              badge(Icon(i, size: 34, color: c), count),
+              badge(
+                Icon(
+                  i,
+                  size: 34,
+                  color: c,
+                ),
+                count,
+              ),
               const SizedBox(height: 7),
               Text(
                 t,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -450,7 +524,11 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget money(String title, double value, Color c) {
+  Widget money(
+    String title,
+    double value,
+    Color c,
+  ) {
     return Expanded(
       child: Container(
         margin: const EdgeInsets.all(3),
@@ -472,7 +550,9 @@ class _HomePageState extends State<HomePage> {
             FittedBox(
               child: Text(
                 '৳ ${value.toStringAsFixed(0)}',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -489,11 +569,16 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: Row(
           children: [
-            const Icon(Icons.eco, color: Colors.green),
+            const Icon(
+              Icons.eco,
+              color: Colors.green,
+            ),
             const SizedBox(width: 7),
             const Text(
               'LifeMate',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
@@ -502,33 +587,62 @@ class _HomePageState extends State<HomePage> {
             onPressed: search,
             icon: const Icon(Icons.search),
           ),
+
+          // Notifications
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: IconButton(
+              onPressed: openNotifications,
+              icon: badge(
+                const Icon(
+                  Icons.notifications_outlined,
+                ),
+                unreadNotifications,
+              ),
+            ),
+          ),
+
           IconButton(
             onPressed: more,
-            icon: const Icon(Icons.settings_outlined),
+            icon: const Icon(
+              Icons.settings_outlined,
+            ),
           ),
+
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
-              onTap: () => go(const ProfilePage()),
+              onTap: () => go(
+                const ProfilePage(),
+              ),
               child: avatar(),
             ),
           ),
         ],
       ),
+
       body: RefreshIndicator(
         onRefresh: load,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(14, 8, 14, 100),
+          padding: const EdgeInsets.fromLTRB(
+            14,
+            8,
+            14,
+            100,
+          ),
           children: [
             card(
-              color: Theme.of(context).colorScheme.primaryContainer,
+              color: Theme.of(context)
+                  .colorScheme
+                  .primaryContainer,
               child: Row(
                 children: [
                   avatar(),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: [
                         Text(
                           name,
@@ -537,90 +651,122 @@ class _HomePageState extends State<HomePage> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        if (occupation.isNotEmpty) Text(occupation),
-                        if (workplace.isNotEmpty) Text(workplace),
+                        if (occupation.isNotEmpty)
+                          Text(occupation),
+                        if (workplace.isNotEmpty)
+                          Text(workplace),
                       ],
                     ),
                   ),
                   TextButton(
-                    onPressed: () => go(const ProfilePage()),
+                    onPressed: () => go(
+                      const ProfilePage(),
+                    ),
                     child: const Text('Profile'),
                   ),
                 ],
               ),
             ),
+
             const SizedBox(height: 8),
+
             card(
               child: Row(
                 children: [
-                  const Icon(Icons.search, size: 28),
+                  const Icon(
+                    Icons.search,
+                    size: 28,
+                  ),
                   const SizedBox(width: 10),
                   const Expanded(
                     child: Text(
                       'Search anything...',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey,
+                      ),
                     ),
                   ),
                   IconButton(
                     onPressed: search,
-                    icon: const Icon(Icons.arrow_forward),
+                    icon: const Icon(
+                      Icons.arrow_forward,
+                    ),
                   ),
                 ],
               ),
             ),
+
             Row(
               children: [
                 quick(
                   'To-Do',
                   Icons.check_circle,
                   Colors.blue,
-                  () => go(const TodoPage()),
+                  () => go(
+                    const TodoPage(),
+                  ),
                   count: todos,
                 ),
                 quick(
                   'Notes',
                   Icons.note_alt,
                   Colors.green,
-                  () => go(const NotesPage()),
+                  () => go(
+                    const NotesPage(),
+                  ),
                   count: notes,
                 ),
                 quick(
                   'Income',
                   Icons.account_balance_wallet,
                   Colors.green,
-                  () => go(const FinancePage()),
+                  () => go(
+                    const FinancePage(),
+                  ),
                 ),
               ],
             ),
+
             Row(
               children: [
                 quick(
                   'Expense',
                   Icons.wallet,
                   Colors.red,
-                  () => go(const FinancePage()),
+                  () => go(
+                    const FinancePage(),
+                  ),
                 ),
                 quick(
                   'Events',
                   Icons.event,
                   Colors.purple,
-                  () => go(const EventsPage()),
+                  () => go(
+                    const EventsPage(),
+                  ),
                 ),
                 quick(
-                  'More',
-                  Icons.apps,
-                  Colors.indigo,
-                  more,
+                  'Alerts',
+                  Icons.notifications,
+                  Colors.orange,
+                  openNotifications,
+                  count: unreadNotifications,
                 ),
               ],
             ),
+
             const SizedBox(height: 8),
+
             card(
               child: Column(
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.history, color: Colors.blue),
+                      const Icon(
+                        Icons.history,
+                        color: Colors.blue,
+                      ),
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
@@ -640,13 +786,18 @@ class _HomePageState extends State<HomePage> {
                   if (recent.isEmpty)
                     const Padding(
                       padding: EdgeInsets.all(15),
-                      child: Text('No recent activity'),
+                      child: Text(
+                        'No recent activity',
+                      ),
                     ),
                   ...recent.map(
                     (x) => ListTile(
                       dense: true,
                       leading: CircleAvatar(
-                        child: Icon(x['i'], size: 18),
+                        child: Icon(
+                          x['i'],
+                          size: 18,
+                        ),
                       ),
                       title: Text('${x['t']}'),
                       subtitle: Text('${x['s']}'),
@@ -655,12 +806,16 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
+
             card(
               child: Column(
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.bar_chart, color: Colors.blue),
+                      const Icon(
+                        Icons.bar_chart,
+                        color: Colors.blue,
+                      ),
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
@@ -677,14 +832,27 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      money('Income', income, Colors.green),
-                      money('Expense', expense, Colors.red),
-                      money('Balance', balance, Colors.blue),
+                      money(
+                        'Income',
+                        income,
+                        Colors.green,
+                      ),
+                      money(
+                        'Expense',
+                        expense,
+                        Colors.red,
+                      ),
+                      money(
+                        'Balance',
+                        balance,
+                        Colors.blue,
+                      ),
                     ],
                   ),
                 ],
               ),
             ),
+
             card(
               color: Colors.amber.shade50,
               child: Row(
@@ -697,7 +865,8 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(width: 10),
                   const Expanded(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Budget Summary',
@@ -706,17 +875,24 @@ class _HomePageState extends State<HomePage> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Text('Open Budget for details'),
+                        Text(
+                          'Open Budget for details',
+                        ),
                       ],
                     ),
                   ),
                   IconButton(
-                    onPressed: () => go(const BudgetPage()),
-                    icon: const Icon(Icons.arrow_forward),
+                    onPressed: () => go(
+                      const BudgetPage(),
+                    ),
+                    icon: const Icon(
+                      Icons.arrow_forward,
+                    ),
                   ),
                 ],
               ),
             ),
+
             if (todos > 0)
               card(
                 color: Colors.blue.shade50,
@@ -736,43 +912,114 @@ class _HomePageState extends State<HomePage> {
                         '$todos pending To-Do task${todos == 1 ? '' : 's'}',
                       ),
                     ),
-                    const Icon(Icons.chevron_right),
+                    const Icon(
+                      Icons.chevron_right,
+                    ),
                   ],
+                ),
+              ),
+
+            if (unreadNotifications > 0)
+              InkWell(
+                onTap: openNotifications,
+                child: card(
+                  color: Colors.orange.shade50,
+                  child: Row(
+                    children: [
+                      Badge(
+                        label: Text(
+                          '$unreadNotifications',
+                        ),
+                        child: const Icon(
+                          Icons.notifications_active,
+                          color: Colors.orange,
+                          size: 32,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '$unreadNotifications unread notification${unreadNotifications == 1 ? '' : 's'}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right,
+                      ),
+                    ],
+                  ),
                 ),
               ),
           ],
         ),
       ),
+
       bottomNavigationBar: NavigationBar(
         selectedIndex: 0,
         destinations: [
           const NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
+            icon: Icon(
+              Icons.home_outlined,
+            ),
+            selectedIcon: Icon(
+              Icons.home,
+            ),
             label: 'Home',
           ),
           NavigationDestination(
-            icon: badge(const Icon(Icons.check_circle_outline), todos),
-            selectedIcon: badge(const Icon(Icons.check_circle), todos),
+            icon: badge(
+              const Icon(
+                Icons.check_circle_outline,
+              ),
+              todos,
+            ),
+            selectedIcon: badge(
+              const Icon(
+                Icons.check_circle,
+              ),
+              todos,
+            ),
             label: 'To-Do',
           ),
           const NavigationDestination(
-            icon: Icon(Icons.arrow_downward),
-            selectedIcon: Icon(Icons.arrow_downward),
+            icon: Icon(
+              Icons.arrow_downward,
+            ),
+            selectedIcon: Icon(
+              Icons.arrow_downward,
+            ),
             label: 'Income',
           ),
           const NavigationDestination(
-            icon: Icon(Icons.arrow_upward),
-            selectedIcon: Icon(Icons.arrow_upward),
+            icon: Icon(
+              Icons.arrow_upward,
+            ),
+            selectedIcon: Icon(
+              Icons.arrow_upward,
+            ),
             label: 'Expense',
           ),
           NavigationDestination(
-            icon: badge(const Icon(Icons.note_alt_outlined), notes),
-            selectedIcon: badge(const Icon(Icons.note_alt), notes),
+            icon: badge(
+              const Icon(
+                Icons.note_alt_outlined,
+              ),
+              notes,
+            ),
+            selectedIcon: badge(
+              const Icon(
+                Icons.note_alt,
+              ),
+              notes,
+            ),
             label: 'Notes',
           ),
           const NavigationDestination(
-            icon: Icon(Icons.more_horiz),
+            icon: Icon(
+              Icons.more_horiz,
+            ),
             label: 'More',
           ),
         ],
