@@ -20,7 +20,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 6,
+      version: 7,
 
       onCreate: (db, version) async {
         await db.execute('''
@@ -104,6 +104,7 @@ class AppDatabase {
             phone TEXT,
             email TEXT,
             address TEXT,
+            location TEXT,
             photo_path TEXT,
             birth_date TEXT,
             gender TEXT,
@@ -220,66 +221,32 @@ class AppDatabase {
 
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
-          await db.execute(
-            'ALTER TABLE profiles ADD COLUMN birth_date TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE profiles ADD COLUMN gender TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE profiles ADD COLUMN permanent_address TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE profiles ADD COLUMN education TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE profiles ADD COLUMN occupation TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE profiles ADD COLUMN workplace TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE profiles ADD COLUMN designation TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE profiles ADD COLUMN blood_group TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE profiles ADD COLUMN emergency_contact TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE profiles ADD COLUMN about TEXT',
-          );
+          await db.execute('ALTER TABLE profiles ADD COLUMN birth_date TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN gender TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN permanent_address TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN education TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN occupation TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN workplace TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN designation TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN blood_group TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN emergency_contact TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN about TEXT');
         }
 
         if (oldVersion < 3) {
           await db.execute(
             "ALTER TABLE budgets ADD COLUMN type TEXT NOT NULL DEFAULT 'expense'",
           );
-          await db.execute(
-            'ALTER TABLE budgets ADD COLUMN category_id INTEGER',
-          );
+          await db.execute('ALTER TABLE budgets ADD COLUMN category_id INTEGER');
         }
 
         if (oldVersion < 4) {
-          await db.execute(
-            'ALTER TABLE profiles ADD COLUMN skills TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE profiles ADD COLUMN languages TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE profiles ADD COLUMN training TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE profiles ADD COLUMN experience TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE profiles ADD COLUMN achievements TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE profiles ADD COLUMN career_objective TEXT',
-          );
+          await db.execute('ALTER TABLE profiles ADD COLUMN skills TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN languages TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN training TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN experience TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN achievements TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN career_objective TEXT');
         }
 
         if (oldVersion < 5) {
@@ -369,6 +336,12 @@ class AppDatabase {
               is_read INTEGER NOT NULL DEFAULT 0
             )
           ''');
+        }
+
+        if (oldVersion < 7) {
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN location TEXT',
+          );
         }
       },
     );
