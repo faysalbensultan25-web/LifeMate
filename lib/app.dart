@@ -1,7 +1,9 @@
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/theme/app_theme.dart';
+import 'core/services/language_service.dart';
 import 'features/home/home_page.dart';
 
 final ValueNotifier<ThemeMode> lifeMateThemeMode =
@@ -43,20 +45,28 @@ class _LifeMateAppState extends State<LifeMateApp> {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: lifeMateThemeMode,
       builder: (context, mode, child) {
-        return MaterialApp(
-          title: 'LifeMate',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.lightTheme,
-          darkTheme: ThemeData(
-            useMaterial3: true,
-            brightness: Brightness.dark,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: AppTheme.primaryBlue,
-              brightness: Brightness.dark,
-            ),
-          ),
-          themeMode: mode,
-          home: const HomePage(),
+        return ValueListenableBuilder<String>(
+          valueListenable: LanguageService.language,
+          builder: (context, language, child) {
+            return MaterialApp(
+              title: 'LifeMate',
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.lightTheme,
+              darkTheme: ThemeData(
+                useMaterial3: true,
+                brightness: Brightness.dark,
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: AppTheme.primaryBlue,
+                  brightness: Brightness.dark,
+                ),
+              ),
+              themeMode: mode,
+              home: HomePage(
+                language: language,
+                onLanguageChanged: LanguageService.setLanguage,
+              ),
+            );
+          },
         );
       },
     );
