@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 
 import '../../core/database/app_database.dart';
-import '../home/home_page.dart';
 
 class TodoPage extends StatefulWidget {
   const TodoPage({super.key});
@@ -17,7 +16,6 @@ class _TodoPageState extends State<TodoPage> {
   final TextEditingController controller =
       TextEditingController();
 
-  int currentIndex = 1;
   bool isSaving = false;
   bool isLoading = true;
 
@@ -217,31 +215,6 @@ class _TodoPageState extends State<TodoPage> {
     );
   }
 
-  void handleNavigation(int index) {
-    if (index == 0) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const HomePage(),
-        ),
-      );
-    } else if (index == 2) {
-      showAddTaskDialog();
-    } else if (index == 3) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Alerts will be available here.'),
-        ),
-      );
-    } else if (index == 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('More options will be available here.'),
-        ),
-      );
-    }
-  }
-
   @override
   void dispose() {
     controller.dispose();
@@ -276,7 +249,6 @@ class _TodoPageState extends State<TodoPage> {
           ),
         ],
       ),
-
       body: isLoading
           ? const Center(
               child: CircularProgressIndicator(),
@@ -340,42 +312,9 @@ class _TodoPageState extends State<TodoPage> {
                       ],
                     ),
             ),
-
       floatingActionButton: FloatingActionButton(
         onPressed: showAddTaskDialog,
         child: const Icon(Icons.add),
-      ),
-
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: currentIndex,
-        onDestinationSelected: handleNavigation,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.checklist_outlined),
-            selectedIcon: Icon(Icons.checklist),
-            label: 'To-Do',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.add_circle_outline),
-            selectedIcon: Icon(Icons.add_circle),
-            label: 'Add',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.notifications_none),
-            selectedIcon: Icon(Icons.notifications),
-            label: 'Alerts',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.more_horiz),
-            selectedIcon: Icon(Icons.more_horiz),
-            label: 'More',
-          ),
-        ],
       ),
     );
   }
