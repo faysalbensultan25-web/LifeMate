@@ -18,6 +18,7 @@ class PdfReportsPage extends StatefulWidget {
 class _PdfReportsPageState extends State<PdfReportsPage> {
   bool isGeneratingFinancial = false;
   bool isGeneratingProfile = false;
+  bool isGeneratingBudget = false;
 
   String formatDate(dynamic value) {
     if (value == null || value.toString().isEmpty) return '';
@@ -47,7 +48,11 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
   // ============================================================
 
   Future<void> generateFinancialStatement() async {
-    if (isGeneratingFinancial || isGeneratingProfile) return;
+    if (isGeneratingFinancial ||
+        isGeneratingProfile ||
+        isGeneratingBudget) {
+      return;
+    }
 
     setState(() => isGeneratingFinancial = true);
 
@@ -79,10 +84,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
 
       final balance = totalIncome - totalExpense;
 
-      // ----------------------------------------------------------
-      // Category names
-      // ----------------------------------------------------------
-
       final categoryMap = <dynamic, String>{};
 
       try {
@@ -94,19 +95,17 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         }
       } catch (_) {}
 
-      // ----------------------------------------------------------
-      // Combined transactions
-      // ----------------------------------------------------------
-
       final transactions = <Map<String, dynamic>>[];
 
       for (final item in incomes) {
         transactions.add({
           'date': item['date'],
           'type': 'Income',
-          'category': categoryMap[item['category_id']] ??
-              cleanValue(item['category_id']),
-          'description': cleanValue(item['description']),
+          'category':
+              categoryMap[item['category_id']] ??
+                  cleanValue(item['category_id']),
+          'description':
+              cleanValue(item['description']),
           'amount':
               (item['amount'] as num?)?.toDouble() ?? 0,
         });
@@ -116,15 +115,16 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         transactions.add({
           'date': item['date'],
           'type': 'Expense',
-          'category': categoryMap[item['category_id']] ??
-              cleanValue(item['category_id']),
-          'description': cleanValue(item['description']),
+          'category':
+              categoryMap[item['category_id']] ??
+                  cleanValue(item['category_id']),
+          'description':
+              cleanValue(item['description']),
           'amount':
               (item['amount'] as num?)?.toDouble() ?? 0,
         });
       }
 
-      // Newest first
       transactions.sort((a, b) {
         final aDate = DateTime.tryParse(
               a['date']?.toString() ?? '',
@@ -164,10 +164,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
           },
           build: (context) {
             return [
-              // --------------------------------------------------
-              // Header
-              // --------------------------------------------------
-
               pw.Row(
                 mainAxisAlignment:
                     pw.MainAxisAlignment.spaceBetween,
@@ -197,10 +193,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
               ),
 
               pw.SizedBox(height: 8),
-
-              // --------------------------------------------------
-              // Financial Summary
-              // --------------------------------------------------
 
               pw.Container(
                 padding: const pw.EdgeInsets.symmetric(
@@ -243,10 +235,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
               ),
 
               pw.SizedBox(height: 8),
-
-              // --------------------------------------------------
-              // Time-wise Transaction Table
-              // --------------------------------------------------
 
               if (transactions.isEmpty)
                 pw.Text(
@@ -331,11 +319,356 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
   }
 
   // ============================================================
+  // BUDGET PDF
+  // ============================================================
+
+  Future<void> generateBudgetPdf() async {
+    if (isGeneratingFinancial ||
+        isGeneratingProfile ||
+        isGeneratingBudget) {
+      return;
+    }
+
+    setState(() => isGeneratingBudget = true);
+
+    try {
+      final db = await AppDatabase.database;
+
+      final budgets = await db.query(
+        'budgets',
+        orderBy: 'start_date DESC',
+      );
+
+      final categories = await db.query('categories');
+
+      final categoryMap = <dynamic, String>{};
+
+      for (final category in categories) {
+        categoryMap[category['id']] =
+            cleanValue(category['name']);
+      }
+
+      double totalIncomeBudget = 0;
+      double totalExpenseBudget = 0;
+
+      final incomeBudgets = <Map<String, dynamic>>[];
+      final expenseBudgets = <Map<String, dynamic>>[];
+
+      for (final budget in budgets) {
+        final amount =
+            (budget['amount'] as num?)?.toDouble() ?? 0;
+
+        final type =
+            cleanValue(budget['type']).toLowerCase();
+
+        final category =
+            categoryMap[budget['category_id']] ??
+                cleanValue(budget['category_id']);
+
+        final item = {
+          'title': cleanValue(budget['title']),
+          'category': category.isEmpty ? 'General' : category,
+          'amount': amount,
+          'period': cleanValue(budget['period']),
+          'start_date': budget['start_date'],
+          'end_date': budget['end_date'],
+        };
+
+        if (type == 'income') {
+          totalIncomeBudget += amount;
+          incomeBudgets.add(item);
+        } else {
+          totalExpenseBudget += amount;
+          expenseBudgets.add(item);
+        }
+      }
+
+      final plannedBalance =
+          totalIncomeBudget - totalExpenseBudget;
+
+      final pdf = pw.Document();
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.fromLTRB(
+            18,
+            18,
+            18,
+            20,
+          ),
+          footer: (context) {
+            return pw.Align(
+              alignment: pw.Alignment.center,
+              child: pw.Text(
+                'LifeMate | Page ${context.pageNumber} of ${context.pagesCount}',
+                style: const pw.TextStyle(
+                  fontSize: 7,
+                  color: PdfColors.grey600,
+                ),
+              ),
+            );
+          },
+          build: (context) {
+            return [
+              // ------------------------------------------------
+              // Header
+              // ------------------------------------------------
+
+              pw.Row(
+                mainAxisAlignment:
+                    pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    'LifeMate',
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.Text(
+                    'Budget Report',
+                    style: pw.TextStyle(
+                      fontSize: 13,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+
+              pw.SizedBox(height: 4),
+
+              pw.Text(
+                'Generated: ${DateFormat('dd/MM/yyyy hh:mm a').format(DateTime.now())}',
+                style: const pw.TextStyle(fontSize: 7),
+              ),
+
+              pw.SizedBox(height: 8),
+
+              // ------------------------------------------------
+              // Summary
+              // ------------------------------------------------
+
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(
+                  vertical: 7,
+                  horizontal: 8,
+                ),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(
+                    color: PdfColors.grey400,
+                    width: 0.5,
+                  ),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment:
+                      pw.MainAxisAlignment.spaceAround,
+                  children: [
+                    pw.Text(
+                      'Income Budget: ${totalIncomeBudget.toStringAsFixed(2)}',
+                      style: pw.TextStyle(
+                        fontSize: 8,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Text(
+                      'Expense Budget: ${totalExpenseBudget.toStringAsFixed(2)}',
+                      style: pw.TextStyle(
+                        fontSize: 8,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Text(
+                      'Planned Balance: ${plannedBalance.toStringAsFixed(2)}',
+                      style: pw.TextStyle(
+                        fontSize: 8,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              pw.SizedBox(height: 10),
+
+              // ------------------------------------------------
+              // Income Budget
+              // ------------------------------------------------
+
+              pw.Text(
+                'Income Budget',
+                style: pw.TextStyle(
+                  fontSize: 11,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+
+              pw.SizedBox(height: 5),
+
+              if (incomeBudgets.isEmpty)
+                pw.Text(
+                  'No income budget found.',
+                  style: const pw.TextStyle(fontSize: 8),
+                )
+              else
+                pw.TableHelper.fromTextArray(
+                  headers: [
+                    'Title',
+                    'Category',
+                    'Period',
+                    'Start',
+                    'End',
+                    'Amount',
+                  ],
+                  data: incomeBudgets.map((item) {
+                    return [
+                      item['title'],
+                      item['category'],
+                      item['period'],
+                      formatDate(item['start_date']),
+                      formatDate(item['end_date']),
+                      item['amount']
+                          .toStringAsFixed(2),
+                    ];
+                  }).toList(),
+                  columnWidths: {
+                    0: const pw.FlexColumnWidth(1.5),
+                    1: const pw.FlexColumnWidth(1.2),
+                    2: const pw.FlexColumnWidth(0.9),
+                    3: const pw.FlexColumnWidth(0.9),
+                    4: const pw.FlexColumnWidth(0.9),
+                    5: const pw.FlexColumnWidth(1.0),
+                  },
+                  headerStyle: pw.TextStyle(
+                    fontSize: 7.5,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  cellStyle: const pw.TextStyle(
+                    fontSize: 7,
+                  ),
+                  cellPadding:
+                      const pw.EdgeInsets.symmetric(
+                    horizontal: 3,
+                    vertical: 3,
+                  ),
+                  border: pw.TableBorder.all(
+                    color: PdfColors.grey400,
+                    width: 0.4,
+                  ),
+                ),
+
+              pw.SizedBox(height: 10),
+
+              // ------------------------------------------------
+              // Expense Budget
+              // ------------------------------------------------
+
+              pw.Text(
+                'Expense Budget',
+                style: pw.TextStyle(
+                  fontSize: 11,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+
+              pw.SizedBox(height: 5),
+
+              if (expenseBudgets.isEmpty)
+                pw.Text(
+                  'No expense budget found.',
+                  style: const pw.TextStyle(fontSize: 8),
+                )
+              else
+                pw.TableHelper.fromTextArray(
+                  headers: [
+                    'Title',
+                    'Category',
+                    'Period',
+                    'Start',
+                    'End',
+                    'Amount',
+                  ],
+                  data: expenseBudgets.map((item) {
+                    return [
+                      item['title'],
+                      item['category'],
+                      item['period'],
+                      formatDate(item['start_date']),
+                      formatDate(item['end_date']),
+                      item['amount']
+                          .toStringAsFixed(2),
+                    ];
+                  }).toList(),
+                  columnWidths: {
+                    0: const pw.FlexColumnWidth(1.5),
+                    1: const pw.FlexColumnWidth(1.2),
+                    2: const pw.FlexColumnWidth(0.9),
+                    3: const pw.FlexColumnWidth(0.9),
+                    4: const pw.FlexColumnWidth(0.9),
+                    5: const pw.FlexColumnWidth(1.0),
+                  },
+                  headerStyle: pw.TextStyle(
+                    fontSize: 7.5,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  cellStyle: const pw.TextStyle(
+                    fontSize: 7,
+                  ),
+                  cellPadding:
+                      const pw.EdgeInsets.symmetric(
+                    horizontal: 3,
+                    vertical: 3,
+                  ),
+                  border: pw.TableBorder.all(
+                    color: PdfColors.grey400,
+                    width: 0.4,
+                  ),
+                ),
+
+              pw.SizedBox(height: 10),
+
+              pw.Text(
+                'Generated by LifeMate',
+                style: const pw.TextStyle(
+                  fontSize: 7,
+                  color: PdfColors.grey600,
+                ),
+              ),
+            ];
+          },
+        ),
+      );
+
+      await Printing.layoutPdf(
+        onLayout: (format) async => pdf.save(),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Budget PDF generation failed: $e',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => isGeneratingBudget = false);
+      }
+    }
+  }
+
+  // ============================================================
   // PROFILE PDF / PROFESSIONAL CV
   // ============================================================
 
   Future<void> generateProfilePdf() async {
-    if (isGeneratingFinancial || isGeneratingProfile) return;
+    if (isGeneratingFinancial ||
+        isGeneratingProfile ||
+        isGeneratingBudget) {
+      return;
+    }
 
     setState(() => isGeneratingProfile = true);
 
@@ -358,7 +691,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
       final profile = profiles.first;
       final profileId = profile['id'];
 
-      // Education
       final education = await db.query(
         'profile_education',
         where: 'profile_id = ?',
@@ -366,7 +698,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         orderBy: 'id DESC',
       );
 
-      // Training
       final training = await db.query(
         'profile_training',
         where: 'profile_id = ?',
@@ -374,7 +705,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         orderBy: 'id DESC',
       );
 
-      // Experience
       final experience = await db.query(
         'profile_experience',
         where: 'profile_id = ?',
@@ -382,7 +712,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         orderBy: 'id DESC',
       );
 
-      // Skills
       final skills = await db.query(
         'profile_skills',
         where: 'profile_id = ?',
@@ -390,7 +719,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         orderBy: 'id DESC',
       );
 
-      // Languages
       final languages = await db.query(
         'profile_languages',
         where: 'profile_id = ?',
@@ -398,7 +726,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         orderBy: 'id DESC',
       );
 
-      // Achievements
       final achievements = await db.query(
         'profile_achievements',
         where: 'profile_id = ?',
@@ -408,7 +735,8 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
 
       pw.MemoryImage? profileImage;
 
-      final photoPath = cleanValue(profile['photo_path']);
+      final photoPath =
+          cleanValue(profile['photo_path']);
 
       if (photoPath.isNotEmpty &&
           File(photoPath).existsSync()) {
@@ -433,10 +761,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
 
       final profileSections = <pw.Widget>[];
 
-      // ----------------------------------------------------------
-      // Personal Information
-      // ----------------------------------------------------------
-
       profileSections.add(
         _infoSection(
           'Personal Information',
@@ -448,15 +772,17 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
             ['Phone', value('phone')],
             ['Email', value('email')],
             ['Current Address', value('address')],
-            ['Permanent Address', value('permanent_address')],
-            ['Emergency Contact', value('emergency_contact')],
+            [
+              'Permanent Address',
+              value('permanent_address')
+            ],
+            [
+              'Emergency Contact',
+              value('emergency_contact')
+            ],
           ],
         ),
       );
-
-      // ----------------------------------------------------------
-      // Career Objective
-      // ----------------------------------------------------------
 
       if (value('career_objective').isNotEmpty) {
         profileSections.add(
@@ -466,10 +792,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
           ),
         );
       }
-
-      // ----------------------------------------------------------
-      // Education
-      // ----------------------------------------------------------
 
       profileSections.add(
         _recordSection(
@@ -501,10 +823,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
-      // ----------------------------------------------------------
-      // Training
-      // ----------------------------------------------------------
-
       profileSections.add(
         _recordSection(
           'Training & Certifications',
@@ -514,14 +832,13 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
             ['Institution', 'institution'],
             ['Duration', 'duration'],
             ['Completion Year', 'completion_year'],
-            ['Certificate Details', 'certificate_details'],
+            [
+              'Certificate Details',
+              'certificate_details'
+            ],
           ],
         ),
       );
-
-      // ----------------------------------------------------------
-      // Work Experience
-      // ----------------------------------------------------------
 
       profileSections.add(
         _recordSection(
@@ -531,9 +848,15 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
             ['Designation', 'designation'],
             ['Workplace', 'workplace'],
             ['Location', 'location'],
-            ['Employment Type', 'employment_type'],
+            [
+              'Employment Type',
+              'employment_type'
+            ],
             ['Period', 'period'],
-            ['Responsibilities', 'responsibilities'],
+            [
+              'Responsibilities',
+              'responsibilities'
+            ],
           ],
           specialFields: {
             'period': (record) {
@@ -553,10 +876,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
-      // ----------------------------------------------------------
-      // Skills
-      // ----------------------------------------------------------
-
       profileSections.add(
         _recordSection(
           'Skills',
@@ -568,10 +887,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
-      // ----------------------------------------------------------
-      // Languages
-      // ----------------------------------------------------------
-
       profileSections.add(
         _recordSection(
           'Languages',
@@ -582,10 +897,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
           ],
         ),
       );
-
-      // ----------------------------------------------------------
-      // Achievements
-      // ----------------------------------------------------------
 
       profileSections.add(
         _recordSection(
@@ -600,10 +911,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
-      // ----------------------------------------------------------
-      // Additional Information
-      // ----------------------------------------------------------
-
       profileSections.add(
         _infoSection(
           'Additional Information',
@@ -615,10 +922,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
-      // ----------------------------------------------------------
-      // About Me
-      // ----------------------------------------------------------
-
       if (value('about').isNotEmpty) {
         profileSections.add(
           _textSection(
@@ -627,10 +930,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
           ),
         );
       }
-
-      // ----------------------------------------------------------
-      // CV PDF
-      // ----------------------------------------------------------
 
       pdf.addPage(
         pw.MultiPage(
@@ -651,10 +950,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
           },
           build: (context) {
             return [
-              // --------------------------------------------------
-              // Header
-              // --------------------------------------------------
-
               pw.Row(
                 crossAxisAlignment:
                     pw.CrossAxisAlignment.start,
@@ -1023,7 +1318,8 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
   Widget build(BuildContext context) {
     final isBusy =
         isGeneratingFinancial ||
-        isGeneratingProfile;
+        isGeneratingProfile ||
+        isGeneratingBudget;
 
     return Scaffold(
       appBar: AppBar(
@@ -1084,6 +1380,67 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                         isGeneratingFinancial
                             ? 'Generating...'
                             : 'Generate Financial Statement',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ======================================================
+          // Budget PDF
+          // ======================================================
+
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.account_balance_outlined,
+                    size: 48,
+                    color: Color(0xFF1877F2),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Budget PDF',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Generate a PDF report with income budget, '
+                    'expense budget, categories and planned balance.',
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed:
+                          isBusy ? null : generateBudgetPdf,
+                      icon: isGeneratingBudget
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child:
+                                  CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.picture_as_pdf,
+                            ),
+                      label: Text(
+                        isGeneratingBudget
+                            ? 'Generating...'
+                            : 'Generate Budget PDF',
                       ),
                     ),
                   ),
