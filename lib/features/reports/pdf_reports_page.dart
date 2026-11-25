@@ -12,19 +12,6 @@ import '../../core/database/app_database.dart';
 class PdfReportsPage extends StatefulWidget {
   const PdfReportsPage({super.key});
 
-import 'dart:io';
-
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
-
-import '../../core/database/app_database.dart';
-
-class PdfReportsPage extends StatefulWidget {
-  const PdfReportsPage({super.key});
-
   @override
   State<PdfReportsPage> createState() => _PdfReportsPageState();
 }
