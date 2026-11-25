@@ -1,3 +1,4 @@
+ 
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -55,10 +56,7 @@ class _HomePageState extends State<HomePage> {
 
     await NotificationService.generateAlerts();
 
-    final p = await db.query(
-      'profiles',
-      limit: 1,
-    );
+    final p = await db.query('profiles', limit: 1);
 
     String newName = 'LifeMate';
     String newOccupation = '';
@@ -67,10 +65,8 @@ class _HomePageState extends State<HomePage> {
 
     if (p.isNotEmpty) {
       newName = (p.first['name'] ?? 'LifeMate').toString();
-      newOccupation =
-          (p.first['occupation'] ?? '').toString();
-      newWorkplace =
-          (p.first['workplace'] ?? '').toString();
+      newOccupation = (p.first['occupation'] ?? '').toString();
+      newWorkplace = (p.first['workplace'] ?? '').toString();
       newPhoto = p.first['photo_path']?.toString();
     }
 
@@ -78,22 +74,21 @@ class _HomePageState extends State<HomePage> {
       'todos',
       where: 'completed = ?',
       whereArgs: [0],
+      orderBy: 'id DESC',
     );
 
-    final ns = await db.query('notes');
-    final ins = await db.query('incomes');
-    final exs = await db.query('expenses');
+    final ns = await db.query('notes', orderBy: 'id DESC');
+    final ins = await db.query('incomes', orderBy: 'id DESC');
+    final exs = await db.query('expenses', orderBy: 'id DESC');
 
     final newIncome = ins.fold<double>(
       0,
-      (s, e) =>
-          s + ((e['amount'] as num?)?.toDouble() ?? 0),
+      (s, e) => s + ((e['amount'] as num?)?.toDouble() ?? 0),
     );
 
     final newExpense = exs.fold<double>(
       0,
-      (s, e) =>
-          s + ((e['amount'] as num?)?.toDouble() ?? 0),
+      (s, e) => s + ((e['amount'] as num?)?.toDouble() ?? 0),
     );
 
     final unread = await NotificationService.unreadCount();
@@ -139,14 +134,11 @@ class _HomePageState extends State<HomePage> {
       occupation = newOccupation;
       workplace = newWorkplace;
       photo = newPhoto;
-
       income = newIncome;
       expense = newExpense;
-
       todos = ts.length;
       notes = ns.length;
       unreadNotifications = unread;
-
       recent = activities.take(5).toList();
     });
   }
@@ -154,19 +146,13 @@ class _HomePageState extends State<HomePage> {
   Future<void> go(Widget page) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => page,
-      ),
+      MaterialPageRoute(builder: (_) => page),
     );
 
-    if (mounted) {
-      await load();
-    }
+    if (mounted) await load();
   }
 
-  void openNotifications() {
-    go(const NotificationsPage());
-  }
+  void openNotifications() => go(const NotificationsPage());
 
   void search() {
     final c = TextEditingController();
@@ -175,21 +161,17 @@ class _HomePageState extends State<HomePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Search LifeMate'),
-        content: SizedBox(
-          width: 400,
-          child: TextField(
-            controller: c,
-            autofocus: true,
-            decoration: const InputDecoration(
-              hintText:
-                  'To-Do, Notes, Income, Expense...',
-              prefixIcon: Icon(Icons.search),
-            ),
-            onSubmitted: (v) {
-              Navigator.pop(ctx);
-              showResults(v);
-            },
+        content: TextField(
+          controller: c,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'To-Do, Notes, Income, Expense...',
+            prefixIcon: Icon(Icons.search),
           ),
+          onSubmitted: (v) {
+            Navigator.pop(ctx);
+            showResults(v);
+          },
         ),
         actions: [
           TextButton(
@@ -213,19 +195,11 @@ class _HomePageState extends State<HomePage> {
     String table,
     String query,
   ) async {
-    const allowedTables = [
-      'todos',
-      'notes',
-      'incomes',
-      'expenses',
-    ];
+    const allowedTables = ['todos', 'notes', 'incomes', 'expenses'];
 
     if (!allowedTables.contains(table)) return [];
 
-    final columns = await db.rawQuery(
-      'PRAGMA table_info($table)',
-    );
-
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
     if (columns.isEmpty) return [];
 
     final conditions = <String>[];
@@ -233,12 +207,9 @@ class _HomePageState extends State<HomePage> {
 
     for (final column in columns) {
       final columnName = column['name'].toString();
-
       if (columnName == 'id') continue;
 
-      conditions.add(
-        'CAST("$columnName" AS TEXT) LIKE ?',
-      );
+      conditions.add('CAST("$columnName" AS TEXT) LIKE ?');
       args.add('%$query%');
     }
 
@@ -256,8 +227,6 @@ class _HomePageState extends State<HomePage> {
     if (q.trim().isEmpty) return;
 
     final db = await AppDatabase.database;
-    final key = q.trim();
-
     final results = <Map<String, dynamic>>[];
 
     final tables = [
@@ -268,11 +237,7 @@ class _HomePageState extends State<HomePage> {
     ];
 
     for (final item in tables) {
-      final data = await searchTable(
-        db,
-        item['table']!,
-        key,
-      );
+      final data = await searchTable(db, item['table']!, q.trim());
 
       for (final row in data) {
         final title = row['title'] ??
@@ -284,14 +249,9 @@ class _HomePageState extends State<HomePage> {
         final details = <String>[];
 
         if (row['description'] != null &&
-            row['description']
-                .toString()
-                .isNotEmpty &&
-            row['description'].toString() !=
-                title.toString()) {
-          details.add(
-            row['description'].toString(),
-          );
+            row['description'].toString().isNotEmpty &&
+            row['description'].toString() != title.toString()) {
+          details.add(row['description'].toString());
         }
 
         if (row['content'] != null &&
@@ -320,9 +280,7 @@ class _HomePageState extends State<HomePage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(
-          'Search Results (${results.length})',
-        ),
+        title: Text('Search Results (${results.length})'),
         content: SizedBox(
           width: 400,
           child: results.isEmpty
@@ -380,47 +338,22 @@ class _HomePageState extends State<HomePage> {
       builder: (_) => SafeArea(
         child: Wrap(
           children: [
-            item(
-              Icons.event,
-              'Events',
-              () => go(const EventsPage()),
-            ),
-            item(
-              Icons.bar_chart,
-              'Statistics',
-              () => go(const StatisticsPage()),
-            ),
-            item(
-              Icons.savings,
-              'Budget',
-              () => go(const BudgetPage()),
-            ),
-            item(
-              Icons.picture_as_pdf,
-              'PDF Reports',
-              () => go(const PdfReportsPage()),
-            ),
-            item(
-              Icons.person,
-              'Profile',
-              () => go(const ProfilePage()),
-            ),
-            item(
-              Icons.settings,
-              'Settings',
-              () => go(const SettingsPage()),
-            ),
+            item(Icons.event, 'Events', () => go(const EventsPage())),
+            item(Icons.bar_chart, 'Statistics',
+                () => go(const StatisticsPage())),
+            item(Icons.savings, 'Budget', () => go(const BudgetPage())),
+            item(Icons.picture_as_pdf, 'PDF Reports',
+                () => go(const PdfReportsPage())),
+            item(Icons.person, 'Profile', () => go(const ProfilePage())),
+            item(Icons.settings, 'Settings',
+                () => go(const SettingsPage())),
           ],
         ),
       ),
     );
   }
 
-  Widget item(
-    IconData i,
-    String t,
-    VoidCallback f,
-  ) {
+  Widget item(IconData i, String t, VoidCallback f) {
     return ListTile(
       leading: Icon(i),
       title: Text(t),
@@ -431,31 +364,24 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget avatar() {
+  Widget avatar({double radius = 25}) {
     if (photo != null &&
         photo!.isNotEmpty &&
         File(photo!).existsSync()) {
       return CircleAvatar(
-        radius: 35,
-        backgroundImage: FileImage(
-          File(photo!),
-        ),
+        radius: radius,
+        backgroundImage: FileImage(File(photo!)),
       );
     }
 
-    return const CircleAvatar(
-      radius: 35,
-      child: Icon(
-        Icons.person,
-        size: 38,
-      ),
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Colors.white.withOpacity(.25),
+      child: Icon(Icons.person, size: radius * 1.2, color: Colors.white),
     );
   }
 
-  Widget badge(
-    Widget child,
-    int n,
-  ) {
+  Widget badge(Widget child, int n) {
     return Badge(
       isLabelVisible: n > 0,
       label: Text('$n'),
@@ -464,40 +390,142 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget quick(
-    String t,
-    IconData i,
-    Color c,
-    VoidCallback f, {
+    String title,
+    IconData icon,
+    Color color,
+    VoidCallback onTap, {
     int count = 0,
   }) {
     return Expanded(
-      child: InkWell(
-        onTap: f,
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          height: 105,
-          margin: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: c.withOpacity(.12),
-            borderRadius: BorderRadius.circular(18),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            height: 76,
+            decoration: BoxDecoration(
+              color: color.withOpacity(.10),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: color.withOpacity(.15)),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                badge(
+                  Icon(icon, size: 23, color: color),
+                  count,
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget sectionCard({
+    required Widget child,
+    Color? color,
+  }) {
+    return Card(
+      color: color,
+      elevation: 1,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(13),
+        child: child,
+      ),
+    );
+  }
+
+  Widget money(String title, double value, Color color, IconData icon) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.all(3),
+        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 5),
+        decoration: BoxDecoration(
+          color: color.withOpacity(.10),
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 19),
+            const SizedBox(height: 5),
+            Text(
+              title,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            FittedBox(
+              child: Text(
+                '৳ ${value.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget navItem(
+    IconData icon,
+    String title,
+    VoidCallback onTap, {
+    bool selected = false,
+    int count = 0,
+  }) {
+    final color = selected
+        ? Theme.of(context).colorScheme.primary
+        : Colors.grey.shade600;
+
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 7),
           child: Column(
-            mainAxisAlignment:
-                MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               badge(
                 Icon(
-                  i,
-                  size: 34,
-                  color: c,
+                  icon,
+                  size: 21,
+                  color: color,
                 ),
                 count,
               ),
-              const SizedBox(height: 7),
-              Text(
-                t,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
+              const SizedBox(height: 3),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: color,
+                    fontWeight:
+                        selected ? FontWeight.bold : FontWeight.w500,
+                  ),
                 ),
               ),
             ],
@@ -507,77 +535,52 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget card({
-    required Widget child,
-    Color? color,
-  }) {
-    return Card(
-      color: color,
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: child,
-      ),
-    );
-  }
-
-  Widget money(
-    String title,
-    double value,
-    Color c,
-  ) {
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.all(3),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: c.withOpacity(.10),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                color: c,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 5),
-            FittedBox(
-              child: Text(
-                '৳ ${value.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final balance = income - expense;
+    final primary = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: 68,
+        titleSpacing: 12,
         title: Row(
           children: [
-            const Icon(
-              Icons.eco,
-              color: Colors.green,
+            Container(
+              height: 39,
+              width: 39,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6655D9), Color(0xFF29B6A6)],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.eco, color: Colors.white, size: 25),
             ),
-            const SizedBox(width: 7),
-            const Text(
-              'LifeMate',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
+            const SizedBox(width: 9),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'LifeMate',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'Your Personal Life Manager',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -585,37 +588,27 @@ class _HomePageState extends State<HomePage> {
         actions: [
           IconButton(
             onPressed: search,
-            icon: const Icon(Icons.search),
+            icon: const Icon(Icons.search_rounded),
+            tooltip: 'Search',
           ),
-
-          // Notifications
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: IconButton(
-              onPressed: openNotifications,
-              icon: badge(
-                const Icon(
-                  Icons.notifications_outlined,
-                ),
-                unreadNotifications,
-              ),
+          IconButton(
+            onPressed: openNotifications,
+            icon: badge(
+              const Icon(Icons.notifications_outlined),
+              unreadNotifications,
             ),
+            tooltip: 'Notifications',
           ),
-
           IconButton(
             onPressed: more,
-            icon: const Icon(
-              Icons.settings_outlined,
-            ),
+            icon: const Icon(Icons.grid_view_rounded),
+            tooltip: 'More',
           ),
-
           Padding(
-            padding: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.only(right: 9),
             child: GestureDetector(
-              onTap: () => go(
-                const ProfilePage(),
-              ),
-              child: avatar(),
+              onTap: () => go(const ProfilePage()),
+              child: avatar(radius: 17),
             ),
           ),
         ],
@@ -624,155 +617,274 @@ class _HomePageState extends State<HomePage> {
       body: RefreshIndicator(
         onRefresh: load,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            14,
-            8,
-            14,
-            100,
-          ),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 15),
           children: [
-            card(
-              color: Theme.of(context)
-                  .colorScheme
-                  .primaryContainer,
+            // Welcome header
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFF6655D9),
+                    Color(0xFF3988D9),
+                    Color(0xFF20B9A6),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: primary.withOpacity(.20),
+                    blurRadius: 12,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
               child: Row(
                 children: [
-                  avatar(),
-                  const SizedBox(width: 14),
+                  avatar(radius: 27),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        const Text(
+                          'Welcome back!',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                        ),
                         Text(
                           name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 20,
+                            color: Colors.white,
+                            fontSize: 19,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         if (occupation.isNotEmpty)
-                          Text(occupation),
+                          Text(
+                            occupation,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                            ),
+                          ),
                         if (workplace.isNotEmpty)
-                          Text(workplace),
+                          Text(
+                            workplace,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 10,
+                            ),
+                          ),
                       ],
                     ),
                   ),
-                  TextButton(
-                    onPressed: () => go(
-                      const ProfilePage(),
+                  IconButton(
+                    onPressed: () => go(const ProfilePage()),
+                    icon: const Icon(
+                      Icons.edit_outlined,
+                      color: Colors.white,
                     ),
-                    child: const Text('Profile'),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 14),
 
-            card(
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.search,
-                    size: 28,
+            // Search shortcut
+            InkWell(
+              onTap: search,
+              borderRadius: BorderRadius.circular(15),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 13,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(
+                    color: Theme.of(context).dividerColor,
                   ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'Search anything...',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey,
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.search, color: Colors.grey),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Search anything in LifeMate...',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    onPressed: search,
-                    icon: const Icon(
-                      Icons.arrow_forward,
-                    ),
-                  ),
-                ],
+                    Icon(Icons.arrow_forward_ios,
+                        size: 13, color: Colors.grey),
+                  ],
+                ),
               ),
             ),
 
+            const SizedBox(height: 12),
+
+            // Quick features
             Row(
               children: [
                 quick(
                   'To-Do',
-                  Icons.check_circle,
-                  Colors.blue,
-                  () => go(
-                    const TodoPage(),
-                  ),
+                  Icons.task_alt,
+                  const Color(0xFF3988E8),
+                  () => go(const TodoPage()),
                   count: todos,
                 ),
                 quick(
                   'Notes',
-                  Icons.note_alt,
-                  Colors.green,
-                  () => go(
-                    const NotesPage(),
-                  ),
+                  Icons.note_alt_outlined,
+                  const Color(0xFF19A77A),
+                  () => go(const NotesPage()),
                   count: notes,
                 ),
                 quick(
                   'Income',
-                  Icons.account_balance_wallet,
-                  Colors.green,
-                  () => go(
-                    const FinancePage(),
-                  ),
+                  Icons.trending_up,
+                  const Color(0xFF159D70),
+                  () => go(const FinancePage()),
                 ),
               ],
             ),
-
             Row(
               children: [
                 quick(
                   'Expense',
-                  Icons.wallet,
-                  Colors.red,
-                  () => go(
-                    const FinancePage(),
-                  ),
+                  Icons.trending_down,
+                  const Color(0xFFE65363),
+                  () => go(const FinancePage()),
                 ),
                 quick(
                   'Events',
-                  Icons.event,
-                  Colors.purple,
-                  () => go(
-                    const EventsPage(),
-                  ),
+                  Icons.event_available,
+                  const Color(0xFF9562D5),
+                  () => go(const EventsPage()),
                 ),
                 quick(
                   'Alerts',
-                  Icons.notifications,
-                  Colors.orange,
+                  Icons.notifications_active_outlined,
+                  const Color(0xFFEA9635),
                   openNotifications,
                   count: unreadNotifications,
                 ),
               ],
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
-            card(
+            // Finance summary
+            sectionCard(
               child: Column(
                 children: [
                   Row(
                     children: [
-                      const Icon(
-                        Icons.history,
-                        color: Colors.blue,
+                      const Icon(Icons.account_balance_wallet,
+                          color: Color(0xFF6655D9)),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Finance Summary',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
+                      TextButton(
+                        onPressed: () => go(const FinancePage()),
+                        child: const Text('Details'),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      money('Income', income, const Color(0xFF159D70),
+                          Icons.arrow_downward),
+                      money('Expense', expense, const Color(0xFFE65363),
+                          Icons.arrow_upward),
+                      money('Balance', balance, const Color(0xFF3988E8),
+                          Icons.account_balance),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Budget summary
+            sectionCard(
+              color: Theme.of(context).cardColor,
+              child: InkWell(
+                onTap: () => go(const BudgetPage()),
+                child: Row(
+                  children: [
+                    Container(
+                      height: 43,
+                      width: 43,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFA726).withOpacity(.15),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: const Icon(
+                        Icons.track_changes,
+                        color: Color(0xFFEF9225),
+                      ),
+                    ),
+                    const SizedBox(width: 11),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Budget Summary',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'View your budget and spending plan',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios, size: 15),
+                  ],
+                ),
+              ),
+            ),
+
+            // Recent activity
+            sectionCard(
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.history, color: Color(0xFF3988E8)),
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
                           'Recent Activity',
                           style: TextStyle(
-                            fontSize: 19,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -788,248 +900,147 @@ class _HomePageState extends State<HomePage> {
                       padding: EdgeInsets.all(15),
                       child: Text(
                         'No recent activity',
+                        style: TextStyle(color: Colors.grey),
                       ),
                     ),
                   ...recent.map(
                     (x) => ListTile(
                       dense: true,
+                      contentPadding: EdgeInsets.zero,
                       leading: CircleAvatar(
+                        radius: 17,
+                        backgroundColor:
+                            primary.withOpacity(.10),
                         child: Icon(
-                          x['i'],
-                          size: 18,
+                          x['i'] as IconData,
+                          size: 17,
+                          color: primary,
                         ),
                       ),
-                      title: Text('${x['t']}'),
-                      subtitle: Text('${x['s']}'),
+                      title: Text(
+                        '${x['t']}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      subtitle: Text(
+                        '${x['s']}',
+                        style: const TextStyle(fontSize: 11),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
 
-            card(
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.bar_chart,
-                        color: Colors.blue,
-                      ),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'Finance Summary',
-                          style: TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const Text('All'),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      money(
-                        'Income',
-                        income,
-                        Colors.green,
-                      ),
-                      money(
-                        'Expense',
-                        expense,
-                        Colors.red,
-                      ),
-                      money(
-                        'Balance',
-                        balance,
-                        Colors.blue,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            card(
-              color: Colors.amber.shade50,
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.track_changes,
-                    color: Colors.red,
-                    size: 32,
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+            // Alerts
+            if (todos > 0 || unreadNotifications > 0)
+              sectionCard(
+                color: const Color(0xFFFFA726).withOpacity(.08),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
                       children: [
+                        Icon(Icons.notifications_active,
+                            color: Color(0xFFEA9635)),
+                        SizedBox(width: 8),
                         Text(
-                          'Budget Summary',
+                          'Alerts & Reminders',
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
-                        ),
-                        Text(
-                          'Open Budget for details',
                         ),
                       ],
                     ),
-                  ),
-                  IconButton(
-                    onPressed: () => go(
-                      const BudgetPage(),
-                    ),
-                    icon: const Icon(
-                      Icons.arrow_forward,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            if (todos > 0)
-              card(
-                color: Colors.blue.shade50,
-                child: Row(
-                  children: [
-                    Badge(
-                      label: Text('$todos'),
-                      child: const Icon(
-                        Icons.notifications,
-                        color: Colors.blue,
-                        size: 32,
+                    if (todos > 0)
+                      ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.task_alt,
+                            color: Colors.blue),
+                        title: Text('$todos pending To-Do tasks'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => go(const TodoPage()),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        '$todos pending To-Do task${todos == 1 ? '' : 's'}',
+                    if (unreadNotifications > 0)
+                      ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.notifications,
+                            color: Colors.orange),
+                        title: Text(
+                          '$unreadNotifications unread notifications',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: openNotifications,
                       ),
-                    ),
-                    const Icon(
-                      Icons.chevron_right,
-                    ),
                   ],
-                ),
-              ),
-
-            if (unreadNotifications > 0)
-              InkWell(
-                onTap: openNotifications,
-                child: card(
-                  color: Colors.orange.shade50,
-                  child: Row(
-                    children: [
-                      Badge(
-                        label: Text(
-                          '$unreadNotifications',
-                        ),
-                        child: const Icon(
-                          Icons.notifications_active,
-                          color: Colors.orange,
-                          size: 32,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          '$unreadNotifications unread notification${unreadNotifications == 1 ? '' : 's'}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const Icon(
-                        Icons.chevron_right,
-                      ),
-                    ],
-                  ),
                 ),
               ),
           ],
         ),
       ),
 
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: 0,
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(
-              Icons.home_outlined,
-            ),
-            selectedIcon: Icon(
-              Icons.home,
-            ),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: badge(
-              const Icon(
-                Icons.check_circle_outline,
+      // Fixed bottom navigation: always visible
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          height: 61,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(.08),
+                blurRadius: 10,
+                offset: const Offset(0, -3),
               ),
-              todos,
-            ),
-            selectedIcon: badge(
-              const Icon(
-                Icons.check_circle,
+            ],
+            border: Border(
+              top: BorderSide(
+                color: Theme.of(context).dividerColor.withOpacity(.5),
               ),
-              todos,
             ),
-            label: 'To-Do',
           ),
-          const NavigationDestination(
-            icon: Icon(
-              Icons.arrow_downward,
-            ),
-            selectedIcon: Icon(
-              Icons.arrow_downward,
-            ),
-            label: 'Income',
-          ),
-          const NavigationDestination(
-            icon: Icon(
-              Icons.arrow_upward,
-            ),
-            selectedIcon: Icon(
-              Icons.arrow_upward,
-            ),
-            label: 'Expense',
-          ),
-          NavigationDestination(
-            icon: badge(
-              const Icon(
+          child: Row(
+            children: [
+              navItem(
+                Icons.home_outlined,
+                'Home',
+                () {},
+                selected: true,
+              ),
+              navItem(
+                Icons.task_alt,
+                'To-Do',
+                () => go(const TodoPage()),
+                count: todos,
+              ),
+              navItem(
+                Icons.arrow_downward,
+                'Income',
+                () => go(const FinancePage()),
+              ),
+              navItem(
+                Icons.arrow_upward,
+                'Expense',
+                () => go(const FinancePage()),
+              ),
+              navItem(
                 Icons.note_alt_outlined,
+                'Notes',
+                () => go(const NotesPage()),
+                count: notes,
               ),
-              notes,
-            ),
-            selectedIcon: badge(
-              const Icon(
-                Icons.note_alt,
+              navItem(
+                Icons.more_horiz,
+                'More',
+                more,
               ),
-              notes,
-            ),
-            label: 'Notes',
+            ],
           ),
-          const NavigationDestination(
-            icon: Icon(
-              Icons.more_horiz,
-            ),
-            label: 'More',
-          ),
-        ],
-        onDestinationSelected: (i) {
-          if (i == 1) go(const TodoPage());
-          if (i == 2) go(const FinancePage());
-          if (i == 3) go(const FinancePage());
-          if (i == 4) go(const NotesPage());
-          if (i == 5) more();
-        },
+        ),
       ),
     );
   }
