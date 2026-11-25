@@ -1,4 +1,4 @@
- 
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -487,54 +487,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget navItem(
-    IconData icon,
-    String title,
-    VoidCallback onTap, {
-    bool selected = false,
-    int count = 0,
-  }) {
-    final color = selected
-        ? Theme.of(context).colorScheme.primary
-        : Colors.grey.shade600;
-
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 7),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              badge(
-                Icon(
-                  icon,
-                  size: 21,
-                  color: color,
-                ),
-                count,
-              ),
-              const SizedBox(height: 3),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: color,
-                    fontWeight:
-                        selected ? FontWeight.bold : FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final balance = income - expense;
@@ -613,13 +565,11 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-
       body: RefreshIndicator(
         onRefresh: load,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 15),
           children: [
-            // Welcome header
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -695,10 +645,7 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-
             const SizedBox(height: 14),
-
-            // Search shortcut
             InkWell(
               onTap: search,
               borderRadius: BorderRadius.circular(15),
@@ -733,10 +680,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 12),
-
-            // Quick features
             Row(
               children: [
                 quick(
@@ -784,10 +728,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
-
             const SizedBox(height: 10),
-
-            // Finance summary
             sectionCard(
               child: Column(
                 children: [
@@ -824,8 +765,6 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-
-            // Budget summary
             sectionCard(
               color: Theme.of(context).cardColor,
               child: InkWell(
@@ -871,8 +810,6 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
-
-            // Recent activity
             sectionCard(
               child: Column(
                 children: [
@@ -909,8 +846,7 @@ class _HomePageState extends State<HomePage> {
                       contentPadding: EdgeInsets.zero,
                       leading: CircleAvatar(
                         radius: 17,
-                        backgroundColor:
-                            primary.withOpacity(.10),
+                        backgroundColor: primary.withOpacity(.10),
                         child: Icon(
                           x['i'] as IconData,
                           size: 17,
@@ -932,8 +868,6 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-
-            // Alerts
             if (todos > 0 || unreadNotifications > 0)
               sectionCard(
                 color: const Color(0xFFFFA726).withOpacity(.08),
@@ -980,66 +914,6 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
           ],
-        ),
-      ),
-
-      // Fixed bottom navigation: always visible
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          height: 61,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(.08),
-                blurRadius: 10,
-                offset: const Offset(0, -3),
-              ),
-            ],
-            border: Border(
-              top: BorderSide(
-                color: Theme.of(context).dividerColor.withOpacity(.5),
-              ),
-            ),
-          ),
-          child: Row(
-            children: [
-              navItem(
-                Icons.home_outlined,
-                'Home',
-                () {},
-                selected: true,
-              ),
-              navItem(
-                Icons.task_alt,
-                'To-Do',
-                () => go(const TodoPage()),
-                count: todos,
-              ),
-              navItem(
-                Icons.arrow_downward,
-                'Income',
-                () => go(const FinancePage()),
-              ),
-              navItem(
-                Icons.arrow_upward,
-                'Expense',
-                () => go(const FinancePage()),
-              ),
-              navItem(
-                Icons.note_alt_outlined,
-                'Notes',
-                () => go(const NotesPage()),
-                count: notes,
-              ),
-              navItem(
-                Icons.more_horiz,
-                'More',
-                more,
-              ),
-            ],
-          ),
         ),
       ),
     );
