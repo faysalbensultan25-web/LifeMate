@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/services/language_service.dart';
-import 'features/home/home_page.dart';
+import 'features/home/lifemate_shell.dart';
 
 final ValueNotifier<ThemeMode> lifeMateThemeMode =
     ValueNotifier(ThemeMode.light);
@@ -61,7 +61,7 @@ class _LifeMateAppState extends State<LifeMateApp> {
                 ),
               ),
               themeMode: mode,
-              home: HomePage(
+              home: LifeMateShell(
                 language: language,
                 onLanguageChanged: LanguageService.setLanguage,
               ),
