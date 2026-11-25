@@ -79,67 +79,162 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
 
       final balance = totalIncome - totalExpense;
 
+      // ----------------------------------------------------------
+      // Category names
+      // ----------------------------------------------------------
+
+      final categoryMap = <dynamic, String>{};
+
+      try {
+        final categories = await db.query('categories');
+
+        for (final category in categories) {
+          categoryMap[category['id']] =
+              cleanValue(category['name']);
+        }
+      } catch (_) {}
+
+      // ----------------------------------------------------------
+      // Combined transactions
+      // ----------------------------------------------------------
+
+      final transactions = <Map<String, dynamic>>[];
+
+      for (final item in incomes) {
+        transactions.add({
+          'date': item['date'],
+          'type': 'Income',
+          'category': categoryMap[item['category_id']] ??
+              cleanValue(item['category_id']),
+          'description': cleanValue(item['description']),
+          'amount':
+              (item['amount'] as num?)?.toDouble() ?? 0,
+        });
+      }
+
+      for (final item in expenses) {
+        transactions.add({
+          'date': item['date'],
+          'type': 'Expense',
+          'category': categoryMap[item['category_id']] ??
+              cleanValue(item['category_id']),
+          'description': cleanValue(item['description']),
+          'amount':
+              (item['amount'] as num?)?.toDouble() ?? 0,
+        });
+      }
+
+      // Newest first
+      transactions.sort((a, b) {
+        final aDate = DateTime.tryParse(
+              a['date']?.toString() ?? '',
+            ) ??
+            DateTime(1900);
+
+        final bDate = DateTime.tryParse(
+              b['date']?.toString() ?? '',
+            ) ??
+            DateTime(1900);
+
+        return bDate.compareTo(aDate);
+      });
+
       final pdf = pw.Document();
 
       pdf.addPage(
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(32),
+          margin: const pw.EdgeInsets.fromLTRB(
+            18,
+            18,
+            18,
+            20,
+          ),
+          footer: (context) {
+            return pw.Align(
+              alignment: pw.Alignment.center,
+              child: pw.Text(
+                'LifeMate | Page ${context.pageNumber} of ${context.pagesCount}',
+                style: const pw.TextStyle(
+                  fontSize: 7,
+                  color: PdfColors.grey600,
+                ),
+              ),
+            );
+          },
           build: (context) {
             return [
-              pw.Text(
-                'LifeMate',
-                style: pw.TextStyle(
-                  fontSize: 26,
-                  fontWeight: pw.FontWeight.bold,
-                ),
+              // --------------------------------------------------
+              // Header
+              // --------------------------------------------------
+
+              pw.Row(
+                mainAxisAlignment:
+                    pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    'LifeMate',
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.Text(
+                    'Financial Statement',
+                    style: pw.TextStyle(
+                      fontSize: 13,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
+
+              pw.SizedBox(height: 4),
+
+              pw.Text(
+                'Generated: ${DateFormat('dd/MM/yyyy hh:mm a').format(DateTime.now())}',
+                style: const pw.TextStyle(fontSize: 7),
+              ),
+
               pw.SizedBox(height: 8),
-              pw.Text(
-                'Financial Statement',
-                style: pw.TextStyle(
-                  fontSize: 18,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-              pw.SizedBox(height: 6),
-              pw.Text(
-                'Generated: ${DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now())}',
-                style: const pw.TextStyle(fontSize: 10),
-              ),
-              pw.SizedBox(height: 24),
+
+              // --------------------------------------------------
+              // Financial Summary
+              // --------------------------------------------------
 
               pw.Container(
-                padding: const pw.EdgeInsets.all(15),
+                padding: const pw.EdgeInsets.symmetric(
+                  vertical: 6,
+                  horizontal: 8,
+                ),
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(
                     color: PdfColors.grey400,
+                    width: 0.5,
                   ),
-                  borderRadius: pw.BorderRadius.circular(8),
                 ),
-                child: pw.Column(
-                  crossAxisAlignment:
-                      pw.CrossAxisAlignment.start,
+                child: pw.Row(
+                  mainAxisAlignment:
+                      pw.MainAxisAlignment.spaceAround,
                   children: [
                     pw.Text(
-                      'Financial Summary',
+                      'Income: ${totalIncome.toStringAsFixed(2)}',
                       style: pw.TextStyle(
-                        fontSize: 16,
+                        fontSize: 8,
                         fontWeight: pw.FontWeight.bold,
                       ),
                     ),
-                    pw.SizedBox(height: 12),
                     pw.Text(
-                      'Total Income: ${totalIncome.toStringAsFixed(2)}',
+                      'Expense: ${totalExpense.toStringAsFixed(2)}',
+                      style: pw.TextStyle(
+                        fontSize: 8,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
                     ),
-                    pw.SizedBox(height: 6),
-                    pw.Text(
-                      'Total Expense: ${totalExpense.toStringAsFixed(2)}',
-                    ),
-                    pw.SizedBox(height: 6),
                     pw.Text(
                       'Balance: ${balance.toStringAsFixed(2)}',
                       style: pw.TextStyle(
+                        fontSize: 8,
                         fontWeight: pw.FontWeight.bold,
                       ),
                     ),
@@ -147,73 +242,66 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                 ),
               ),
 
-              pw.SizedBox(height: 24),
-
-              pw.Text(
-                'Income Transactions',
-                style: pw.TextStyle(
-                  fontSize: 16,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-              pw.SizedBox(height: 10),
-
-              if (incomes.isEmpty)
-                pw.Text('No income transactions found.')
-              else
-                pw.TableHelper.fromTextArray(
-                  headers: ['Date', 'Amount', 'Description'],
-                  data: incomes.map((item) {
-                    return [
-                      formatDate(item['date']),
-                      ((item['amount'] as num?)?.toDouble() ?? 0)
-                          .toStringAsFixed(2),
-                      cleanValue(item['description']),
-                    ];
-                  }).toList(),
-                  headerStyle: pw.TextStyle(
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                  cellStyle: const pw.TextStyle(fontSize: 9),
-                ),
-
-              pw.SizedBox(height: 24),
-
-              pw.Text(
-                'Expense Transactions',
-                style: pw.TextStyle(
-                  fontSize: 16,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-              pw.SizedBox(height: 10),
-
-              if (expenses.isEmpty)
-                pw.Text('No expense transactions found.')
-              else
-                pw.TableHelper.fromTextArray(
-                  headers: ['Date', 'Amount', 'Description'],
-                  data: expenses.map((item) {
-                    return [
-                      formatDate(item['date']),
-                      ((item['amount'] as num?)?.toDouble() ?? 0)
-                          .toStringAsFixed(2),
-                      cleanValue(item['description']),
-                    ];
-                  }).toList(),
-                  headerStyle: pw.TextStyle(
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                  cellStyle: const pw.TextStyle(fontSize: 9),
-                ),
-
-              pw.SizedBox(height: 30),
-              pw.Divider(),
               pw.SizedBox(height: 8),
+
+              // --------------------------------------------------
+              // Time-wise Transaction Table
+              // --------------------------------------------------
+
+              if (transactions.isEmpty)
+                pw.Text(
+                  'No transactions found.',
+                  style: const pw.TextStyle(fontSize: 9),
+                )
+              else
+                pw.TableHelper.fromTextArray(
+                  headers: [
+                    'Date',
+                    'Type',
+                    'Category',
+                    'Description',
+                    'Amount',
+                  ],
+                  data: transactions.map((item) {
+                    return [
+                      formatDate(item['date']),
+                      item['type'],
+                      item['category'],
+                      item['description'],
+                      item['amount'].toStringAsFixed(2),
+                    ];
+                  }).toList(),
+                  columnWidths: {
+                    0: const pw.FlexColumnWidth(1.0),
+                    1: const pw.FlexColumnWidth(0.8),
+                    2: const pw.FlexColumnWidth(1.1),
+                    3: const pw.FlexColumnWidth(2.2),
+                    4: const pw.FlexColumnWidth(1.0),
+                  },
+                  headerStyle: pw.TextStyle(
+                    fontSize: 7.5,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  cellStyle: const pw.TextStyle(
+                    fontSize: 7,
+                  ),
+                  cellPadding:
+                      const pw.EdgeInsets.symmetric(
+                    horizontal: 3,
+                    vertical: 3,
+                  ),
+                  border: pw.TableBorder.all(
+                    color: PdfColors.grey400,
+                    width: 0.4,
+                  ),
+                ),
+
+              pw.SizedBox(height: 8),
+
               pw.Text(
                 'Generated by LifeMate',
                 style: const pw.TextStyle(
-                  fontSize: 9,
+                  fontSize: 7,
                   color: PdfColors.grey600,
                 ),
               ),
@@ -230,7 +318,9 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Financial PDF generation failed: $e'),
+          content: Text(
+            'Financial PDF generation failed: $e',
+          ),
         ),
       );
     } finally {
@@ -268,7 +358,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
       final profile = profiles.first;
       final profileId = profile['id'];
 
-      // Load all multiple-record CV information.
+      // Education
       final education = await db.query(
         'profile_education',
         where: 'profile_id = ?',
@@ -276,6 +366,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         orderBy: 'id DESC',
       );
 
+      // Training
       final training = await db.query(
         'profile_training',
         where: 'profile_id = ?',
@@ -283,6 +374,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         orderBy: 'id DESC',
       );
 
+      // Experience
       final experience = await db.query(
         'profile_experience',
         where: 'profile_id = ?',
@@ -290,6 +382,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         orderBy: 'id DESC',
       );
 
+      // Skills
       final skills = await db.query(
         'profile_skills',
         where: 'profile_id = ?',
@@ -297,6 +390,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         orderBy: 'id DESC',
       );
 
+      // Languages
       final languages = await db.query(
         'profile_languages',
         where: 'profile_id = ?',
@@ -304,6 +398,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         orderBy: 'id DESC',
       );
 
+      // Achievements
       final achievements = await db.query(
         'profile_achievements',
         where: 'profile_id = ?',
@@ -338,7 +433,10 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
 
       final profileSections = <pw.Widget>[];
 
+      // ----------------------------------------------------------
       // Personal Information
+      // ----------------------------------------------------------
+
       profileSections.add(
         _infoSection(
           'Personal Information',
@@ -356,7 +454,10 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
+      // ----------------------------------------------------------
       // Career Objective
+      // ----------------------------------------------------------
+
       if (value('career_objective').isNotEmpty) {
         profileSections.add(
           _textSection(
@@ -366,7 +467,10 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         );
       }
 
+      // ----------------------------------------------------------
       // Education
+      // ----------------------------------------------------------
+
       profileSections.add(
         _recordSection(
           'Education',
@@ -382,8 +486,10 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
           dateFields: const [],
           specialFields: {
             'study_period': (record) {
-              final start = cleanValue(record['start_year']);
-              final end = cleanValue(record['end_year']);
+              final start =
+                  cleanValue(record['start_year']);
+              final end =
+                  cleanValue(record['end_year']);
 
               if (start.isEmpty && end.isEmpty) return '';
               if (start.isEmpty) return end;
@@ -395,7 +501,10 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
+      // ----------------------------------------------------------
       // Training
+      // ----------------------------------------------------------
+
       profileSections.add(
         _recordSection(
           'Training & Certifications',
@@ -410,7 +519,10 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
+      // ----------------------------------------------------------
       // Work Experience
+      // ----------------------------------------------------------
+
       profileSections.add(
         _recordSection(
           'Work Experience',
@@ -425,7 +537,9 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
           ],
           specialFields: {
             'period': (record) {
-              final start = formatDate(record['start_date']);
+              final start =
+                  formatDate(record['start_date']);
+
               final end = record['is_current'] == 1
                   ? 'Present'
                   : formatDate(record['end_date']);
@@ -439,7 +553,10 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
+      // ----------------------------------------------------------
       // Skills
+      // ----------------------------------------------------------
+
       profileSections.add(
         _recordSection(
           'Skills',
@@ -451,7 +568,10 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
+      // ----------------------------------------------------------
       // Languages
+      // ----------------------------------------------------------
+
       profileSections.add(
         _recordSection(
           'Languages',
@@ -463,7 +583,10 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
+      // ----------------------------------------------------------
       // Achievements
+      // ----------------------------------------------------------
+
       profileSections.add(
         _recordSection(
           'Achievements',
@@ -477,7 +600,10 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
-      // Additional Professional Information
+      // ----------------------------------------------------------
+      // Additional Information
+      // ----------------------------------------------------------
+
       profileSections.add(
         _infoSection(
           'Additional Information',
@@ -489,7 +615,10 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
-      // About
+      // ----------------------------------------------------------
+      // About Me
+      // ----------------------------------------------------------
+
       if (value('about').isNotEmpty) {
         profileSections.add(
           _textSection(
@@ -498,6 +627,10 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
           ),
         );
       }
+
+      // ----------------------------------------------------------
+      // CV PDF
+      // ----------------------------------------------------------
 
       pdf.addPage(
         pw.MultiPage(
@@ -518,15 +651,20 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
           },
           build: (context) {
             return [
+              // --------------------------------------------------
               // Header
+              // --------------------------------------------------
+
               pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    pw.CrossAxisAlignment.start,
                 children: [
                   if (profileImage != null)
                     pw.Container(
                       width: 78,
                       height: 88,
-                      margin: const pw.EdgeInsets.only(right: 16),
+                      margin:
+                          const pw.EdgeInsets.only(right: 16),
                       child: pw.ClipRRect(
                         horizontalRadius: 6,
                         verticalRadius: 6,
@@ -547,7 +685,8 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                               : value('name'),
                           style: pw.TextStyle(
                             fontSize: 22,
-                            fontWeight: pw.FontWeight.bold,
+                            fontWeight:
+                                pw.FontWeight.bold,
                           ),
                         ),
                         pw.SizedBox(height: 5),
@@ -562,17 +701,23 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                         if (value('phone').isNotEmpty)
                           pw.Text(
                             value('phone'),
-                            style: const pw.TextStyle(fontSize: 9),
+                            style: const pw.TextStyle(
+                              fontSize: 9,
+                            ),
                           ),
                         if (value('email').isNotEmpty)
                           pw.Text(
                             value('email'),
-                            style: const pw.TextStyle(fontSize: 9),
+                            style: const pw.TextStyle(
+                              fontSize: 9,
+                            ),
                           ),
                         if (value('address').isNotEmpty)
                           pw.Text(
                             value('address'),
-                            style: const pw.TextStyle(fontSize: 9),
+                            style: const pw.TextStyle(
+                              fontSize: 9,
+                            ),
                           ),
                       ],
                     ),
@@ -581,16 +726,20 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
               ),
 
               pw.SizedBox(height: 12),
+
               pw.Divider(
                 color: PdfColors.grey500,
                 thickness: 1,
               ),
+
               pw.SizedBox(height: 8),
 
               ...profileSections,
 
               pw.SizedBox(height: 12),
+
               pw.Divider(),
+
               pw.SizedBox(height: 5),
 
               pw.Text(
@@ -614,7 +763,9 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Profile PDF generation failed: $e'),
+          content: Text(
+            'Profile PDF generation failed: $e',
+          ),
         ),
       );
     } finally {
@@ -668,7 +819,11 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
     List<List<String>> rows,
   ) {
     final validRows = rows
-        .where((row) => row.length >= 2 && row[1].trim().isNotEmpty)
+        .where(
+          (row) =>
+              row.length >= 2 &&
+              row[1].trim().isNotEmpty,
+        )
         .toList();
 
     if (validRows.isEmpty) {
@@ -676,7 +831,8 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
     }
 
     return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      crossAxisAlignment:
+          pw.CrossAxisAlignment.start,
       children: [
         _sectionTitle(title),
         pw.Table(
@@ -688,7 +844,8 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
             return pw.TableRow(
               children: [
                 pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
+                  padding:
+                      const pw.EdgeInsets.symmetric(
                     vertical: 3,
                     horizontal: 4,
                   ),
@@ -696,18 +853,22 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                     row[0],
                     style: pw.TextStyle(
                       fontSize: 8.5,
-                      fontWeight: pw.FontWeight.bold,
+                      fontWeight:
+                          pw.FontWeight.bold,
                     ),
                   ),
                 ),
                 pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
+                  padding:
+                      const pw.EdgeInsets.symmetric(
                     vertical: 3,
                     horizontal: 4,
                   ),
                   child: pw.Text(
                     row[1],
-                    style: const pw.TextStyle(fontSize: 8.5),
+                    style: const pw.TextStyle(
+                      fontSize: 8.5,
+                    ),
                   ),
                 ),
               ],
@@ -728,12 +889,15 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
     }
 
     return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      crossAxisAlignment:
+          pw.CrossAxisAlignment.start,
       children: [
         _sectionTitle(title),
         pw.Text(
           content,
-          style: const pw.TextStyle(fontSize: 9),
+          style: const pw.TextStyle(
+            fontSize: 9,
+          ),
         ),
         pw.SizedBox(height: 12),
       ],
@@ -745,8 +909,8 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
     List<Map<String, Object?>> records,
     List<List<String>> fields, {
     List<String> dateFields = const [],
-    Map<String, String Function(Map<String, Object?>)> specialFields =
-        const {},
+    Map<String, String Function(Map<String, Object?>)>
+        specialFields = const {},
   }) {
     if (records.isEmpty) {
       return pw.SizedBox();
@@ -781,14 +945,16 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
       recordWidgets.add(
         pw.Container(
           width: double.infinity,
-          margin: const pw.EdgeInsets.only(bottom: 7),
+          margin:
+              const pw.EdgeInsets.only(bottom: 7),
           padding: const pw.EdgeInsets.all(7),
           decoration: pw.BoxDecoration(
             border: pw.Border.all(
               color: PdfColors.grey300,
               width: 0.5,
             ),
-            borderRadius: pw.BorderRadius.circular(4),
+            borderRadius:
+                pw.BorderRadius.circular(4),
           ),
           child: pw.Table(
             columnWidths: {
@@ -799,7 +965,8 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
               return pw.TableRow(
                 children: [
                   pw.Padding(
-                    padding: const pw.EdgeInsets.symmetric(
+                    padding:
+                        const pw.EdgeInsets.symmetric(
                       vertical: 2,
                       horizontal: 3,
                     ),
@@ -807,18 +974,22 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                       row[0],
                       style: pw.TextStyle(
                         fontSize: 8,
-                        fontWeight: pw.FontWeight.bold,
+                        fontWeight:
+                            pw.FontWeight.bold,
                       ),
                     ),
                   ),
                   pw.Padding(
-                    padding: const pw.EdgeInsets.symmetric(
+                    padding:
+                        const pw.EdgeInsets.symmetric(
                       vertical: 2,
                       horizontal: 3,
                     ),
                     child: pw.Text(
                       row[1],
-                      style: const pw.TextStyle(fontSize: 8),
+                      style: const pw.TextStyle(
+                        fontSize: 8,
+                      ),
                     ),
                   ),
                 ],
@@ -834,7 +1005,8 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
     }
 
     return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      crossAxisAlignment:
+          pw.CrossAxisAlignment.start,
       children: [
         _sectionTitle(title),
         ...recordWidgets,
@@ -850,7 +1022,8 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
   @override
   Widget build(BuildContext context) {
     final isBusy =
-        isGeneratingFinancial || isGeneratingProfile;
+        isGeneratingFinancial ||
+        isGeneratingProfile;
 
     return Scaffold(
       appBar: AppBar(
@@ -859,11 +1032,16 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // ======================================================
+          // Financial Statement
+          // ======================================================
+
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
                   const Icon(
                     Icons.account_balance_wallet_outlined,
@@ -894,11 +1072,14 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(
+                              child:
+                                  CircularProgressIndicator(
                                 strokeWidth: 2,
                               ),
                             )
-                          : const Icon(Icons.picture_as_pdf),
+                          : const Icon(
+                              Icons.picture_as_pdf,
+                            ),
                       label: Text(
                         isGeneratingFinancial
                             ? 'Generating...'
@@ -913,11 +1094,16 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
 
           const SizedBox(height: 16),
 
+          // ======================================================
+          // Professional CV
+          // ======================================================
+
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
                   const Icon(
                     Icons.person_outline,
@@ -942,16 +1128,20 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: isBusy ? null : generateProfilePdf,
+                      onPressed:
+                          isBusy ? null : generateProfilePdf,
                       icon: isGeneratingProfile
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(
+                              child:
+                                  CircularProgressIndicator(
                                 strokeWidth: 2,
                               ),
                             )
-                          : const Icon(Icons.picture_as_pdf),
+                          : const Icon(
+                              Icons.picture_as_pdf,
+                            ),
                       label: Text(
                         isGeneratingProfile
                             ? 'Generating...'
