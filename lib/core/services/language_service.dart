@@ -4,22 +4,33 @@ import 'package:shared_preferences/shared_preferences.dart';
 class LanguageService {
   LanguageService._();
 
+  static const String _key = 'language';
+
   static final ValueNotifier<String> language =
       ValueNotifier<String>('English');
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    language.value = prefs.getString('language') ?? 'English';
+
+    final saved = prefs.getString(_key);
+
+    language.value =
+        saved == 'Bangla' ? 'Bangla' : 'English';
   }
 
   static Future<void> setLanguage(String value) async {
-    language.value = value;
+    final newLanguage =
+        value == 'Bangla' ? 'Bangla' : 'English';
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('language', value);
+
+    await prefs.setString(_key, newLanguage);
+
+    language.value = newLanguage;
   }
 
-  static bool get isBangla => language.value == 'Bangla';
+  static bool get isBangla =>
+      language.value == 'Bangla';
 
   static String text(
     String english,
