@@ -20,7 +20,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 7,
+      version: 8,
 
       onCreate: (db, version) async {
         await db.execute('''
@@ -121,7 +121,11 @@ class AppDatabase {
             training TEXT,
             experience TEXT,
             achievements TEXT,
-            career_objective TEXT
+            career_objective TEXT,
+            facebook TEXT,
+            linkedin TEXT,
+            github TEXT,
+            website TEXT
           )
         ''');
 
@@ -342,6 +346,13 @@ class AppDatabase {
           await db.execute(
             'ALTER TABLE profiles ADD COLUMN location TEXT',
           );
+        }
+
+        if (oldVersion < 8) {
+          await db.execute('ALTER TABLE profiles ADD COLUMN facebook TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN linkedin TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN github TEXT');
+          await db.execute('ALTER TABLE profiles ADD COLUMN website TEXT');
         }
       },
     );
