@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app.dart';
 import '../../core/services/backup_service.dart';
+import '../../core/services/language_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -27,6 +28,8 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
 
+    if (!mounted) return;
+
     setState(() {
       language = prefs.getString('language') ?? 'English';
       theme = prefs.getString('theme') ?? 'Light';
@@ -47,19 +50,23 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> changeTheme(String value) async {
-    theme = value;
+    setState(() => theme = value);
 
-    if (value == 'Dark') {
-      lifeMateThemeMode.value = ThemeMode.dark;
-    } else if (value == 'System Default') {
-      lifeMateThemeMode.value = ThemeMode.system;
-    } else {
-      lifeMateThemeMode.value = ThemeMode.light;
-    }
+    lifeMateThemeMode.value = value == 'Dark'
+        ? ThemeMode.dark
+        : value == 'System Default'
+            ? ThemeMode.system
+            : ThemeMode.light;
 
     await save('theme', value);
+  }
 
-    setState(() {});
+  Future<void> changeLanguage(String value) async {
+    await LanguageService.setLanguage(value);
+
+    if (!mounted) return;
+
+    setState(() => language = value);
   }
 
   Future<void> backup() async {
@@ -81,14 +88,34 @@ class _SettingsPageState extends State<SettingsPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Backup failed: $e'),
-        ),
+        SnackBar(content: Text('Backup failed: $e')),
       );
     }
   }
 
   Future<void> restore() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Restore Data?'),
+        content: const Text(
+          'Restoring will replace your existing app data. Continue?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
     try {
       final ok = await BackupService.restore();
 
@@ -97,9 +124,7 @@ class _SettingsPageState extends State<SettingsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            ok
-                ? 'Restore completed successfully'
-                : 'Restore cancelled',
+            ok ? 'Restore completed successfully' : 'Restore cancelled',
           ),
         ),
       );
@@ -107,9 +132,7 @@ class _SettingsPageState extends State<SettingsPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Restore failed: $e'),
-        ),
+        SnackBar(content: Text('Restore failed: $e')),
       );
     }
   }
@@ -118,9 +141,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     if (loading) {
       return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -133,40 +154,27 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           const Text(
             'Appearance',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-
           const SizedBox(height: 10),
 
           Card(
             child: ListTile(
               leading: const Icon(Icons.palette_outlined),
               title: const Text('Theme'),
-              subtitle: Text(theme),
               trailing: DropdownButton<String>(
                 value: theme,
                 underline: const SizedBox(),
                 items: const [
-                  DropdownMenuItem(
-                    value: 'Light',
-                    child: Text('Light'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'Dark',
-                    child: Text('Dark'),
-                  ),
+                  DropdownMenuItem(value: 'Light', child: Text('Light')),
+                  DropdownMenuItem(value: 'Dark', child: Text('Dark')),
                   DropdownMenuItem(
                     value: 'System Default',
                     child: Text('System Default'),
                   ),
                 ],
                 onChanged: (value) {
-                  if (value != null) {
-                    changeTheme(value);
-                  }
+                  if (value != null) changeTheme(value);
                 },
               ),
             ),
@@ -176,12 +184,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
           const Text(
             'Language',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-
           const SizedBox(height: 10),
 
           Card(
@@ -201,14 +205,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Text('বাংলা'),
                   ),
                 ],
-                onChanged: (value) async {
-                  if (value == null) return;
-
-                  setState(() {
-                    language = value;
-                  });
-
-                  await save('language', value);
+                onChanged: (value) {
+                  if (value != null) changeLanguage(value);
                 },
               ),
             ),
@@ -218,12 +216,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
           const Text(
             'Currency',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-
           const SizedBox(height: 10),
 
           Card(
@@ -246,10 +240,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 onChanged: (value) async {
                   if (value == null) return;
 
-                  setState(() {
-                    currency = value;
-                  });
-
+                  setState(() => currency = value);
                   await save('currency', value);
                 },
               ),
@@ -265,10 +256,7 @@ class _SettingsPageState extends State<SettingsPage> {
               subtitle: const Text('Enable app notifications'),
               value: notifications,
               onChanged: (value) async {
-                setState(() {
-                  notifications = value;
-                });
-
+                setState(() => notifications = value);
                 await save('notifications', value);
               },
             ),
@@ -278,21 +266,15 @@ class _SettingsPageState extends State<SettingsPage> {
 
           const Text(
             'Backup & Restore',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-
           const SizedBox(height: 10),
 
           Card(
             child: ListTile(
               leading: const Icon(Icons.backup_outlined),
               title: const Text('Backup Data'),
-              subtitle: const Text(
-                'Save LifeMate data to a backup file',
-              ),
+              subtitle: const Text('Save LifeMate data to a file'),
               trailing: const Icon(Icons.chevron_right),
               onTap: backup,
             ),
@@ -302,9 +284,7 @@ class _SettingsPageState extends State<SettingsPage> {
             child: ListTile(
               leading: const Icon(Icons.restore_outlined),
               title: const Text('Restore Data'),
-              subtitle: const Text(
-                'Restore LifeMate data from backup',
-              ),
+              subtitle: const Text('Restore data from a backup file'),
               trailing: const Icon(Icons.chevron_right),
               onTap: restore,
             ),
