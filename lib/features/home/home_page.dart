@@ -1,3 +1,4 @@
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -55,20 +56,24 @@ class _HomePageState extends State<HomePage> {
 
   String currency = 'BDT (৳)';
 
+  static const List<String> supportedCurrencies = [
+    'BDT (৳)',
+    'USD (\$)',
+    'INR (₹)',
+    'SAR (﷼)',
+    'AED (د.إ)',
+  ];
+
   String get currencySymbol {
     switch (currency) {
       case 'USD (\$)':
         return '\$';
-
       case 'INR (₹)':
         return '₹';
-
       case 'SAR (﷼)':
         return '﷼';
-
       case 'AED (د.إ)':
         return 'د.إ';
-
       default:
         return '৳';
     }
@@ -104,24 +109,22 @@ class _HomePageState extends State<HomePage> {
   Future<void> load() async {
     final db = await AppDatabase.database;
 
-    // Load selected currency from Settings.
+    // Load selected currency FIRST.
     final prefs = await SharedPreferences.getInstance();
 
     final savedCurrency =
         prefs.getString('currency') ?? 'BDT (৳)';
 
-    const supportedCurrencies = [
-      'BDT (৳)',
-      'USD (\$)',
-      'INR (₹)',
-      'SAR (﷼)',
-      'AED (د.إ)',
-    ];
-
     final selectedCurrency =
         supportedCurrencies.contains(savedCurrency)
             ? savedCurrency
             : 'BDT (৳)';
+
+    if (!mounted) return;
+
+    setState(() {
+      currency = selectedCurrency;
+    });
 
     await NotificationService.generateAlerts();
 
@@ -252,19 +255,25 @@ class _HomePageState extends State<HomePage> {
     }
 
     for (final x in ins.take(3)) {
+      final amount =
+          (x['amount'] as num?)?.toDouble() ?? 0;
+
       activities.add({
         'i': Icons.arrow_downward,
         't': x['description'] ?? 'Income',
-        's': '+ $currencySymbol${x['amount']}',
+        's': '+ ${formatMoney(amount)}',
         'date': x['created_at'] ?? '',
       });
     }
 
     for (final x in exs.take(3)) {
+      final amount =
+          (x['amount'] as num?)?.toDouble() ?? 0;
+
       activities.add({
         'i': Icons.arrow_upward,
         't': x['description'] ?? 'Expense',
-        's': '- $currencySymbol${x['amount']}',
+        's': '- ${formatMoney(amount)}',
         'date': x['created_at'] ?? '',
       });
     }
@@ -462,9 +471,10 @@ class _HomePageState extends State<HomePage> {
         }
 
         if (row['amount'] != null) {
-          details.add(
-            '$currencySymbol ${row['amount']}',
-          );
+          final amount =
+              (row['amount'] as num?)?.toDouble() ?? 0;
+
+          details.add(formatMoney(amount));
         }
 
         if (row['date'] != null) {
@@ -510,15 +520,12 @@ class _HomePageState extends State<HomePage> {
                       case 'To-Do':
                         icon = Icons.task_alt;
                         break;
-
                       case 'Note':
                         icon = Icons.note_alt;
                         break;
-
                       case 'Income':
                         icon = Icons.arrow_downward;
                         break;
-
                       case 'Expense':
                         icon = Icons.arrow_upward;
                         break;
@@ -875,12 +882,9 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final balance = income - expense;
-
     final netReceivable = receivable - payable;
 
-    final primary =
-        Theme.of(context).colorScheme.primary;
-
+    final primary = Theme.of(context).colorScheme.primary;
     final isArabic = LanguageService.isArabic;
 
     return Directionality(
@@ -988,10 +992,6 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
 
-        // ======================================================
-        // BODY
-        // ======================================================
-
         body: RefreshIndicator(
           onRefresh: load,
           child: ListView(
@@ -1002,9 +1002,7 @@ class _HomePageState extends State<HomePage> {
               15,
             ),
             children: [
-              // ==================================================
               // WELCOME CARD
-              // ==================================================
 
               Container(
                 padding: const EdgeInsets.all(16),
@@ -1078,8 +1076,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                     IconButton(
-                      onPressed: () =>
-                          go(const ProfilePage()),
+                      onPressed: () => go(const ProfilePage()),
                       icon: const Icon(
                         Icons.edit_outlined,
                         color: Colors.white,
@@ -1091,9 +1088,7 @@ class _HomePageState extends State<HomePage> {
 
               const SizedBox(height: 14),
 
-              // ==================================================
               // SEARCH
-              // ==================================================
 
               InkWell(
                 onTap: search,
@@ -1143,9 +1138,7 @@ class _HomePageState extends State<HomePage> {
 
               const SizedBox(height: 14),
 
-              // ==================================================
               // QUICK ACCESS
-              // ==================================================
 
               Text(
                 tr(
@@ -1165,35 +1158,20 @@ class _HomePageState extends State<HomePage> {
               Row(
                 children: [
                   quick(
-                    tr(
-                      'To-Do',
-                      'করণীয়',
-                      'कार्य',
-                      'المهام',
-                    ),
+                    tr('To-Do', 'করণীয়', 'कार्य', 'المهام'),
                     Icons.task_alt,
                     const Color(0xFF3988E8),
                     () => go(const TodoPage()),
                     count: todos,
                   ),
                   quick(
-                    tr(
-                      'Income',
-                      'আয়',
-                      'आय',
-                      'الدخل',
-                    ),
+                    tr('Income', 'আয়', 'आय', 'الدخل'),
                     Icons.trending_up,
                     const Color(0xFF159D70),
                     () => go(const FinancePage()),
                   ),
                   quick(
-                    tr(
-                      'Expense',
-                      'ব্যয়',
-                      'खर्च',
-                      'المصروفات',
-                    ),
+                    tr('Expense', 'ব্যয়', 'खर्च', 'المصروفات'),
                     Icons.trending_down,
                     const Color(0xFFE65363),
                     () => go(const FinancePage()),
@@ -1204,35 +1182,20 @@ class _HomePageState extends State<HomePage> {
               Row(
                 children: [
                   quick(
-                    tr(
-                      'Notes',
-                      'নোট',
-                      'नोट्स',
-                      'الملاحظات',
-                    ),
+                    tr('Notes', 'নোট', 'नोट्स', 'الملاحظات'),
                     Icons.note_alt_outlined,
                     const Color(0xFF19A77A),
                     () => go(const NotesPage()),
                     count: notes,
                   ),
                   quick(
-                    tr(
-                      'Events',
-                      'অনুষ্ঠান',
-                      'कार्यक्रम',
-                      'الأحداث',
-                    ),
+                    tr('Events', 'অনুষ্ঠান', 'कार्यक्रम', 'الأحداث'),
                     Icons.event_available,
                     const Color(0xFF9562D5),
                     () => go(const EventsPage()),
                   ),
                   quick(
-                    tr(
-                      'Alerts',
-                      'সতর্কতা',
-                      'अलर्ट',
-                      'التنبيهات',
-                    ),
+                    tr('Alerts', 'সতর্কতা', 'अलर्ट', 'التنبيهات'),
                     Icons.notifications_active_outlined,
                     const Color(0xFFEA9635),
                     openNotifications,
@@ -1243,9 +1206,7 @@ class _HomePageState extends State<HomePage> {
 
               const SizedBox(height: 12),
 
-              // ==================================================
               // FINANCIAL OVERVIEW
-              // ==================================================
 
               sectionCard(
                 child: Column(
@@ -1272,8 +1233,7 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                         TextButton(
-                          onPressed: () =>
-                              go(const FinancePage()),
+                          onPressed: () => go(const FinancePage()),
                           child: Text(
                             tr(
                               'Details',
@@ -1288,23 +1248,13 @@ class _HomePageState extends State<HomePage> {
                     Row(
                       children: [
                         money(
-                          tr(
-                            'Income',
-                            'আয়',
-                            'आय',
-                            'الدخل',
-                          ),
+                          tr('Income', 'আয়', 'आय', 'الدخل'),
                           income,
                           const Color(0xFF159D70),
                           Icons.arrow_downward,
                         ),
                         money(
-                          tr(
-                            'Expense',
-                            'ব্যয়',
-                            'खर्च',
-                            'المصروفات',
-                          ),
+                          tr('Expense', 'ব্যয়', 'खर्च', 'المصروفات'),
                           expense,
                           const Color(0xFFE65363),
                           Icons.arrow_upward,
@@ -1326,9 +1276,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
 
-              // ==================================================
               // RECEIVABLE AND PAYABLE
-              // ==================================================
 
               sectionCard(
                 child: Column(
@@ -1390,8 +1338,7 @@ class _HomePageState extends State<HomePage> {
                       margin: const EdgeInsets.only(top: 7),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF3988E8)
-                            .withOpacity(.09),
+                        color: const Color(0xFF3988E8).withOpacity(.09),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -1430,9 +1377,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
 
-              // ==================================================
               // BUDGET
-              // ==================================================
 
               sectionCard(
                 child: InkWell(
@@ -1443,8 +1388,7 @@ class _HomePageState extends State<HomePage> {
                         height: 43,
                         width: 43,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFA726)
-                              .withOpacity(.15),
+                          color: const Color(0xFFFFA726).withOpacity(.15),
                           borderRadius: BorderRadius.circular(13),
                         ),
                         child: const Icon(
@@ -1455,8 +1399,7 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(width: 11),
                       Expanded(
                         child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               tr(
@@ -1494,9 +1437,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
 
-              // ==================================================
               // RECENT ACTIVITY
-              // ==================================================
 
               sectionCard(
                 child: Column(
@@ -1545,9 +1486,7 @@ class _HomePageState extends State<HomePage> {
                             'कोई हाल की गतिविधि नहीं',
                             'لا يوجد نشاط حديث',
                           ),
-                          style: const TextStyle(
-                            color: Colors.grey,
-                          ),
+                          style: const TextStyle(color: Colors.grey),
                         ),
                       ),
                     ...recent.map(
@@ -1556,8 +1495,7 @@ class _HomePageState extends State<HomePage> {
                         contentPadding: EdgeInsets.zero,
                         leading: CircleAvatar(
                           radius: 17,
-                          backgroundColor:
-                              primary.withOpacity(.10),
+                          backgroundColor: primary.withOpacity(.10),
                           child: Icon(
                             x['i'] as IconData,
                             size: 17,
@@ -1568,15 +1506,11 @@ class _HomePageState extends State<HomePage> {
                           '${x['t']}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 13,
-                          ),
+                          style: const TextStyle(fontSize: 13),
                         ),
                         subtitle: Text(
                           '${x['s']}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                          ),
+                          style: const TextStyle(fontSize: 11),
                         ),
                       ),
                     ),
@@ -1584,17 +1518,13 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
 
-              // ==================================================
               // ALERTS AND REMINDERS
-              // ==================================================
 
               if (todos > 0 || unreadNotifications > 0)
                 sectionCard(
-                  color: const Color(0xFFFFA726)
-                      .withOpacity(.08),
+                  color: const Color(0xFFFFA726).withOpacity(.08),
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
@@ -1633,9 +1563,7 @@ class _HomePageState extends State<HomePage> {
                               '$todos مهام معلقة',
                             ),
                           ),
-                          trailing: const Icon(
-                            Icons.chevron_right,
-                          ),
+                          trailing: const Icon(Icons.chevron_right),
                           onTap: () => go(const TodoPage()),
                         ),
                       if (unreadNotifications > 0)
@@ -1654,9 +1582,7 @@ class _HomePageState extends State<HomePage> {
                               '$unreadNotifications إشعارات غير مقروءة',
                             ),
                           ),
-                          trailing: const Icon(
-                            Icons.chevron_right,
-                          ),
+                          trailing: const Icon(Icons.chevron_right),
                           onTap: openNotifications,
                         ),
                     ],
