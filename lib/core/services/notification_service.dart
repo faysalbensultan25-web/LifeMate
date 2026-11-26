@@ -1,3 +1,4 @@
+
 import '../database/app_database.dart';
 
 class NotificationService {
@@ -9,6 +10,7 @@ class NotificationService {
     await _todoAlerts(db);
     await _eventAlerts(db);
     await _budgetAlerts(db);
+    await _moneyRecordAlerts(db);
   }
 
   static Future<void> _todoAlerts(dynamic db) async {
@@ -31,11 +33,7 @@ class NotificationService {
 
   static Future<void> _eventAlerts(dynamic db) async {
     final now = DateTime.now();
-    final today = DateTime(
-      now.year,
-      now.month,
-      now.day,
-    );
+    final today = DateTime(now.year, now.month, now.day);
 
     final events = await db.query(
       'events',
@@ -46,15 +44,11 @@ class NotificationService {
 
     for (final event in events) {
       final value = event['event_date']?.toString();
-
       if (value == null) continue;
 
       try {
         final date = DateTime.parse(value);
-
-        if (!date.isBefore(today)) {
-          upcoming++;
-        }
+        if (!date.isBefore(today)) upcoming++;
       } catch (_) {}
     }
 
@@ -73,8 +67,7 @@ class NotificationService {
 
     for (final budget in budgets) {
       final type =
-          budget['type']?.toString().toLowerCase() ??
-              'expense';
+          budget['type']?.toString().toLowerCase() ?? 'expense';
 
       if (type != 'expense') continue;
 
@@ -85,11 +78,8 @@ class NotificationService {
 
       if (amount <= 0) continue;
 
-      final startDate =
-          budget['start_date']?.toString();
-
-      final endDate =
-          budget['end_date']?.toString();
+      final startDate = budget['start_date']?.toString();
+      final endDate = budget['end_date']?.toString();
 
       DateTime? start;
       DateTime? end;
@@ -99,8 +89,7 @@ class NotificationService {
           start = DateTime.parse(startDate);
         }
 
-        if (endDate != null &&
-            endDate.isNotEmpty) {
+        if (endDate != null && endDate.isNotEmpty) {
           end = DateTime.parse(endDate);
         }
       } catch (_) {
@@ -109,15 +98,8 @@ class NotificationService {
 
       final now = DateTime.now();
 
-      if (start != null &&
-          now.isBefore(start)) {
-        continue;
-      }
-
-      if (end != null &&
-          now.isAfter(end)) {
-        continue;
-      }
+      if (start != null && now.isBefore(start)) continue;
+      if (end != null && now.isAfter(end)) continue;
 
       final expenses = await db.query(
         'expenses',
@@ -127,19 +109,14 @@ class NotificationService {
       double totalExpense = 0;
 
       for (final expense in expenses) {
-        totalExpense +=
-            double.tryParse(
-                  expense['amount']
-                          ?.toString() ??
-                      '',
-                ) ??
-                0;
+        totalExpense += double.tryParse(
+              expense['amount']?.toString() ?? '',
+            ) ??
+            0;
       }
 
       if (totalExpense >= amount) {
-        final title =
-            budget['title']?.toString() ??
-                'Budget';
+        final title = budget['title']?.toString() ?? 'Budget';
 
         await _addIfMissing(
           db,
@@ -148,6 +125,92 @@ class NotificationService {
           'budget_${budget['id']}_$amount',
         );
       }
+    }
+  }
+
+  // Receivable and Payable reminders
+  static Future<void> _moneyRecordAlerts(dynamic db) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final reminderLimit = today.add(const Duration(days: 3));
+
+    final records = await db.query('money_records');
+
+    for (final record in records) {
+      final expectedDate = record['expected_date']?.toString();
+
+      if (expectedDate == null || expectedDate.isEmpty) {
+        continue;
+      }
+
+      DateTime dueDate;
+
+      try {
+        final parsed = DateTime.parse(expectedDate);
+        dueDate = DateTime(parsed.year, parsed.month, parsed.day);
+      } catch (_) {
+        continue;
+      }
+
+      // Remind 3 days before and continue after due date.
+      if (dueDate.isAfter(reminderLimit)) continue;
+
+      final recordId = record['id'];
+      final totalAmount = double.tryParse(
+            record['amount']?.toString() ?? '',
+          ) ??
+          0;
+
+      final payments = await db.query(
+        'money_payments',
+        columns: ['amount'],
+        where: 'record_id = ?',
+        whereArgs: [recordId],
+      );
+
+      double paidAmount = 0;
+
+      for (final payment in payments) {
+        paidAmount += double.tryParse(
+              payment['amount']?.toString() ?? '',
+            ) ??
+            0;
+      }
+
+      final remaining = totalAmount - paidAmount;
+
+      if (remaining <= 0) continue;
+
+      final type = record['type']?.toString() ?? 'receivable';
+      final person = record['person_name']?.toString() ?? 'Unknown';
+
+      final isReceivable = type == 'receivable';
+
+      final title = isReceivable
+          ? 'Receivable Reminder'
+          : 'Payable Reminder';
+
+      final formattedDate =
+          '${dueDate.day}/${dueDate.month}/${dueDate.year}';
+
+      final status = dueDate.isBefore(today)
+          ? 'Overdue'
+          : dueDate.isAtSameMomentAs(today)
+              ? 'Due today'
+              : 'Due soon';
+
+      final message =
+          '$status: ${isReceivable ? 'Collect' : 'Pay'} '
+          'Tk ${remaining.toStringAsFixed(2)} '
+          '${isReceivable ? 'from' : 'to'} $person. '
+          'Due date: $formattedDate.';
+
+      await _addIfMissing(
+        db,
+        title,
+        message,
+        'money_${recordId}_${remaining}_$formattedDate',
+      );
     }
   }
 
@@ -171,8 +234,7 @@ class NotificationService {
       {
         'title': title,
         'message': message,
-        'created_at':
-            DateTime.now().toIso8601String(),
+        'created_at': DateTime.now().toIso8601String(),
         'is_read': 0,
       },
     );
