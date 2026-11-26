@@ -1,3 +1,4 @@
+
 name: lifemate
 description: A personal life management application.
 publish_to: 'none'
@@ -32,3 +33,20 @@ flutter:
 
   assets:
     - assets/
+
+  fonts:
+    - family: NotoSans
+      fonts:
+        - asset: assets/fonts/NotoSans-Regular.ttf
+
+    - family: NotoSansBengali
+      fonts:
+        - asset: assets/fonts/NotoSansBengali-Regular.ttf
+
+    - family: NotoSansDevanagari
+      fonts:
+        - asset: assets/fonts/NotoSansDevanagari-Regular.ttf
+
+    - family: NotoSansArabic
+      fonts:
+        - asset: assets/fonts/NotoSansArabic-Regular.ttf
