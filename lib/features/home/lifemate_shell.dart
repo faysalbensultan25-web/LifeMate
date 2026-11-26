@@ -34,28 +34,57 @@ class _LifeMateShellState extends State<LifeMateShell> {
 
   int selectedIndex = 0;
 
+  Widget getPage(int index) {
+    switch (index) {
+      case 0:
+        return HomePage(
+          language: widget.language,
+          onLanguageChanged: widget.onLanguageChanged,
+        );
+      case 1:
+        return const TodoPage();
+      case 2:
+      case 3:
+        return const FinancePage();
+      case 4:
+        return const NotesPage();
+      default:
+        return HomePage(
+          language: widget.language,
+          onLanguageChanged: widget.onLanguageChanged,
+        );
+    }
+  }
+
   void navigate(int index) {
     if (index == 5) {
       showMore();
       return;
     }
 
-    final pages = <Widget>[
-      HomePage(
-        language: widget.language,
-        onLanguageChanged: widget.onLanguageChanged,
-      ),
-      const TodoPage(),
-      const FinancePage(),
-      const FinancePage(),
-      const NotesPage(),
-    ];
+    if (index < 0 || index > 4) return;
 
-    setState(() => selectedIndex = index);
+    if (index == 0) {
+      navigatorKey.currentState?.popUntil(
+        (route) => route.isFirst,
+      );
+
+      setState(() {
+        selectedIndex = 0;
+      });
+
+      return;
+    }
+
+    setState(() {
+      selectedIndex = index;
+    });
 
     navigatorKey.currentState?.pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => pages[index]),
-      (route) => false,
+      MaterialPageRoute(
+        builder: (_) => getPage(index),
+      ),
+      (route) => route.isFirst,
     );
   }
 
@@ -67,26 +96,57 @@ class _LifeMateShellState extends State<LifeMateShell> {
         child: Wrap(
           children: [
             moreItem(Icons.event, 'Events', const EventsPage()),
-            moreItem(Icons.bar_chart, 'Statistics', const StatisticsPage()),
-            moreItem(Icons.savings, 'Budget', const BudgetPage()),
-            moreItem(Icons.picture_as_pdf, 'PDF Reports', const PdfReportsPage()),
-            moreItem(Icons.person, 'Profile', const ProfilePage()),
-            moreItem(Icons.settings, 'Settings', const SettingsPage()),
-            moreItem(Icons.notifications, 'Notifications', const NotificationsPage()),
+            moreItem(
+              Icons.bar_chart,
+              'Statistics',
+              const StatisticsPage(),
+            ),
+            moreItem(
+              Icons.savings,
+              'Budget',
+              const BudgetPage(),
+            ),
+            moreItem(
+              Icons.picture_as_pdf,
+              'PDF Reports',
+              const PdfReportsPage(),
+            ),
+            moreItem(
+              Icons.person,
+              'Profile',
+              const ProfilePage(),
+            ),
+            moreItem(
+              Icons.settings,
+              'Settings',
+              const SettingsPage(),
+            ),
+            moreItem(
+              Icons.notifications,
+              'Notifications',
+              const NotificationsPage(),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget moreItem(IconData icon, String title, Widget page) {
+  Widget moreItem(
+    IconData icon,
+    String title,
+    Widget page,
+  ) {
     return ListTile(
       leading: Icon(icon),
       title: Text(title),
       onTap: () {
         Navigator.pop(context);
+
         navigatorKey.currentState?.push(
-          MaterialPageRoute(builder: (_) => page),
+          MaterialPageRoute(
+            builder: (_) => page,
+          ),
         );
       },
     );
@@ -98,10 +158,7 @@ class _LifeMateShellState extends State<LifeMateShell> {
       body: Navigator(
         key: navigatorKey,
         onGenerateRoute: (_) => MaterialPageRoute(
-          builder: (_) => HomePage(
-            language: widget.language,
-            onLanguageChanged: widget.onLanguageChanged,
-          ),
+          builder: (_) => getPage(0),
         ),
       ),
       bottomNavigationBar: LifeMateBottomNav(
