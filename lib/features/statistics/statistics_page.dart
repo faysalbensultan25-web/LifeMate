@@ -1,8 +1,11 @@
 
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/database/app_database.dart';
+import '../../core/services/language_service.dart';
 
 class StatisticsPage extends StatefulWidget {
   const StatisticsPage({super.key});
@@ -20,6 +23,10 @@ class _StatisticsPageState extends State<StatisticsPage> {
   double highestExpense = 0;
   double savingsRate = 0;
 
+  double totalReceivable = 0;
+  double totalPayable = 0;
+  double netReceivable = 0;
+
   String highestIncomeDescription = '';
   String highestExpenseDescription = '';
 
@@ -27,111 +34,29 @@ class _StatisticsPageState extends State<StatisticsPage> {
   List<Map<String, dynamic>> expenses = [];
   List<Map<String, dynamic>> categories = [];
   List<Map<String, dynamic>> budgets = [];
+  List<Map<String, dynamic>> moneyRecords = [];
+  List<Map<String, dynamic>> moneyPayments = [];
 
   List<Map<String, dynamic>> monthlyData = [];
   List<Map<String, dynamic>> weeklyData = [];
   List<Map<String, dynamic>> yearlyData = [];
   List<Map<String, dynamic>> categoryData = [];
 
+  bool get isArabic => LanguageService.isArabic;
+
+  String tr(String en, String bn, String hi, String ar) {
+    return LanguageService.text(
+      english: en,
+      bangla: bn,
+      hindi: hi,
+      arabic: ar,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     loadStatistics();
-  }
-
-  Future<void> loadStatistics() async {
-    setState(() => isLoading = true);
-
-    try {
-      final db = await AppDatabase.database;
-
-      final loadedIncomes = await db.query(
-        'incomes',
-        orderBy: 'date DESC',
-      );
-
-      final loadedExpenses = await db.query(
-        'expenses',
-        orderBy: 'date DESC',
-      );
-
-      final loadedCategories = await db.query(
-        'categories',
-        orderBy: 'name ASC',
-      );
-
-      final loadedBudgets = await db.query(
-        'budgets',
-        orderBy: 'start_date DESC',
-      );
-
-      double incomeTotal = 0;
-      double expenseTotal = 0;
-      double maxIncome = 0;
-      double maxExpense = 0;
-
-      String maxIncomeDesc = '';
-      String maxExpenseDesc = '';
-
-      for (final item in loadedIncomes) {
-        final amount = toDouble(item['amount']);
-        incomeTotal += amount;
-
-        if (amount > maxIncome) {
-          maxIncome = amount;
-          maxIncomeDesc = item['description']?.toString() ?? '';
-        }
-      }
-
-      for (final item in loadedExpenses) {
-        final amount = toDouble(item['amount']);
-        expenseTotal += amount;
-
-        if (amount > maxExpense) {
-          maxExpense = amount;
-          maxExpenseDesc = item['description']?.toString() ?? '';
-        }
-      }
-
-      final rate = incomeTotal > 0
-          ? ((incomeTotal - expenseTotal) / incomeTotal) * 100
-          : 0.0;
-
-      if (!mounted) return;
-
-      setState(() {
-        incomes = loadedIncomes;
-        expenses = loadedExpenses;
-        categories = loadedCategories;
-        budgets = loadedBudgets;
-
-        totalIncome = incomeTotal;
-        totalExpense = expenseTotal;
-
-        highestIncome = maxIncome;
-        highestExpense = maxExpense;
-
-        highestIncomeDescription = maxIncomeDesc;
-        highestExpenseDescription = maxExpenseDesc;
-
-        savingsRate = rate;
-
-        monthlyData = buildMonthlyData();
-        weeklyData = buildWeeklyData();
-        yearlyData = buildYearlyData();
-        categoryData = buildCategoryData();
-
-        isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() => isLoading = false);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Statistics loading failed: $e')),
-      );
-    }
   }
 
   double toDouble(dynamic value) {
@@ -156,6 +81,147 @@ class _StatisticsPageState extends State<StatisticsPage> {
     final d = dateOnly(date);
     return !d.isBefore(dateOnly(start)) &&
         !d.isAfter(dateOnly(end));
+  }
+
+  Future<void> loadStatistics() async {
+    if (mounted) setState(() => isLoading = true);
+
+    try {
+      final db = await AppDatabase.database;
+
+      final loadedIncomes = await db.query(
+        'incomes',
+        orderBy: 'date DESC',
+      );
+
+      final loadedExpenses = await db.query(
+        'expenses',
+        orderBy: 'date DESC',
+      );
+
+      final loadedCategories = await db.query(
+        'categories',
+        orderBy: 'name ASC',
+      );
+
+      final loadedBudgets = await db.query(
+        'budgets',
+        orderBy: 'start_date DESC',
+      );
+
+      final loadedMoneyRecords =
+          await db.query('money_records');
+
+      final loadedMoneyPayments =
+          await db.query('money_payments');
+
+      double incomeTotal = 0;
+      double expenseTotal = 0;
+      double maxIncome = 0;
+      double maxExpense = 0;
+
+      String maxIncomeDesc = '';
+      String maxExpenseDesc = '';
+
+      for (final item in loadedIncomes) {
+        final amount = toDouble(item['amount']);
+        incomeTotal += amount;
+
+        if (amount > maxIncome) {
+          maxIncome = amount;
+          maxIncomeDesc =
+              item['description']?.toString() ?? '';
+        }
+      }
+
+      for (final item in loadedExpenses) {
+        final amount = toDouble(item['amount']);
+        expenseTotal += amount;
+
+        if (amount > maxExpense) {
+          maxExpense = amount;
+          maxExpenseDesc =
+              item['description']?.toString() ?? '';
+        }
+      }
+
+      double receivable = 0;
+      double payable = 0;
+
+      for (final record in loadedMoneyRecords) {
+        final id = record['id'];
+
+        final paid = loadedMoneyPayments
+            .where(
+              (p) =>
+                  p['record_id'].toString() == id.toString(),
+            )
+            .fold<double>(
+              0,
+              (sum, p) => sum + toDouble(p['amount']),
+            );
+
+        final remaining =
+            toDouble(record['amount']) - paid;
+
+        if (remaining <= 0) continue;
+
+        if (record['type'] == 'receivable') {
+          receivable += remaining;
+        } else if (record['type'] == 'payable') {
+          payable += remaining;
+        }
+      }
+
+      final rate = incomeTotal > 0
+          ? ((incomeTotal - expenseTotal) / incomeTotal) * 100
+          : 0.0;
+
+      if (!mounted) return;
+
+      setState(() {
+        incomes = loadedIncomes;
+        expenses = loadedExpenses;
+        categories = loadedCategories;
+        budgets = loadedBudgets;
+        moneyRecords = loadedMoneyRecords;
+        moneyPayments = loadedMoneyPayments;
+
+        totalIncome = incomeTotal;
+        totalExpense = expenseTotal;
+
+        highestIncome = maxIncome;
+        highestExpense = maxExpense;
+
+        highestIncomeDescription = maxIncomeDesc;
+        highestExpenseDescription = maxExpenseDesc;
+
+        totalReceivable = receivable;
+        totalPayable = payable;
+        netReceivable = receivable - payable;
+
+        savingsRate = rate;
+
+        monthlyData = buildMonthlyData();
+        weeklyData = buildWeeklyData();
+        yearlyData = buildYearlyData();
+        categoryData = buildCategoryData();
+
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() => isLoading = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${tr('Statistics loading failed', 'পরিসংখ্যান লোড হয়নি', 'आंकड़े लोड नहीं हुए', 'فشل تحميل الإحصائيات')}: $e',
+          ),
+        ),
+      );
+    }
   }
 
   List<Map<String, dynamic>> buildMonthlyData() {
@@ -232,7 +298,9 @@ class _StatisticsPageState extends State<StatisticsPage> {
     final currentYear = DateTime.now().year;
     final result = <Map<String, dynamic>>[];
 
-    for (int year = currentYear - 4; year <= currentYear; year++) {
+    for (int year = currentYear - 4;
+        year <= currentYear;
+        year++) {
       double income = 0;
       double expense = 0;
 
@@ -267,13 +335,16 @@ class _StatisticsPageState extends State<StatisticsPage> {
       final id = item['category_id']?.toString();
       if (id == null) continue;
 
-      totals[id] = (totals[id] ?? 0) + toDouble(item['amount']);
+      totals[id] =
+          (totals[id] ?? 0) + toDouble(item['amount']);
     }
 
     final result = <Map<String, dynamic>>[];
 
     for (final category in categories) {
-      if (category['type']?.toString() != 'expense') continue;
+      if (category['type']?.toString() != 'expense') {
+        continue;
+      }
 
       final id = category['id'].toString();
       final amount = totals[id] ?? 0;
@@ -287,19 +358,22 @@ class _StatisticsPageState extends State<StatisticsPage> {
     }
 
     result.sort(
-      (a, b) => (b['amount'] as double).compareTo(a['amount'] as double),
+      (a, b) => (b['amount'] as double)
+          .compareTo(a['amount'] as double),
     );
 
     return result;
   }
 
-  String money(double amount) => '৳${amount.toStringAsFixed(2)}';
+  String money(double amount) =>
+      '৳${amount.toStringAsFixed(2)}';
 
   String monthName(int month) {
     const months = [
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
+
     return months[month - 1];
   }
 
@@ -319,7 +393,10 @@ class _StatisticsPageState extends State<StatisticsPage> {
             const SizedBox(height: 10),
             Text(
               title,
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 5),
             FittedBox(
@@ -338,11 +415,21 @@ class _StatisticsPageState extends State<StatisticsPage> {
     );
   }
 
-  Widget amountItem(String title, double amount, Color color) {
+  Widget amountItem(
+    String title,
+    double amount,
+    Color color,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 11,
+            color: Colors.grey,
+          ),
+        ),
         const SizedBox(height: 4),
         FittedBox(
           child: Text(
@@ -374,20 +461,38 @@ class _StatisticsPageState extends State<StatisticsPage> {
           children: [
             Text(
               title,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             Text(
               subtitle,
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(child: amountItem('Income', income, Colors.green)),
-                Expanded(child: amountItem('Expense', expense, Colors.red)),
                 Expanded(
                   child: amountItem(
-                    'Balance',
+                    tr('Income', 'আয়', 'आय', 'الدخل'),
+                    income,
+                    Colors.green,
+                  ),
+                ),
+                Expanded(
+                  child: amountItem(
+                    tr('Expense', 'ব্যয়', 'व्यय', 'المصروفات'),
+                    expense,
+                    Colors.red,
+                  ),
+                ),
+                Expanded(
+                  child: amountItem(
+                    tr('Balance', 'ব্যালেন্স', 'शेष', 'الرصيد'),
                     balance,
                     balance >= 0 ? Colors.blue : Colors.red,
                   ),
@@ -406,7 +511,10 @@ class _StatisticsPageState extends State<StatisticsPage> {
         Container(
           width: 10,
           height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
         ),
         const SizedBox(width: 6),
         Text(title),
@@ -414,8 +522,30 @@ class _StatisticsPageState extends State<StatisticsPage> {
     );
   }
 
+  Widget _chartBar(
+    double amount,
+    double maxAmount,
+    Color color,
+    double width,
+    double maxHeight,
+  ) {
+    final height = amount <= 0
+        ? 2.0
+        : (amount / maxAmount) * maxHeight;
+
+    return Container(
+      width: width,
+      height: height.clamp(2.0, maxHeight),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(4),
+      ),
+    );
+  }
+
   Widget monthlyChart() {
     final currentMonth = DateTime.now().month;
+
     final data = monthlyData
         .where((item) => (item['month'] as int) <= currentMonth)
         .toList();
@@ -436,18 +566,35 @@ class _StatisticsPageState extends State<StatisticsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Monthly Income vs Expense',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            Text(
+              tr(
+                'Monthly Income vs Expense',
+                'মাসিক আয় ও ব্যয়',
+                'मासिक आय और व्यय',
+                'الدخل والمصروفات الشهرية',
+              ),
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 8),
-            const Text('Current year', style: TextStyle(color: Colors.grey)),
+            Text(
+              tr('Current year', 'চলতি বছর', 'वर्तमान वर्ष', 'السنة الحالية'),
+              style: const TextStyle(color: Colors.grey),
+            ),
             const SizedBox(height: 14),
             Row(
               children: [
-                legend(Colors.green, 'Income'),
+                legend(
+                  Colors.green,
+                  tr('Income', 'আয়', 'आय', 'الدخل'),
+                ),
                 const SizedBox(width: 20),
-                legend(Colors.red, 'Expense'),
+                legend(
+                  Colors.red,
+                  tr('Expense', 'ব্যয়', 'व्यय', 'المصروفات'),
+                ),
               ],
             ),
             const SizedBox(height: 15),
@@ -458,8 +605,6 @@ class _StatisticsPageState extends State<StatisticsPage> {
                 itemCount: data.length,
                 itemBuilder: (context, index) {
                   final item = data[index];
-                  final income = toDouble(item['income']);
-                  final expense = toDouble(item['expense']);
 
                   return SizedBox(
                     width: 60,
@@ -469,12 +614,26 @@ class _StatisticsPageState extends State<StatisticsPage> {
                         SizedBox(
                           height: 135,
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisAlignment:
+                                MainAxisAlignment.center,
+                            crossAxisAlignment:
+                                CrossAxisAlignment.end,
                             children: [
-                              _chartBar(income, maxAmount, Colors.green, 13, 125),
+                              _chartBar(
+                                toDouble(item['income']),
+                                maxAmount,
+                                Colors.green,
+                                13,
+                                125,
+                              ),
                               const SizedBox(width: 5),
-                              _chartBar(expense, maxAmount, Colors.red, 13, 125),
+                              _chartBar(
+                                toDouble(item['expense']),
+                                maxAmount,
+                                Colors.red,
+                                13,
+                                125,
+                              ),
                             ],
                           ),
                         ),
@@ -512,9 +671,12 @@ class _StatisticsPageState extends State<StatisticsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Last 7 Days',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            Text(
+              tr('Last 7 Days', 'গত ৭ দিন', 'पिछले 7 दिन', 'آخر 7 أيام'),
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -531,8 +693,10 @@ class _StatisticsPageState extends State<StatisticsPage> {
                         SizedBox(
                           height: 110,
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisAlignment:
+                                MainAxisAlignment.center,
+                            crossAxisAlignment:
+                                CrossAxisAlignment.end,
                             children: [
                               _chartBar(
                                 toDouble(item['income']),
@@ -569,83 +733,28 @@ class _StatisticsPageState extends State<StatisticsPage> {
     );
   }
 
-  Widget _chartBar(
+  Widget _bar(
+    String title,
     double amount,
     double maxAmount,
     Color color,
-    double width,
-    double maxHeight,
   ) {
-    final height = amount <= 0 ? 2.0 : (amount / maxAmount) * maxHeight;
-
-    return Container(
-      width: width,
-      height: height.clamp(2.0, maxHeight),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(4),
-      ),
-    );
-  }
-
-  Widget yearlyChart() {
-    double maxAmount = 1;
-
-    for (final item in yearlyData) {
-      maxAmount = [
-        maxAmount,
-        toDouble(item['income']),
-        toDouble(item['expense']),
-      ].reduce((a, b) => a > b ? a : b);
-    }
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Yearly Income vs Expense',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 18),
-            ...yearlyData.map((item) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item['year'].toString(),
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    _bar('Income', toDouble(item['income']), maxAmount, Colors.green),
-                    const SizedBox(height: 6),
-                    _bar('Expense', toDouble(item['expense']), maxAmount, Colors.red),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _bar(String title, double amount, double maxAmount, Color color) {
     return Row(
       children: [
         SizedBox(
           width: 55,
-          child: Text(title, style: const TextStyle(fontSize: 10)),
+          child: Text(
+            title,
+            style: const TextStyle(fontSize: 10),
+          ),
         ),
         Expanded(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
-              value: maxAmount > 0 ? (amount / maxAmount).clamp(0.0, 1.0) : 0,
+              value: maxAmount > 0
+                  ? (amount / maxAmount).clamp(0.0, 1.0)
+                  : 0,
               minHeight: 9,
               backgroundColor: Colors.grey.shade200,
               color: color,
@@ -669,12 +778,87 @@ class _StatisticsPageState extends State<StatisticsPage> {
     );
   }
 
+  Widget yearlyChart() {
+    double maxAmount = 1;
+
+    for (final item in yearlyData) {
+      maxAmount = [
+        maxAmount,
+        toDouble(item['income']),
+        toDouble(item['expense']),
+      ].reduce((a, b) => a > b ? a : b);
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              tr(
+                'Yearly Income vs Expense',
+                'বার্ষিক আয় ও ব্যয়',
+                'वार्षिक आय और व्यय',
+                'الدخل والمصروفات السنوية',
+              ),
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 18),
+            ...yearlyData.map((item) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item['year'].toString(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _bar(
+                      tr('Income', 'আয়', 'आय', 'الدخل'),
+                      toDouble(item['income']),
+                      maxAmount,
+                      Colors.green,
+                    ),
+                    const SizedBox(height: 6),
+                    _bar(
+                      tr('Expense', 'ব্যয়', 'व्यय', 'المصروفات'),
+                      toDouble(item['expense']),
+                      maxAmount,
+                      Colors.red,
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget categoryBreakdown() {
     if (categoryData.isEmpty) {
-      return const Card(
+      return Card(
         child: Padding(
-          padding: EdgeInsets.all(20),
-          child: Center(child: Text('No expense category data')),
+          padding: const EdgeInsets.all(20),
+          child: Center(
+            child: Text(
+              tr(
+                'No expense category data',
+                'ব্যয়ের কোনো ক্যাটাগরির তথ্য নেই',
+                'व्यय श्रेणी का कोई डेटा नहीं',
+                'لا توجد بيانات لفئات المصروفات',
+              ),
+            ),
+          ),
         ),
       );
     }
@@ -687,13 +871,22 @@ class _StatisticsPageState extends State<StatisticsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Expense by Category',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            Text(
+              tr(
+                'Expense by Category',
+                'ক্যাটাগরি অনুযায়ী ব্যয়',
+                'श्रेणी के अनुसार व्यय',
+                'المصروفات حسب الفئة',
+              ),
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 16),
             ...categoryData.map((item) {
               final amount = toDouble(item['amount']);
+
               final percentage = totalExpense > 0
                   ? (amount / totalExpense) * 100
                   : 0.0;
@@ -705,12 +898,16 @@ class _StatisticsPageState extends State<StatisticsPage> {
                   children: [
                     Row(
                       children: [
-                        Expanded(child: Text(item['name'].toString())),
+                        Expanded(
+                          child: Text(item['name'].toString()),
+                        ),
                         Text('${percentage.toStringAsFixed(1)}%'),
                         const SizedBox(width: 8),
                         Text(
                           money(amount),
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),
@@ -718,7 +915,9 @@ class _StatisticsPageState extends State<StatisticsPage> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
                       child: LinearProgressIndicator(
-                        value: maxAmount > 0 ? amount / maxAmount : 0,
+                        value: maxAmount > 0
+                            ? amount / maxAmount
+                            : 0,
                         minHeight: 9,
                         backgroundColor: Colors.grey.shade200,
                         color: const Color(0xFF1877F2),
@@ -741,16 +940,25 @@ class _StatisticsPageState extends State<StatisticsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Highest Transactions',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            Text(
+              tr(
+                'Highest Transactions',
+                'সর্বোচ্চ লেনদেন',
+                'सबसे बड़े लेनदेन',
+                'أعلى المعاملات',
+              ),
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: _highestItem(
-                    'Highest Income',
+                    tr('Highest Income', 'সর্বোচ্চ আয়',
+                        'सबसे अधिक आय', 'أعلى دخل'),
                     highestIncome,
                     highestIncomeDescription,
                     Icons.arrow_upward,
@@ -760,7 +968,8 @@ class _StatisticsPageState extends State<StatisticsPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _highestItem(
-                    'Highest Expense',
+                    tr('Highest Expense', 'সর্বোচ্চ ব্যয়',
+                        'सबसे अधिक व्यय', 'أعلى مصروف'),
                     highestExpense,
                     highestExpenseDescription,
                     Icons.arrow_downward,
@@ -793,7 +1002,13 @@ class _StatisticsPageState extends State<StatisticsPage> {
         children: [
           Icon(icon, color: color, size: 22),
           const SizedBox(height: 8),
-          Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 11,
+              color: Colors.grey,
+            ),
+          ),
           const SizedBox(height: 4),
           FittedBox(
             child: Text(
@@ -829,9 +1044,13 @@ class _StatisticsPageState extends State<StatisticsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Savings Analysis',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            Text(
+              tr('Savings Analysis', 'সঞ্চয় বিশ্লেষণ',
+                  'बचत विश्लेषण', 'تحليل المدخرات'),
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 16),
             Row(
@@ -862,9 +1081,13 @@ class _StatisticsPageState extends State<StatisticsPage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        'Savings Rate',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      Text(
+                        tr('Savings Rate', 'সঞ্চয়ের হার',
+                            'बचत दर', 'معدل الادخار'),
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
@@ -873,9 +1096,13 @@ class _StatisticsPageState extends State<StatisticsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Net Savings',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      Text(
+                        tr('Net Savings', 'নিট সঞ্চয়',
+                            'शुद्ध बचत', 'صافي المدخرات'),
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
                       ),
                       const SizedBox(height: 5),
                       Text(
@@ -887,19 +1114,92 @@ class _StatisticsPageState extends State<StatisticsPage> {
                         ),
                       ),
                       const SizedBox(height: 15),
-                      const Text(
-                        'Total Income',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      Text(
+                        tr('Total Income', 'মোট আয়',
+                            'कुल आय', 'إجمالي الدخل'),
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         money(totalIncome),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Receivable and Payable summary
+  Widget moneyRecordsSummary() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              tr(
+                'Receivable & Payable',
+                'পাওনা ও দেনা',
+                'प्राप्य और देय',
+                'المبالغ المستحقة',
+              ),
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 15),
+            Row(
+              children: [
+                Expanded(
+                  child: amountItem(
+                    tr('Receivable', 'পাওনা', 'प्राप्य', 'مستحق لك'),
+                    totalReceivable,
+                    Colors.green,
+                  ),
+                ),
+                Expanded(
+                  child: amountItem(
+                    tr('Payable', 'দেনা', 'देय', 'مستحق عليك'),
+                    totalPayable,
+                    Colors.red,
+                  ),
+                ),
+                Expanded(
+                  child: amountItem(
+                    tr('Net Receivable', 'নিট পাওনা',
+                        'शुद्ध प्राप्य', 'صافي المستحق لك'),
+                    netReceivable,
+                    netReceivable >= 0 ? Colors.blue : Colors.red,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(),
+            Text(
+              tr(
+                'These amounts are separate from income and expense.',
+                'এই হিসাব আয় ও ব্যয়ের হিসাব থেকে আলাদা রাখা হয়েছে।',
+                'ये राशियां आय और व्यय से अलग रखी गई हैं।',
+                'هذه المبالغ منفصلة عن الدخل والمصروفات.',
+              ),
+              style: const TextStyle(
+                fontSize: 11,
+                color: Colors.grey,
+              ),
             ),
           ],
         ),
@@ -913,7 +1213,8 @@ class _StatisticsPageState extends State<StatisticsPage> {
     final start = parseDate(budget['start_date']);
     if (start == null) return null;
 
-    final period = budget['period']?.toString().toLowerCase() ?? 'monthly';
+    final period =
+        budget['period']?.toString().toLowerCase() ?? 'monthly';
 
     if (period == 'custom') {
       final end = parseDate(budget['end_date']);
@@ -931,13 +1232,16 @@ class _StatisticsPageState extends State<StatisticsPage> {
     };
   }
 
-  double calculateBudgetActual(Map<String, dynamic> budget) {
+  double calculateBudgetActual(
+    Map<String, dynamic> budget,
+  ) {
     final range = getBudgetRange(budget);
     if (range == null) return 0;
 
-    final type = budget['type']?.toString().toLowerCase() ?? 'expense';
-    final categoryId = budget['category_id'];
+    final type =
+        budget['type']?.toString().toLowerCase() ?? 'expense';
 
+    final categoryId = budget['category_id'];
     final source = type == 'income' ? incomes : expenses;
 
     double actual = 0;
@@ -946,12 +1250,17 @@ class _StatisticsPageState extends State<StatisticsPage> {
       final date = parseDate(item['date']);
       if (date == null) continue;
 
-      if (!isDateInRange(date, range['start']!, range['end']!)) {
+      if (!isDateInRange(
+        date,
+        range['start']!,
+        range['end']!,
+      )) {
         continue;
       }
 
       if (categoryId != null &&
-          item['category_id']?.toString() != categoryId.toString()) {
+          item['category_id']?.toString() !=
+              categoryId.toString()) {
         continue;
       }
 
@@ -965,15 +1274,18 @@ class _StatisticsPageState extends State<StatisticsPage> {
     final range = getBudgetRange(budget);
     if (range == null) return false;
 
-    final today = dateOnly(DateTime.now());
+    final currentDate = dateOnly(DateTime.now());
 
-    return !today.isBefore(range['start']!) &&
-        !today.isAfter(range['end']!);
+    return !currentDate.isBefore(range['start']!) &&
+        !currentDate.isAfter(range['end']!);
   }
 
   String budgetCategoryName(Map<String, dynamic> budget) {
     final id = budget['category_id'];
-    if (id == null) return 'All Categories';
+    if (id == null) {
+      return tr('All Categories', 'সব ক্যাটাগরি',
+          'सभी श्रेणियां', 'جميع الفئات');
+    }
 
     for (final category in categories) {
       if (category['id'].toString() == id.toString()) {
@@ -981,26 +1293,42 @@ class _StatisticsPageState extends State<StatisticsPage> {
       }
     }
 
-    return 'All Categories';
+    return tr('All Categories', 'সব ক্যাটাগরি',
+        'सभी श्रेणियां', 'جميع الفئات');
   }
 
   Widget budgetVsActual() {
     if (budgets.isEmpty) {
-      return const Card(
+      return Card(
         child: Padding(
-          padding: EdgeInsets.all(20),
-          child: Center(child: Text('No budget plans found.')),
+          padding: const EdgeInsets.all(20),
+          child: Center(
+            child: Text(
+              tr('No budget plans found.',
+                  'কোনো বাজেট পরিকল্পনা নেই।',
+                  'कोई बजट योजना नहीं मिली।',
+                  'لم يتم العثور على خطط ميزانية.'),
+            ),
+          ),
         ),
       );
     }
 
-    final currentBudgets = budgets.where(isCurrentBudget).toList();
+    final currentBudgets =
+        budgets.where(isCurrentBudget).toList();
 
     if (currentBudgets.isEmpty) {
-      return const Card(
+      return Card(
         child: Padding(
-          padding: EdgeInsets.all(20),
-          child: Center(child: Text('No active budget plans.')),
+          padding: const EdgeInsets.all(20),
+          child: Center(
+            child: Text(
+              tr('No active budget plans.',
+                  'কোনো সক্রিয় বাজেট নেই।',
+                  'कोई सक्रिय बजट योजना नहीं है।',
+                  'لا توجد خطط ميزانية نشطة.'),
+            ),
+          ),
         ),
       );
     }
@@ -1011,20 +1339,30 @@ class _StatisticsPageState extends State<StatisticsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Budget vs Actual',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            Text(
+              tr('Budget vs Actual', 'বাজেট বনাম প্রকৃত ব্যয়',
+                  'बजट बनाम वास्तविक', 'الميزانية مقابل الفعلي'),
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 5),
-            const Text(
-              'Current active budgets',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
+            Text(
+              tr('Current active budgets', 'বর্তমান সক্রিয় বাজেট',
+                  'वर्तमान सक्रिय बजट', 'الميزانيات النشطة الحالية'),
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 16),
             ...currentBudgets.map((budget) {
               final planned = toDouble(budget['amount']);
               final actual = calculateBudgetActual(budget);
-              final percentage = planned > 0 ? actual / planned : 0.0;
+              final percentage =
+                  planned > 0 ? actual / planned : 0.0;
+
               final exceeded = actual > planned;
               final isIncome = budget['type'] == 'income';
               final color = isIncome ? Colors.green : Colors.red;
@@ -1038,7 +1376,9 @@ class _StatisticsPageState extends State<StatisticsPage> {
                     Row(
                       children: [
                         Icon(
-                          isIncome ? Icons.trending_up : Icons.trending_down,
+                          isIncome
+                              ? Icons.trending_up
+                              : Icons.trending_down,
                           size: 19,
                           color: color,
                         ),
@@ -1046,7 +1386,9 @@ class _StatisticsPageState extends State<StatisticsPage> {
                         Expanded(
                           child: Text(
                             budget['title']?.toString() ?? 'Budget',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                         Text(
@@ -1063,16 +1405,37 @@ class _StatisticsPageState extends State<StatisticsPage> {
                     Text(
                       '${budget['period']?.toString().toUpperCase()} • '
                       '${budgetCategoryName(budget)}',
-                      style: const TextStyle(color: Colors.grey, fontSize: 11),
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 11,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        Expanded(child: amountItem('Planned', planned, Colors.blue)),
-                        Expanded(child: amountItem('Actual', actual, color)),
                         Expanded(
                           child: amountItem(
-                            exceeded ? 'Exceeded' : 'Remaining',
+                            tr('Planned', 'পরিকল্পিত',
+                                'नियोजित', 'المخطط'),
+                            planned,
+                            Colors.blue,
+                          ),
+                        ),
+                        Expanded(
+                          child: amountItem(
+                            tr('Actual', 'প্রকৃত',
+                                'वास्तविक', 'الفعلي'),
+                            actual,
+                            color,
+                          ),
+                        ),
+                        Expanded(
+                          child: amountItem(
+                            exceeded
+                                ? tr('Exceeded', 'অতিরিক্ত',
+                                    'अधिक', 'تجاوز')
+                                : tr('Remaining', 'অবশিষ্ট',
+                                    'शेष', 'المتبقي'),
                             exceeded ? actual - planned : difference,
                             exceeded ? Colors.red : Colors.green,
                           ),
@@ -1092,9 +1455,11 @@ class _StatisticsPageState extends State<StatisticsPage> {
                     const SizedBox(height: 5),
                     Text(
                       exceeded
-                          ? 'Exceeded by ${money(actual - planned)}'
-                          : '${(percentage * 100).toStringAsFixed(1)}% used • '
-                              'Remaining ${money(difference)}',
+                          ? '${tr('Exceeded by', 'অতিরিক্ত হয়েছে',
+                              'से अधिक', 'تجاوز بمقدار')} ${money(actual - planned)}'
+                          : '${(percentage * 100).toStringAsFixed(1)}% • '
+                              '${tr('Remaining', 'অবশিষ্ট',
+                                  'शेष', 'المتبقي')} ${money(difference)}',
                       style: TextStyle(
                         fontSize: 10,
                         color: exceeded ? Colors.red : Colors.grey,
@@ -1161,28 +1526,33 @@ class _StatisticsPageState extends State<StatisticsPage> {
     return Column(
       children: [
         periodSummary(
-          'Daily Statistics',
+          tr('Daily Statistics', 'দৈনিক পরিসংখ্যান',
+              'दैनिक आंकड़े', 'الإحصائيات اليومية'),
           DateFormat('dd MMM yyyy').format(now),
           dailyIncome,
           dailyExpense,
         ),
         const SizedBox(height: 14),
         periodSummary(
-          'Weekly Statistics',
-          'Last 7 days',
+          tr('Weekly Statistics', 'সাপ্তাহিক পরিসংখ্যান',
+              'साप्ताहिक आंकड़े', 'الإحصائيات الأسبوعية'),
+          tr('Last 7 days', 'গত ৭ দিন',
+              'पिछले 7 दिन', 'آخر 7 أيام'),
           weeklyIncome,
           weeklyExpense,
         ),
         const SizedBox(height: 14),
         periodSummary(
-          'Monthly Statistics',
+          tr('Monthly Statistics', 'মাসিক পরিসংখ্যান',
+              'मासिक आंकड़े', 'الإحصائيات الشهرية'),
           DateFormat('MMMM yyyy').format(now),
           monthlyIncome,
           monthlyExpense,
         ),
         const SizedBox(height: 14),
         periodSummary(
-          'Yearly Statistics',
+          tr('Yearly Statistics', 'বার্ষিক পরিসংখ্যান',
+              'वार्षिक आंकड़े', 'الإحصائيات السنوية'),
           now.year.toString(),
           yearlyIncome,
           yearlyExpense,
@@ -1195,86 +1565,119 @@ class _StatisticsPageState extends State<StatisticsPage> {
   Widget build(BuildContext context) {
     final balance = totalIncome - totalExpense;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Statistics'),
-        actions: [
-          IconButton(
-            onPressed: isLoading ? null : loadStatistics,
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
+    return Directionality(
+      textDirection:
+          isArabic ? ui.TextDirection.rtl : ui.TextDirection.ltr,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            tr('Statistics', 'পরিসংখ্যান',
+                'आंकड़े', 'الإحصائيات'),
           ),
-        ],
-      ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: loadStatistics,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                children: [
-                  GridView.count(
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.35,
-                    children: [
-                      summaryCard(
-                        'Total Income',
-                        money(totalIncome),
-                        Icons.trending_up,
-                        Colors.green,
-                      ),
-                      summaryCard(
-                        'Total Expense',
-                        money(totalExpense),
-                        Icons.trending_down,
-                        Colors.red,
-                      ),
-                      summaryCard(
-                        'Balance',
-                        money(balance),
-                        Icons.account_balance_wallet,
-                        balance >= 0 ? Colors.blue : Colors.red,
-                      ),
-                      summaryCard(
-                        'Savings Rate',
-                        '${savingsRate.toStringAsFixed(1)}%',
-                        Icons.savings,
-                        Colors.teal,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  buildPeriodSummaries(),
-                  const SizedBox(height: 20),
-                  monthlyChart(),
-                  const SizedBox(height: 20),
-                  weeklyChart(),
-                  const SizedBox(height: 20),
-                  yearlyChart(),
-                  const SizedBox(height: 20),
-                  categoryBreakdown(),
-                  const SizedBox(height: 20),
-                  highestTransactionCard(),
-                  const SizedBox(height: 20),
-                  savingsAnalysis(),
-                  const SizedBox(height: 20),
-                  budgetVsActual(),
-                  const SizedBox(height: 25),
-                  const Center(
-                    child: Text(
-                      'LifeMate Statistics',
-                      style: TextStyle(color: Colors.grey, fontSize: 11),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-              ),
+          actions: [
+            IconButton(
+              onPressed: isLoading ? null : loadStatistics,
+              icon: const Icon(Icons.refresh),
+              tooltip: tr('Refresh', 'রিফ্রেশ',
+                  'रीफ्रेश', 'تحديث'),
             ),
+          ],
+        ),
+        body: isLoading
+            ? const Center(
+                child: CircularProgressIndicator(),
+              )
+            : RefreshIndicator(
+                onRefresh: loadStatistics,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 1.35,
+                      children: [
+                        summaryCard(
+                          tr('Total Income', 'মোট আয়',
+                              'कुल आय', 'إجمالي الدخل'),
+                          money(totalIncome),
+                          Icons.trending_up,
+                          Colors.green,
+                        ),
+                        summaryCard(
+                          tr('Total Expense', 'মোট ব্যয়',
+                              'कुल व्यय', 'إجمالي المصروفات'),
+                          money(totalExpense),
+                          Icons.trending_down,
+                          Colors.red,
+                        ),
+                        summaryCard(
+                          tr('Balance', 'বর্তমান ব্যালেন্স',
+                              'शेष राशि', 'الرصيد'),
+                          money(balance),
+                          Icons.account_balance_wallet,
+                          balance >= 0 ? Colors.blue : Colors.red,
+                        ),
+                        summaryCard(
+                          tr('Savings Rate', 'সঞ্চয়ের হার',
+                              'बचत दर', 'معدل الادخار'),
+                          '${savingsRate.toStringAsFixed(1)}%',
+                          Icons.savings,
+                          Colors.teal,
+                        ),
+                        summaryCard(
+                          tr('Receivable', 'মোট পাওনা',
+                              'कुल प्राप्य', 'إجمالي المستحق لك'),
+                          money(totalReceivable),
+                          Icons.call_received,
+                          Colors.green,
+                        ),
+                        summaryCard(
+                          tr('Payable', 'মোট দেনা',
+                              'कुल देय', 'إجمالي المستحق عليك'),
+                          money(totalPayable),
+                          Icons.call_made,
+                          Colors.red,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    moneyRecordsSummary(),
+                    const SizedBox(height: 20),
+                    buildPeriodSummaries(),
+                    const SizedBox(height: 20),
+                    monthlyChart(),
+                    const SizedBox(height: 20),
+                    weeklyChart(),
+                    const SizedBox(height: 20),
+                    yearlyChart(),
+                    const SizedBox(height: 20),
+                    categoryBreakdown(),
+                    const SizedBox(height: 20),
+                    highestTransactionCard(),
+                    const SizedBox(height: 20),
+                    savingsAnalysis(),
+                    const SizedBox(height: 20),
+                    budgetVsActual(),
+                    const SizedBox(height: 25),
+                    Center(
+                      child: Text(
+                        'LifeMate Statistics',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                ),
+              ),
+      ),
     );
   }
 }
