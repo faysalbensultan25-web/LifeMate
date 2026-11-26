@@ -1,7 +1,7 @@
-
-import 'dart:io';
+vimport 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/database/app_database.dart';
 import '../../core/services/language_service.dart';
@@ -49,6 +49,39 @@ class _HomePageState extends State<HomePage> {
 
   List<Map<String, dynamic>> recent = [];
 
+  // ============================================================
+  // CURRENCY
+  // ============================================================
+
+  String currency = 'BDT (৳)';
+
+  String get currencySymbol {
+    switch (currency) {
+      case 'USD (\$)':
+        return '\$';
+
+      case 'INR (₹)':
+        return '₹';
+
+      case 'SAR (﷼)':
+        return '﷼';
+
+      case 'AED (د.إ)':
+        return 'د.إ';
+
+      default:
+        return '৳';
+    }
+  }
+
+  String formatMoney(double value) {
+    return '$currencySymbol ${value.toStringAsFixed(0)}';
+  }
+
+  // ============================================================
+  // LANGUAGE
+  // ============================================================
+
   String tr(String en, String bn, String hi, String ar) {
     return LanguageService.text(
       english: en,
@@ -64,12 +97,38 @@ class _HomePageState extends State<HomePage> {
     load();
   }
 
+  // ============================================================
+  // LOAD DATA
+  // ============================================================
+
   Future<void> load() async {
     final db = await AppDatabase.database;
 
+    // Load selected currency from Settings.
+    final prefs = await SharedPreferences.getInstance();
+
+    final savedCurrency =
+        prefs.getString('currency') ?? 'BDT (৳)';
+
+    const supportedCurrencies = [
+      'BDT (৳)',
+      'USD (\$)',
+      'INR (₹)',
+      'SAR (﷼)',
+      'AED (د.إ)',
+    ];
+
+    final selectedCurrency =
+        supportedCurrencies.contains(savedCurrency)
+            ? savedCurrency
+            : 'BDT (৳)';
+
     await NotificationService.generateAlerts();
 
-    final profiles = await db.query('profiles', limit: 1);
+    final profiles = await db.query(
+      'profiles',
+      limit: 1,
+    );
 
     String newName = 'LifeMate';
     String newOccupation = '';
@@ -77,12 +136,17 @@ class _HomePageState extends State<HomePage> {
     String? newPhoto;
 
     if (profiles.isNotEmpty) {
-      newName = (profiles.first['name'] ?? 'LifeMate').toString();
+      newName =
+          (profiles.first['name'] ?? 'LifeMate').toString();
+
       newOccupation =
           (profiles.first['occupation'] ?? '').toString();
+
       newWorkplace =
           (profiles.first['workplace'] ?? '').toString();
-      newPhoto = profiles.first['photo_path']?.toString();
+
+      newPhoto =
+          profiles.first['photo_path']?.toString();
     }
 
     final ts = await db.query(
@@ -108,6 +172,7 @@ class _HomePageState extends State<HomePage> {
     );
 
     final records = await db.query('money_records');
+
     final payments = await db.query('money_payments');
 
     final newIncome = ins.fold<double>(
@@ -125,7 +190,9 @@ class _HomePageState extends State<HomePage> {
     final paidMap = <int, double>{};
 
     for (final payment in payments) {
-      final id = (payment['record_id'] as num?)?.toInt();
+      final id =
+          (payment['record_id'] as num?)?.toInt();
+
       final amount =
           (payment['amount'] as num?)?.toDouble() ?? 0;
 
@@ -138,12 +205,17 @@ class _HomePageState extends State<HomePage> {
     double newPayable = 0;
 
     for (final record in records) {
-      final id = (record['id'] as num?)?.toInt();
+      final id =
+          (record['id'] as num?)?.toInt();
+
       final amount =
           (record['amount'] as num?)?.toDouble() ?? 0;
 
-      final paid = id == null ? 0 : (paidMap[id] ?? 0);
-      final remaining = amount - paid > 0 ? amount - paid : 0;
+      final paid =
+          id == null ? 0 : (paidMap[id] ?? 0);
+
+      final remaining =
+          amount - paid > 0 ? amount - paid : 0;
 
       if (record['type'] == 'receivable') {
         newReceivable += remaining;
@@ -152,7 +224,12 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    final unread = await NotificationService.unreadCount();
+    final unread =
+        await NotificationService.unreadCount();
+
+    // ==========================================================
+    // RECENT ACTIVITIES
+    // ==========================================================
 
     final activities = <Map<String, dynamic>>[];
 
@@ -178,7 +255,7 @@ class _HomePageState extends State<HomePage> {
       activities.add({
         'i': Icons.arrow_downward,
         't': x['description'] ?? 'Income',
-        's': '+ ৳${x['amount']}',
+        's': '+ $currencySymbol${x['amount']}',
         'date': x['created_at'] ?? '',
       });
     }
@@ -187,7 +264,7 @@ class _HomePageState extends State<HomePage> {
       activities.add({
         'i': Icons.arrow_upward,
         't': x['description'] ?? 'Expense',
-        's': '- ৳${x['amount']}',
+        's': '- $currencySymbol${x['amount']}',
         'date': x['created_at'] ?? '',
       });
     }
@@ -219,9 +296,15 @@ class _HomePageState extends State<HomePage> {
       notes = ns.length;
       unreadNotifications = unread;
 
+      currency = selectedCurrency;
+
       recent = activities.take(5).toList();
     });
   }
+
+  // ============================================================
+  // NAVIGATION
+  // ============================================================
 
   Future<void> go(Widget page) async {
     await Navigator.push(
@@ -236,18 +319,24 @@ class _HomePageState extends State<HomePage> {
     go(const NotificationsPage());
   }
 
+  // ============================================================
+  // SEARCH
+  // ============================================================
+
   void search() {
     final controller = TextEditingController();
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(tr(
-          'Search LifeMate',
-          'LifeMate অনুসন্ধান',
-          'LifeMate खोजें',
-          'البحث في LifeMate',
-        )),
+        title: Text(
+          tr(
+            'Search LifeMate',
+            'LifeMate অনুসন্ধান',
+            'LifeMate खोजें',
+            'البحث في LifeMate',
+          ),
+        ),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -268,14 +357,18 @@ class _HomePageState extends State<HomePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(tr('Cancel', 'বাতিল', 'रद्द करें', 'إلغاء')),
+            child: Text(
+              tr('Cancel', 'বাতিল', 'रद्द करें', 'إلغاء'),
+            ),
           ),
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
               showResults(controller.text);
             },
-            child: Text(tr('Search', 'খুঁজুন', 'खोजें', 'بحث')),
+            child: Text(
+              tr('Search', 'খুঁজুন', 'खोजें', 'بحث'),
+            ),
           ),
         ],
       ),
@@ -310,7 +403,10 @@ class _HomePageState extends State<HomePage> {
 
       if (columnName == 'id') continue;
 
-      conditions.add('CAST("$columnName" AS TEXT) LIKE ?');
+      conditions.add(
+        'CAST("$columnName" AS TEXT) LIKE ?',
+      );
+
       args.add('%$query%');
     }
 
@@ -328,6 +424,7 @@ class _HomePageState extends State<HomePage> {
     if (query.trim().isEmpty) return;
 
     final db = await AppDatabase.database;
+
     final results = <Map<String, dynamic>>[];
 
     final tables = [
@@ -365,7 +462,9 @@ class _HomePageState extends State<HomePage> {
         }
 
         if (row['amount'] != null) {
-          details.add('৳ ${row['amount']}');
+          details.add(
+            '$currencySymbol ${row['amount']}',
+          );
         }
 
         if (row['date'] != null) {
@@ -391,12 +490,14 @@ class _HomePageState extends State<HomePage> {
         content: SizedBox(
           width: 400,
           child: results.isEmpty
-              ? Text(tr(
-                  'No result found.',
-                  'কোনো ফলাফল পাওয়া যায়নি।',
-                  'कोई परिणाम नहीं मिला।',
-                  'لم يتم العثور على نتائج.',
-                ))
+              ? Text(
+                  tr(
+                    'No result found.',
+                    'কোনো ফলাফল পাওয়া যায়নি।',
+                    'कोई परिणाम नहीं मिला।',
+                    'لم يتم العثور على نتائج.',
+                  ),
+                )
               : ListView.builder(
                   shrinkWrap: true,
                   itemCount: results.length,
@@ -409,12 +510,15 @@ class _HomePageState extends State<HomePage> {
                       case 'To-Do':
                         icon = Icons.task_alt;
                         break;
+
                       case 'Note':
                         icon = Icons.note_alt;
                         break;
+
                       case 'Income':
                         icon = Icons.arrow_downward;
                         break;
+
                       case 'Expense':
                         icon = Icons.arrow_upward;
                         break;
@@ -436,12 +540,18 @@ class _HomePageState extends State<HomePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(tr('Close', 'বন্ধ করুন', 'बंद करें', 'إغلاق')),
+            child: Text(
+              tr('Close', 'বন্ধ করুন', 'बंद करें', 'إغلاق'),
+            ),
           ),
         ],
       ),
     );
   }
+
+  // ============================================================
+  // MORE MENU
+  // ============================================================
 
   void more() {
     showModalBottomSheet(
@@ -450,24 +560,62 @@ class _HomePageState extends State<HomePage> {
       builder: (_) => SafeArea(
         child: Wrap(
           children: [
-            item(Icons.event, 'Events',
-                tr('Events', 'অনুষ্ঠান', 'कार्यक्रम', 'الأحداث'),
-                () => go(const EventsPage())),
-            item(Icons.bar_chart, 'Statistics',
-                tr('Statistics', 'পরিসংখ্যান', 'आंकड़े', 'الإحصائيات'),
-                () => go(const StatisticsPage())),
-            item(Icons.savings, 'Budget',
-                tr('Budget', 'বাজেট', 'बजट', 'الميزانية'),
-                () => go(const BudgetPage())),
-            item(Icons.picture_as_pdf, 'PDF Reports',
-                tr('PDF Reports', 'PDF প্রতিবেদন', 'PDF रिपोर्ट', 'تقارير PDF'),
-                () => go(const PdfReportsPage())),
-            item(Icons.person, 'Profile',
-                tr('Profile', 'প্রোফাইল', 'प्रोफ़ाइल', 'الملف الشخصي'),
-                () => go(const ProfilePage())),
-            item(Icons.settings, 'Settings',
-                tr('Settings', 'সেটিংস', 'सेटिंग्स', 'الإعدادات'),
-                () => go(const SettingsPage())),
+            item(
+              Icons.event,
+              'Events',
+              tr('Events', 'অনুষ্ঠান', 'कार्यक्रम', 'الأحداث'),
+              () => go(const EventsPage()),
+            ),
+            item(
+              Icons.bar_chart,
+              'Statistics',
+              tr(
+                'Statistics',
+                'পরিসংখ্যান',
+                'आंकड़े',
+                'الإحصائيات',
+              ),
+              () => go(const StatisticsPage()),
+            ),
+            item(
+              Icons.savings,
+              'Budget',
+              tr('Budget', 'বাজেট', 'बजट', 'الميزانية'),
+              () => go(const BudgetPage()),
+            ),
+            item(
+              Icons.picture_as_pdf,
+              'PDF Reports',
+              tr(
+                'PDF Reports',
+                'PDF প্রতিবেদন',
+                'PDF रिपोर्ट',
+                'تقارير PDF',
+              ),
+              () => go(const PdfReportsPage()),
+            ),
+            item(
+              Icons.person,
+              'Profile',
+              tr(
+                'Profile',
+                'প্রোফাইল',
+                'प्रोफ़ाइल',
+                'الملف الشخصي',
+              ),
+              () => go(const ProfilePage()),
+            ),
+            item(
+              Icons.settings,
+              'Settings',
+              tr(
+                'Settings',
+                'সেটিংস',
+                'सेटिंग्स',
+                'الإعدادات',
+              ),
+              () => go(const SettingsPage()),
+            ),
           ],
         ),
       ),
@@ -490,6 +638,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ============================================================
+  // AVATAR
+  // ============================================================
+
   Widget avatar({double radius = 25}) {
     if (photo != null &&
         photo!.isNotEmpty &&
@@ -511,6 +663,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ============================================================
+  // BADGE
+  // ============================================================
+
   Widget badge(Widget child, int count) {
     return Badge(
       isLabelVisible: count > 0,
@@ -518,6 +674,10 @@ class _HomePageState extends State<HomePage> {
       child: child,
     );
   }
+
+  // ============================================================
+  // SECTION CARD
+  // ============================================================
 
   Widget sectionCard({
     required Widget child,
@@ -536,6 +696,10 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+
+  // ============================================================
+  // QUICK ACCESS
+  // ============================================================
 
   Widget quick(
     String title,
@@ -563,7 +727,11 @@ class _HomePageState extends State<HomePage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 badge(
-                  Icon(icon, size: 24, color: color),
+                  Icon(
+                    icon,
+                    size: 24,
+                    color: color,
+                  ),
                   count,
                 ),
                 const SizedBox(height: 6),
@@ -584,6 +752,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ============================================================
+  // MONEY WIDGET
+  // ============================================================
+
   Widget money(
     String title,
     double value,
@@ -603,7 +775,11 @@ class _HomePageState extends State<HomePage> {
         ),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 20),
+            Icon(
+              icon,
+              color: color,
+              size: 20,
+            ),
             const SizedBox(height: 6),
             Text(
               title,
@@ -617,7 +793,7 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 5),
             FittedBox(
               child: Text(
-                '৳ ${value.toStringAsFixed(0)}',
+                formatMoney(value),
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
@@ -629,6 +805,10 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+
+  // ============================================================
+  // RECEIVABLE / PAYABLE SUMMARY
+  // ============================================================
 
   Widget moneySummary(
     String title,
@@ -656,7 +836,11 @@ class _HomePageState extends State<HomePage> {
           ),
           child: Column(
             children: [
-              Icon(icon, color: color, size: 23),
+              Icon(
+                icon,
+                color: color,
+                size: 23,
+              ),
               const SizedBox(height: 6),
               Text(
                 title,
@@ -670,7 +854,7 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 5),
               FittedBox(
                 child: Text(
-                  '৳ ${value.toStringAsFixed(0)}',
+                  formatMoney(value),
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -684,11 +868,18 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ============================================================
+  // BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
     final balance = income - expense;
+
     final netReceivable = receivable - payable;
-    final primary = Theme.of(context).colorScheme.primary;
+
+    final primary =
+        Theme.of(context).colorScheme.primary;
 
     final isArabic = LanguageService.isArabic;
 
@@ -722,7 +913,8 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(width: 9),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text(
@@ -756,7 +948,12 @@ class _HomePageState extends State<HomePage> {
             IconButton(
               onPressed: search,
               icon: const Icon(Icons.search_rounded),
-              tooltip: tr('Search', 'খুঁজুন', 'खोजें', 'بحث'),
+              tooltip: tr(
+                'Search',
+                'খুঁজুন',
+                'खोजें',
+                'بحث',
+              ),
             ),
             IconButton(
               onPressed: openNotifications,
@@ -774,7 +971,12 @@ class _HomePageState extends State<HomePage> {
             IconButton(
               onPressed: more,
               icon: const Icon(Icons.grid_view_rounded),
-              tooltip: tr('More', 'আরও', 'अधिक', 'المزيد'),
+              tooltip: tr(
+                'More',
+                'আরও',
+                'अधिक',
+                'المزيد',
+              ),
             ),
             Padding(
               padding: const EdgeInsets.only(right: 9),
@@ -786,12 +988,24 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
 
+        // ======================================================
+        // BODY
+        // ======================================================
+
         body: RefreshIndicator(
           onRefresh: load,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 15),
+            padding: const EdgeInsets.fromLTRB(
+              12,
+              10,
+              12,
+              15,
+            ),
             children: [
-              // Welcome Card
+              // ==================================================
+              // WELCOME CARD
+              // ==================================================
+
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -819,7 +1033,8 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
                         children: [
                           Text(
                             tr(
@@ -863,7 +1078,8 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                     IconButton(
-                      onPressed: () => go(const ProfilePage()),
+                      onPressed: () =>
+                          go(const ProfilePage()),
                       icon: const Icon(
                         Icons.edit_outlined,
                         color: Colors.white,
@@ -875,7 +1091,10 @@ class _HomePageState extends State<HomePage> {
 
               const SizedBox(height: 14),
 
-              // Search
+              // ==================================================
+              // SEARCH
+              // ==================================================
+
               InkWell(
                 onTap: search,
                 borderRadius: BorderRadius.circular(15),
@@ -893,7 +1112,10 @@ class _HomePageState extends State<HomePage> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.search, color: Colors.grey),
+                      const Icon(
+                        Icons.search,
+                        color: Colors.grey,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -921,7 +1143,10 @@ class _HomePageState extends State<HomePage> {
 
               const SizedBox(height: 14),
 
-              // Quick Access
+              // ==================================================
+              // QUICK ACCESS
+              // ==================================================
+
               Text(
                 tr(
                   'Quick Access',
@@ -940,20 +1165,35 @@ class _HomePageState extends State<HomePage> {
               Row(
                 children: [
                   quick(
-                    tr('To-Do', 'করণীয়', 'कार्य', 'المهام'),
+                    tr(
+                      'To-Do',
+                      'করণীয়',
+                      'कार्य',
+                      'المهام',
+                    ),
                     Icons.task_alt,
                     const Color(0xFF3988E8),
                     () => go(const TodoPage()),
                     count: todos,
                   ),
                   quick(
-                    tr('Income', 'আয়', 'आय', 'الدخل'),
+                    tr(
+                      'Income',
+                      'আয়',
+                      'आय',
+                      'الدخل',
+                    ),
                     Icons.trending_up,
                     const Color(0xFF159D70),
                     () => go(const FinancePage()),
                   ),
                   quick(
-                    tr('Expense', 'ব্যয়', 'खर्च', 'المصروفات'),
+                    tr(
+                      'Expense',
+                      'ব্যয়',
+                      'खर्च',
+                      'المصروفات',
+                    ),
                     Icons.trending_down,
                     const Color(0xFFE65363),
                     () => go(const FinancePage()),
@@ -964,20 +1204,35 @@ class _HomePageState extends State<HomePage> {
               Row(
                 children: [
                   quick(
-                    tr('Notes', 'নোট', 'नोट्स', 'الملاحظات'),
+                    tr(
+                      'Notes',
+                      'নোট',
+                      'नोट्स',
+                      'الملاحظات',
+                    ),
                     Icons.note_alt_outlined,
                     const Color(0xFF19A77A),
                     () => go(const NotesPage()),
                     count: notes,
                   ),
                   quick(
-                    tr('Events', 'অনুষ্ঠান', 'कार्यक्रम', 'الأحداث'),
+                    tr(
+                      'Events',
+                      'অনুষ্ঠান',
+                      'कार्यक्रम',
+                      'الأحداث',
+                    ),
                     Icons.event_available,
                     const Color(0xFF9562D5),
                     () => go(const EventsPage()),
                   ),
                   quick(
-                    tr('Alerts', 'সতর্কতা', 'अलर्ट', 'التنبيهات'),
+                    tr(
+                      'Alerts',
+                      'সতর্কতা',
+                      'अलर्ट',
+                      'التنبيهات',
+                    ),
                     Icons.notifications_active_outlined,
                     const Color(0xFFEA9635),
                     openNotifications,
@@ -988,7 +1243,10 @@ class _HomePageState extends State<HomePage> {
 
               const SizedBox(height: 12),
 
-              // Financial Overview
+              // ==================================================
+              // FINANCIAL OVERVIEW
+              // ==================================================
+
               sectionCard(
                 child: Column(
                   children: [
@@ -1014,9 +1272,15 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                         TextButton(
-                          onPressed: () => go(const FinancePage()),
+                          onPressed: () =>
+                              go(const FinancePage()),
                           child: Text(
-                            tr('Details', 'বিস্তারিত', 'विवरण', 'التفاصيل'),
+                            tr(
+                              'Details',
+                              'বিস্তারিত',
+                              'विवरण',
+                              'التفاصيل',
+                            ),
                           ),
                         ),
                       ],
@@ -1024,19 +1288,34 @@ class _HomePageState extends State<HomePage> {
                     Row(
                       children: [
                         money(
-                          tr('Income', 'আয়', 'आय', 'الدخل'),
+                          tr(
+                            'Income',
+                            'আয়',
+                            'आय',
+                            'الدخل',
+                          ),
                           income,
                           const Color(0xFF159D70),
                           Icons.arrow_downward,
                         ),
                         money(
-                          tr('Expense', 'ব্যয়', 'खर्च', 'المصروفات'),
+                          tr(
+                            'Expense',
+                            'ব্যয়',
+                            'खर्च',
+                            'المصروفات',
+                          ),
                           expense,
                           const Color(0xFFE65363),
                           Icons.arrow_upward,
                         ),
                         money(
-                          tr('Balance', 'বর্তমান স্থিতি', 'शेष राशि', 'الرصيد'),
+                          tr(
+                            'Balance',
+                            'বর্তমান স্থিতি',
+                            'शेष राशि',
+                            'الرصيد',
+                          ),
                           balance,
                           const Color(0xFF3988E8),
                           Icons.account_balance,
@@ -1047,7 +1326,10 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
 
-              // Receivable and Payable
+              // ==================================================
+              // RECEIVABLE AND PAYABLE
+              // ==================================================
+
               sectionCard(
                 child: Column(
                   children: [
@@ -1078,14 +1360,24 @@ class _HomePageState extends State<HomePage> {
                     Row(
                       children: [
                         moneySummary(
-                          tr('Receivable', 'আমার পাওনা', 'मुझे लेना है', 'لي'),
+                          tr(
+                            'Receivable',
+                            'আমার পাওনা',
+                            'मुझे लेना है',
+                            'لي',
+                          ),
                           receivable,
                           const Color(0xFF159D70),
                           Icons.call_received,
                           () => go(const FinancePage()),
                         ),
                         moneySummary(
-                          tr('Payable', 'আমার দেনা', 'मुझे देना है', 'عليّ'),
+                          tr(
+                            'Payable',
+                            'আমার দেনা',
+                            'मुझे देना है',
+                            'عليّ',
+                          ),
                           payable,
                           const Color(0xFFE65363),
                           Icons.call_made,
@@ -1098,7 +1390,8 @@ class _HomePageState extends State<HomePage> {
                       margin: const EdgeInsets.only(top: 7),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF3988E8).withOpacity(.09),
+                        color: const Color(0xFF3988E8)
+                            .withOpacity(.09),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -1123,7 +1416,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                           Text(
-                            '৳ ${netReceivable.toStringAsFixed(0)}',
+                            formatMoney(netReceivable),
                             style: const TextStyle(
                               color: Color(0xFF3988E8),
                               fontWeight: FontWeight.bold,
@@ -1137,7 +1430,10 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
 
-              // Budget
+              // ==================================================
+              // BUDGET
+              // ==================================================
+
               sectionCard(
                 child: InkWell(
                   onTap: () => go(const BudgetPage()),
@@ -1147,7 +1443,8 @@ class _HomePageState extends State<HomePage> {
                         height: 43,
                         width: 43,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFA726).withOpacity(.15),
+                          color: const Color(0xFFFFA726)
+                              .withOpacity(.15),
                           borderRadius: BorderRadius.circular(13),
                         ),
                         child: const Icon(
@@ -1158,7 +1455,8 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(width: 11),
                       Expanded(
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
                           children: [
                             Text(
                               tr(
@@ -1187,13 +1485,19 @@ class _HomePageState extends State<HomePage> {
                           ],
                         ),
                       ),
-                      const Icon(Icons.arrow_forward_ios, size: 15),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        size: 15,
+                      ),
                     ],
                   ),
                 ),
               ),
 
-              // Recent Activity
+              // ==================================================
+              // RECENT ACTIVITY
+              // ==================================================
+
               sectionCard(
                 child: Column(
                   children: [
@@ -1221,7 +1525,12 @@ class _HomePageState extends State<HomePage> {
                         TextButton(
                           onPressed: load,
                           child: Text(
-                            tr('Refresh', 'রিফ্রেশ', 'रिफ्रेश', 'تحديث'),
+                            tr(
+                              'Refresh',
+                              'রিফ্রেশ',
+                              'रिफ्रेश',
+                              'تحديث',
+                            ),
                           ),
                         ),
                       ],
@@ -1236,7 +1545,9 @@ class _HomePageState extends State<HomePage> {
                             'कोई हाल की गतिविधि नहीं',
                             'لا يوجد نشاط حديث',
                           ),
-                          style: const TextStyle(color: Colors.grey),
+                          style: const TextStyle(
+                            color: Colors.grey,
+                          ),
                         ),
                       ),
                     ...recent.map(
@@ -1245,7 +1556,8 @@ class _HomePageState extends State<HomePage> {
                         contentPadding: EdgeInsets.zero,
                         leading: CircleAvatar(
                           radius: 17,
-                          backgroundColor: primary.withOpacity(.10),
+                          backgroundColor:
+                              primary.withOpacity(.10),
                           child: Icon(
                             x['i'] as IconData,
                             size: 17,
@@ -1256,11 +1568,15 @@ class _HomePageState extends State<HomePage> {
                           '${x['t']}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 13),
+                          style: const TextStyle(
+                            fontSize: 13,
+                          ),
                         ),
                         subtitle: Text(
                           '${x['s']}',
-                          style: const TextStyle(fontSize: 11),
+                          style: const TextStyle(
+                            fontSize: 11,
+                          ),
                         ),
                       ),
                     ),
@@ -1268,12 +1584,17 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
 
-              // Alerts and Reminders
+              // ==================================================
+              // ALERTS AND REMINDERS
+              // ==================================================
+
               if (todos > 0 || unreadNotifications > 0)
                 sectionCard(
-                  color: const Color(0xFFFFA726).withOpacity(.08),
+                  color: const Color(0xFFFFA726)
+                      .withOpacity(.08),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
@@ -1312,7 +1633,9 @@ class _HomePageState extends State<HomePage> {
                               '$todos مهام معلقة',
                             ),
                           ),
-                          trailing: const Icon(Icons.chevron_right),
+                          trailing: const Icon(
+                            Icons.chevron_right,
+                          ),
                           onTap: () => go(const TodoPage()),
                         ),
                       if (unreadNotifications > 0)
@@ -1331,7 +1654,9 @@ class _HomePageState extends State<HomePage> {
                               '$unreadNotifications إشعارات غير مقروءة',
                             ),
                           ),
-                          trailing: const Icon(Icons.chevron_right),
+                          trailing: const Icon(
+                            Icons.chevron_right,
+                          ),
                           onTap: openNotifications,
                         ),
                     ],
