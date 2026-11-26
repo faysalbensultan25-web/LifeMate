@@ -1,4 +1,3 @@
-
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -20,7 +19,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 9,
+      version: 10,
 
       onCreate: (db, version) async {
         await db.execute('''
@@ -38,6 +37,7 @@ class AppDatabase {
             title TEXT NOT NULL,
             content TEXT NOT NULL,
             pinned INTEGER NOT NULL DEFAULT 0,
+            color TEXT NOT NULL DEFAULT 'yellow',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
           )
@@ -402,6 +402,13 @@ class AppDatabase {
 
         if (oldVersion < 9) {
           await _createMoneyTables(db);
+        }
+
+        // Notes Color support
+        if (oldVersion < 10) {
+          await db.execute(
+            "ALTER TABLE notes ADD COLUMN color TEXT NOT NULL DEFAULT 'yellow'",
+          );
         }
       },
     );
