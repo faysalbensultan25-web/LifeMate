@@ -9,18 +9,27 @@ class LanguageService {
   static final ValueNotifier<String> language =
       ValueNotifier<String>('English');
 
+  static const List<String> languages = [
+    'English',
+    'Bangla',
+    'Hindi',
+    'Arabic',
+  ];
+
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
 
     final saved = prefs.getString(_key);
 
-    language.value =
-        saved == 'Bangla' ? 'Bangla' : 'English';
+    language.value = languages.contains(saved)
+        ? saved!
+        : 'English';
   }
 
   static Future<void> setLanguage(String value) async {
-    final newLanguage =
-        value == 'Bangla' ? 'Bangla' : 'English';
+    final newLanguage = languages.contains(value)
+        ? value
+        : 'English';
 
     final prefs = await SharedPreferences.getInstance();
 
@@ -32,10 +41,34 @@ class LanguageService {
   static bool get isBangla =>
       language.value == 'Bangla';
 
-  static String text(
-    String english,
-    String bangla,
-  ) {
-    return isBangla ? bangla : english;
+  static bool get isHindi =>
+      language.value == 'Hindi';
+
+  static bool get isArabic =>
+      language.value == 'Arabic';
+
+  static bool get isEnglish =>
+      language.value == 'English';
+
+  static String text({
+    required String english,
+    required String bangla,
+    required String hindi,
+    required String arabic,
+  }) {
+    switch (language.value) {
+      case 'Bangla':
+        return bangla;
+
+      case 'Hindi':
+        return hindi;
+
+      case 'Arabic':
+        return arabic;
+
+      case 'English':
+      default:
+        return english;
+    }
   }
 }
