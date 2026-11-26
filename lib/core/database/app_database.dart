@@ -20,7 +20,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 8,
+      version: 9,
 
       onCreate: (db, version) async {
         await db.execute('''
@@ -221,36 +221,73 @@ class AppDatabase {
             created_at TEXT NOT NULL
           )
         ''');
+
+        // Receivable and Payable
+        await _createMoneyTables(db);
       },
 
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
-          await db.execute('ALTER TABLE profiles ADD COLUMN birth_date TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN gender TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN permanent_address TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN education TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN occupation TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN workplace TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN designation TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN blood_group TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN emergency_contact TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN about TEXT');
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN birth_date TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN gender TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN permanent_address TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN education TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN occupation TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN workplace TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN designation TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN blood_group TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN emergency_contact TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN about TEXT',
+          );
         }
 
         if (oldVersion < 3) {
           await db.execute(
             "ALTER TABLE budgets ADD COLUMN type TEXT NOT NULL DEFAULT 'expense'",
           );
-          await db.execute('ALTER TABLE budgets ADD COLUMN category_id INTEGER');
+          await db.execute(
+            'ALTER TABLE budgets ADD COLUMN category_id INTEGER',
+          );
         }
 
         if (oldVersion < 4) {
-          await db.execute('ALTER TABLE profiles ADD COLUMN skills TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN languages TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN training TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN experience TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN achievements TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN career_objective TEXT');
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN skills TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN languages TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN training TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN experience TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN achievements TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN career_objective TEXT',
+          );
         }
 
         if (oldVersion < 5) {
@@ -349,13 +386,54 @@ class AppDatabase {
         }
 
         if (oldVersion < 8) {
-          await db.execute('ALTER TABLE profiles ADD COLUMN facebook TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN linkedin TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN github TEXT');
-          await db.execute('ALTER TABLE profiles ADD COLUMN website TEXT');
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN facebook TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN linkedin TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN github TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE profiles ADD COLUMN website TEXT',
+          );
+        }
+
+        if (oldVersion < 9) {
+          await _createMoneyTables(db);
         }
       },
     );
+  }
+
+  static Future<void> _createMoneyTables(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE money_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL,
+        person_name TEXT NOT NULL,
+        phone TEXT,
+        amount REAL NOT NULL,
+        record_date TEXT NOT NULL,
+        expected_date TEXT,
+        description TEXT,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE money_payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        record_id INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        payment_date TEXT NOT NULL,
+        note TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (record_id)
+          REFERENCES money_records(id) ON DELETE CASCADE
+      )
+    ''');
   }
 
   static Future<void> close() async {
