@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/database/app_database.dart';
 import '../../core/services/language_service.dart';
@@ -28,6 +29,35 @@ class _FinancePageState extends State<FinancePage> {
 
   double get balance => totalIncome - totalExpense;
 
+  String currency = 'BDT (৳)';
+
+  static const List<String> supportedCurrencies = [
+    'BDT (৳)',
+    'USD (\$)',
+    'INR (₹)',
+    'SAR (﷼)',
+    'AED (د.إ)',
+  ];
+
+  String get currencySymbol {
+    switch (currency) {
+      case 'USD (\$)':
+        return '\$';
+      case 'INR (₹)':
+        return '₹';
+      case 'SAR (﷼)':
+        return '﷼';
+      case 'AED (د.إ)':
+        return 'د.إ';
+      default:
+        return '৳';
+    }
+  }
+
+  String formatMoney(double amount) {
+    return '$currencySymbol ${amount.toStringAsFixed(2)}';
+  }
+
   String tr(String en, String bn, String hi, String ar) {
     return LanguageService.text(
       english: en,
@@ -46,8 +76,24 @@ class _FinancePageState extends State<FinancePage> {
   }
 
   Future<void> initializeFinance() async {
+    await loadCurrency();
     await insertDefaultCategories();
     await loadFinanceData();
+  }
+
+  Future<void> loadCurrency() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final savedCurrency =
+        prefs.getString('currency') ?? 'BDT (৳)';
+
+    if (!mounted) return;
+
+    setState(() {
+      currency = supportedCurrencies.contains(savedCurrency)
+          ? savedCurrency
+          : 'BDT (৳)';
+    });
   }
 
   Future<void> insertDefaultCategories() async {
@@ -310,7 +356,7 @@ class _FinancePageState extends State<FinancePage> {
                       ),
                       decoration: InputDecoration(
                         labelText: tr('Amount', 'পরিমাণ', 'राशि', 'المبلغ'),
-                        prefixText: '৳ ',
+                        prefixText: '$currencySymbol ',
                         border: const OutlineInputBorder(),
                       ),
                     ),
@@ -495,7 +541,7 @@ class _FinancePageState extends State<FinancePage> {
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
                       labelText: tr('Amount', 'পরিমাণ', 'राशि', 'المبلغ'),
-                      prefixText: '৳ ',
+                      prefixText: '$currencySymbol ',
                       border: const OutlineInputBorder(),
                     ),
                   ),
@@ -618,7 +664,7 @@ class _FinancePageState extends State<FinancePage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '${tr('Remaining', 'বাকি', 'शेष', 'المتبقي')}: ৳ ${remaining.toStringAsFixed(2)}',
+                '${tr('Remaining', 'বাকি', 'शेष', 'المتبقي')}: ${formatMoney(remaining)}',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
@@ -627,7 +673,7 @@ class _FinancePageState extends State<FinancePage> {
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
                   labelText: tr('Payment Amount', 'পরিশোধের পরিমাণ', 'भुगतान राशि', 'مبلغ الدفعة'),
-                  prefixText: '৳ ',
+                  prefixText: '$currencySymbol ',
                   border: const OutlineInputBorder(),
                 ),
               ),
@@ -753,7 +799,7 @@ class _FinancePageState extends State<FinancePage> {
                   Text(title, style: const TextStyle(color: Colors.grey)),
                   const SizedBox(height: 5),
                   Text(
-                    '৳ ${amount.toStringAsFixed(2)}',
+                    formatMoney(amount),
                     style: TextStyle(
                       fontSize: 19,
                       fontWeight: FontWeight.bold,
@@ -786,7 +832,7 @@ class _FinancePageState extends State<FinancePage> {
           ),
         ),
         title: Text(
-          '${isIncome ? '+' : '-'} ৳ ${amount.toStringAsFixed(2)}',
+          '${isIncome ? '+' : '-'} ${formatMoney(amount)}',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: isIncome ? Colors.green : Colors.red,
@@ -895,7 +941,7 @@ class _FinancePageState extends State<FinancePage> {
               color: Colors.green,
             ),
             title: Text(
-              '৳ ${amount.toStringAsFixed(2)}',
+              formatMoney(amount),
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.green,
@@ -985,8 +1031,8 @@ class _FinancePageState extends State<FinancePage> {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 subtitle: Text(
-                  '${tr('Total', 'মোট', 'कुल', 'الإجمالي')}: ৳ ${amount.toStringAsFixed(2)}'
-                  '\n${tr('Remaining', 'বাকি', 'शेष', 'المتبقي')}: ৳ ${remaining.toStringAsFixed(2)}',
+                  '${tr('Total', 'মোট', 'कुल', 'الإجمالي')}: ${formatMoney(amount)}'
+                  '\n${tr('Remaining', 'বাকি', 'शेष', 'المتبقي')}: ${formatMoney(remaining)}',
                 ),
                 trailing: Text(
                   isPaid
@@ -1022,13 +1068,12 @@ class _FinancePageState extends State<FinancePage> {
                           ),
                         const SizedBox(height: 8),
                         Text(
-                          '${tr('Paid', 'পরিশোধ হয়েছে', 'भुगतान हुआ', 'المدفوع')}: ৳ ${paid.toStringAsFixed(2)}',
+                          '${tr('Paid', 'পরিশোধ হয়েছে', 'भुगतान हुआ', 'المدفوع')}: ${formatMoney(paid)}',
                         ),
                         Text(
-                          '${tr('Remaining', 'বাকি', 'शेष', 'المتبقي')}: ৳ ${remaining.toStringAsFixed(2)}',
+                          '${tr('Remaining', 'বাকি', 'शेष', 'المتبقي')}: ${formatMoney(remaining)}',
                         ),
 
-                        // Payment History
                         paymentHistory(id),
 
                         const SizedBox(height: 8),
@@ -1148,7 +1193,7 @@ class _FinancePageState extends State<FinancePage> {
                     tr('Net Receivable', 'নিট পাওনা', 'शुद्ध प्राप्य', 'صافي المستحقات'),
                   ),
                   trailing: Text(
-                    '৳ ${(totalReceivable - totalPayable).toStringAsFixed(2)}',
+                    formatMoney(totalReceivable - totalPayable),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 17,
