@@ -1,5 +1,6 @@
 
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -8,6 +9,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../../core/database/app_database.dart';
+import '../../core/services/language_service.dart';
 
 class PdfReportsPage extends StatefulWidget {
   const PdfReportsPage({super.key});
@@ -21,12 +23,27 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
   bool isGeneratingProfile = false;
   bool isGeneratingBudget = false;
 
+  String t({
+    required String en,
+    required String bn,
+    required String hi,
+    required String ar,
+  }) {
+    return LanguageService.text(
+      english: en,
+      bangla: bn,
+      hindi: hi,
+      arabic: ar,
+    );
+  }
+
   String formatDate(dynamic value) {
     if (value == null || value.toString().isEmpty) return '';
 
     try {
-      return DateFormat('dd/MM/yyyy')
-          .format(DateTime.parse(value.toString()));
+      return DateFormat('dd/MM/yyyy').format(
+        DateTime.parse(value.toString()),
+      );
     } catch (_) {
       return value.toString();
     }
@@ -42,6 +59,14 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
     }
 
     return text;
+  }
+
+  void showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   // ============================================================
@@ -102,12 +127,10 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         transactions.add({
           'date': item['date'],
           'type': 'Income',
-          'category':
-              categoryMap[item['category_id']] ??
-                  cleanValue(item['category_id']),
+          'category': categoryMap[item['category_id']] ??
+              cleanValue(item['category_id']),
           'description': cleanValue(item['description']),
-          'amount':
-              (item['amount'] as num?)?.toDouble() ?? 0,
+          'amount': (item['amount'] as num?)?.toDouble() ?? 0,
         });
       }
 
@@ -115,12 +138,10 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         transactions.add({
           'date': item['date'],
           'type': 'Expense',
-          'category':
-              categoryMap[item['category_id']] ??
-                  cleanValue(item['category_id']),
+          'category': categoryMap[item['category_id']] ??
+              cleanValue(item['category_id']),
           'description': cleanValue(item['description']),
-          'amount':
-              (item['amount'] as num?)?.toDouble() ?? 0,
+          'amount': (item['amount'] as num?)?.toDouble() ?? 0,
         });
       }
 
@@ -287,11 +308,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Financial PDF generation failed: $e'),
-        ),
-      );
+      showMessage('Financial PDF generation failed: $e');
     } finally {
       if (mounted) {
         setState(() => isGeneratingFinancial = false);
@@ -583,11 +600,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Budget PDF generation failed: $e'),
-        ),
-      );
+      showMessage('Budget PDF generation failed: $e');
     } finally {
       if (mounted) {
         setState(() => isGeneratingBudget = false);
@@ -673,8 +686,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
 
       final photoPath = cleanValue(profile['photo_path']);
 
-      if (photoPath.isNotEmpty &&
-          File(photoPath).existsSync()) {
+      if (photoPath.isNotEmpty && File(photoPath).existsSync()) {
         try {
           profileImage = pw.MemoryImage(
             await File(photoPath).readAsBytes(),
@@ -721,9 +733,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         );
       }
 
-      // ========================================================
       // EDUCATION TABLE
-      // ========================================================
 
       if (education.isNotEmpty) {
         profileSections.add(
@@ -741,10 +751,8 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                   'Period',
                 ],
                 data: education.map((record) {
-                  final start =
-                      cleanValue(record['start_year']);
-                  final end =
-                      cleanValue(record['end_year']);
+                  final start = cleanValue(record['start_year']);
+                  final end = cleanValue(record['end_year']);
 
                   String period = '';
 
@@ -779,9 +787,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                   fontSize: 7,
                   fontWeight: pw.FontWeight.bold,
                 ),
-                cellStyle: const pw.TextStyle(
-                  fontSize: 7,
-                ),
+                cellStyle: const pw.TextStyle(fontSize: 7),
                 cellPadding: const pw.EdgeInsets.symmetric(
                   horizontal: 3,
                   vertical: 4,
@@ -797,9 +803,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         );
       }
 
-      // ========================================================
-      // OTHER CV SECTIONS
-      // ========================================================
+      // TRAINING
 
       profileSections.add(
         _recordSection(
@@ -814,6 +818,8 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
           ],
         ),
       );
+
+      // EXPERIENCE
 
       profileSections.add(
         _recordSection(
@@ -844,6 +850,8 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
+      // SKILLS
+
       profileSections.add(
         _recordSection(
           'Skills',
@@ -855,6 +863,8 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
+      // LANGUAGES
+
       profileSections.add(
         _recordSection(
           'Languages',
@@ -865,6 +875,8 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
           ],
         ),
       );
+
+      // ACHIEVEMENTS
 
       profileSections.add(
         _recordSection(
@@ -879,6 +891,8 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
+      // ADDITIONAL INFORMATION
+
       profileSections.add(
         _infoSection(
           'Additional Information',
@@ -890,9 +904,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         ),
       );
 
-      // ========================================================
-      // SOCIAL LINKS - NEW
-      // ========================================================
+      // SOCIAL LINKS
 
       profileSections.add(
         _infoSection(
@@ -941,8 +953,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                     pw.Container(
                       width: 78,
                       height: 88,
-                      margin:
-                          const pw.EdgeInsets.only(right: 16),
+                      margin: const pw.EdgeInsets.only(right: 16),
                       child: pw.ClipRRect(
                         horizontalRadius: 6,
                         verticalRadius: 6,
@@ -1024,11 +1035,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Profile PDF generation failed: $e'),
-        ),
-      );
+      showMessage('Profile PDF generation failed: $e');
     } finally {
       if (mounted) {
         setState(() => isGeneratingProfile = false);
@@ -1039,14 +1046,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
   // ============================================================
   // PDF SECTION HELPERS
   // ============================================================
-
-  void showMessage(String message) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
 
   pw.Widget _sectionTitle(String title) {
     return pw.Container(
@@ -1082,8 +1081,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
     final validRows = rows
         .where(
           (row) =>
-              row.length >= 2 &&
-              row[1].trim().isNotEmpty,
+              row.length >= 2 && row[1].trim().isNotEmpty,
         )
         .toList();
 
@@ -1260,185 +1258,212 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
   }
 
   // ============================================================
-  // BUILD
+  // BUILD - FOUR LANGUAGE SUPPORT
   // ============================================================
 
   @override
   Widget build(BuildContext context) {
-    final isBusy = isGeneratingFinancial ||
-        isGeneratingProfile ||
-        isGeneratingBudget;
+    return ValueListenableBuilder<String>(
+      valueListenable: LanguageService.language,
+      builder: (context, language, child) {
+        final isArabic = language == 'Arabic';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('PDF Reports'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Financial Statement
+        final isBusy = isGeneratingFinancial ||
+            isGeneratingProfile ||
+            isGeneratingBudget;
 
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.account_balance_wallet_outlined,
-                    size: 48,
-                    color: Color(0xFF1877F2),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Financial Statement',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Generate a PDF report containing your '
-                    'income, expenses and current balance.',
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: isBusy
-                          ? null
-                          : generateFinancialStatement,
-                      icon: isGeneratingFinancial
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Icon(Icons.picture_as_pdf),
-                      label: Text(
-                        isGeneratingFinancial
-                            ? 'Generating...'
-                            : 'Generate Financial Statement',
-                      ),
-                    ),
-                  ),
-                ],
+        return Directionality(
+          textDirection: isArabic
+              ? ui.TextDirection.rtl
+              : ui.TextDirection.ltr,
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(
+                t(
+                  en: 'PDF Reports',
+                  bn: 'পিডিএফ রিপোর্ট',
+                  hi: 'पीडीएफ रिपोर्ट',
+                  ar: 'تقارير PDF',
+                ),
               ),
             ),
-          ),
+            body: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                // FINANCIAL STATEMENT
 
-          const SizedBox(height: 16),
+                _buildReportCard(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: t(
+                    en: 'Financial Statement',
+                    bn: 'আর্থিক বিবরণী',
+                    hi: 'वित्तीय विवरण',
+                    ar: 'كشف الحساب المالي',
+                  ),
+                  description: t(
+                    en: 'Generate a PDF report containing your income, expenses and current balance.',
+                    bn: 'আপনার আয়, ব্যয় ও বর্তমান ব্যালেন্সসহ PDF রিপোর্ট তৈরি করুন।',
+                    hi: 'अपनी आय, खर्च और वर्तमान शेष राशि की PDF रिपोर्ट बनाएं।',
+                    ar: 'أنشئ تقرير PDF يتضمن دخلك ومصروفاتك ورصيدك الحالي.',
+                  ),
+                  buttonText: t(
+                    en: 'Generate Financial Statement',
+                    bn: 'আর্থিক বিবরণী তৈরি করুন',
+                    hi: 'वित्तीय विवरण बनाएं',
+                    ar: 'إنشاء كشف الحساب المالي',
+                  ),
+                  generatingText: t(
+                    en: 'Generating...',
+                    bn: 'তৈরি হচ্ছে...',
+                    hi: 'बनाया जा रहा है...',
+                    ar: 'جارٍ الإنشاء...',
+                  ),
+                  iconColor: const Color(0xFF1877F2),
+                  isGenerating: isGeneratingFinancial,
+                  isBusy: isBusy,
+                  onPressed: generateFinancialStatement,
+                ),
 
-          // Budget PDF
+                const SizedBox(height: 16),
 
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.account_balance_outlined,
-                    size: 48,
-                    color: Color(0xFF1877F2),
+                // BUDGET PDF
+
+                _buildReportCard(
+                  icon: Icons.account_balance_outlined,
+                  title: t(
+                    en: 'Budget PDF',
+                    bn: 'বাজেট PDF',
+                    hi: 'बजट PDF',
+                    ar: 'تقرير الميزانية',
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Budget PDF',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  description: t(
+                    en: 'Generate a PDF report with income budget, expense budget, categories and planned balance.',
+                    bn: 'আয়ের বাজেট, ব্যয়ের বাজেট, বিভাগ ও পরিকল্পিত ব্যালেন্সসহ PDF তৈরি করুন।',
+                    hi: 'आय बजट, खर्च बजट, श्रेणियों और नियोजित शेष राशि की PDF रिपोर्ट बनाएं।',
+                    ar: 'أنشئ تقرير PDF لميزانية الدخل والمصروفات والتصنيفات والرصيد المخطط.',
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Generate a PDF report with income budget, '
-                    'expense budget, categories and planned balance.',
+                  buttonText: t(
+                    en: 'Generate Budget PDF',
+                    bn: 'বাজেট PDF তৈরি করুন',
+                    hi: 'बजट PDF बनाएं',
+                    ar: 'إنشاء تقرير الميزانية',
                   ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: isBusy ? null : generateBudgetPdf,
-                      icon: isGeneratingBudget
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Icon(Icons.picture_as_pdf),
-                      label: Text(
-                        isGeneratingBudget
-                            ? 'Generating...'
-                            : 'Generate Budget PDF',
-                      ),
-                    ),
+                  generatingText: t(
+                    en: 'Generating...',
+                    bn: 'তৈরি হচ্ছে...',
+                    hi: 'बनाया जा रहा है...',
+                    ar: 'جارٍ الإنشاء...',
                   ),
-                ],
-              ),
+                  iconColor: const Color(0xFF16A085),
+                  isGenerating: isGeneratingBudget,
+                  isBusy: isBusy,
+                  onPressed: generateBudgetPdf,
+                ),
+
+                const SizedBox(height: 16),
+
+                // PROFESSIONAL CV
+
+                _buildReportCard(
+                  icon: Icons.person_outline,
+                  title: t(
+                    en: 'Professional CV / Profile PDF',
+                    bn: 'পেশাদার জীবনবৃত্তান্ত / প্রোফাইল PDF',
+                    hi: 'प्रोफेशनल CV / प्रोफाइल PDF',
+                    ar: 'السيرة الذاتية / الملف الشخصي',
+                  ),
+                  description: t(
+                    en: 'Generate a compact professional CV with personal details, education, training, experience, skills, languages and achievements.',
+                    bn: 'ব্যক্তিগত তথ্য, শিক্ষা, প্রশিক্ষণ, অভিজ্ঞতা, দক্ষতা, ভাষা ও অর্জনসহ পেশাদার জীবনবৃত্তান্ত তৈরি করুন।',
+                    hi: 'व्यक्तिगत जानकारी, शिक्षा, प्रशिक्षण, अनुभव, कौशल, भाषाओं और उपलब्धियों के साथ CV बनाएं।',
+                    ar: 'أنشئ سيرة ذاتية احترافية تتضمن البيانات الشخصية والتعليم والتدريب والخبرة والمهارات والإنجازات.',
+                  ),
+                  buttonText: t(
+                    en: 'Generate Professional CV',
+                    bn: 'পেশাদার CV তৈরি করুন',
+                    hi: 'प्रोफेशनल CV बनाएं',
+                    ar: 'إنشاء السيرة الذاتية',
+                  ),
+                  generatingText: t(
+                    en: 'Generating...',
+                    bn: 'তৈরি হচ্ছে...',
+                    hi: 'बनाया जा रहा है...',
+                    ar: 'جارٍ الإنشاء...',
+                  ),
+                  iconColor: const Color(0xFF8E44AD),
+                  isGenerating: isGeneratingProfile,
+                  isBusy: isBusy,
+                  onPressed: generateProfilePdf,
+                ),
+              ],
             ),
           ),
+        );
+      },
+    );
+  }
 
-          const SizedBox(height: 16),
-
-          // Professional CV
-
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.person_outline,
-                    size: 48,
-                    color: Color(0xFF1877F2),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Professional CV / Profile PDF',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Generate a compact professional CV with '
-                    'personal details, education, training, '
-                    'experience, skills, languages and achievements.',
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: isBusy ? null : generateProfilePdf,
-                      icon: isGeneratingProfile
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Icon(Icons.picture_as_pdf),
-                      label: Text(
-                        isGeneratingProfile
-                            ? 'Generating...'
-                            : 'Generate Professional CV',
-                      ),
-                    ),
-                  ),
-                ],
+  Widget _buildReportCard({
+    required IconData icon,
+    required String title,
+    required String description,
+    required String buttonText,
+    required String generatingText,
+    required Color iconColor,
+    required bool isGenerating,
+    required bool isBusy,
+    required VoidCallback onPressed,
+  }) {
+    return Card(
+      elevation: 2,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              icon,
+              size: 48,
+              color: iconColor,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.bold,
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              description,
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).textTheme.bodyMedium?.color,
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: isBusy ? null : onPressed,
+                icon: isGenerating
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(Icons.picture_as_pdf),
+                label: Text(
+                  isGenerating ? generatingText : buttonText,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
