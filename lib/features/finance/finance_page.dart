@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -633,19 +634,103 @@ class _FinancePageState extends State<FinancePage> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  TextField(
-                    controller: phoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(
-                      labelText: tr(
-                        'Mobile Number',
-                        'মোবাইল নম্বর',
-                        'मोबाइल नंबर',
-                        'رقم الهاتف',
+
+                  // Contacts থেকে মোবাইল নম্বর নির্বাচন
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: phoneController,
+                          keyboardType: TextInputType.phone,
+                          decoration: InputDecoration(
+                            labelText: tr(
+                              'Mobile Number',
+                              'মোবাইল নম্বর',
+                              'मोबाइल नंबर',
+                              'رقم الهاتف',
+                            ),
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
                       ),
-                      border: const OutlineInputBorder(),
-                    ),
+                      const SizedBox(width: 6),
+                      SizedBox(
+                        height: 56,
+                        width: 48,
+                        child: IconButton(
+                          tooltip: tr(
+                            'Select Contact',
+                            'পরিচিতি থেকে নিন',
+                            'संपर्क चुनें',
+                            'اختر جهة اتصال',
+                          ),
+                          onPressed: () async {
+                            try {
+                              final contact =
+                                  await FlutterContacts.openExternalPick();
+
+                              if (contact == null) return;
+
+                              if (!dialogContext.mounted) return;
+
+                              update(() {
+                                final contactName =
+                                    contact.displayName.trim();
+
+                                if (contactName.isNotEmpty) {
+                                  personController.text = contactName;
+                                }
+
+                                if (contact.phones.isNotEmpty) {
+                                  phoneController.text =
+                                      contact.phones.first.number;
+                                }
+                              });
+
+                              if (contact.phones.isEmpty) {
+                                ScaffoldMessenger.of(dialogContext)
+                                    .showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      tr(
+                                        'No mobile number found for this contact',
+                                        'এই পরিচিতির কোনো মোবাইল নম্বর পাওয়া যায়নি',
+                                        'इस संपर्क के लिए मोबाइल नंबर नहीं मिला',
+                                        'لا يوجد رقم هاتف لهذا الشخص',
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (!dialogContext.mounted) return;
+
+                              ScaffoldMessenger.of(dialogContext)
+                                  .showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    tr(
+                                      'Could not open contacts',
+                                      'পরিচিতি তালিকা খোলা যায়নি',
+                                      'संपर्क नहीं खुल सके',
+                                      'تعذر فتح جهات الاتصال',
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.contacts,
+                            color: Colors.blue,
+                            size: 27,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
+
                   const SizedBox(height: 10),
                   TextField(
                     controller: amountController,
