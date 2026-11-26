@@ -1,3 +1,4 @@
+
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -18,8 +19,17 @@ class _SettingsPageState extends State<SettingsPage> {
   String language = 'English';
   String theme = 'Light';
   String currency = 'BDT (৳)';
+
   bool notifications = true;
   bool loading = true;
+
+  static const List<String> currencies = [
+    'BDT (৳)',
+    'USD (\$)',
+    'INR (₹)',
+    'SAR (﷼)',
+    'AED (د.إ)',
+  ];
 
   @override
   void initState() {
@@ -33,6 +43,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!mounted) return;
 
     final savedLanguage = prefs.getString('language') ?? 'English';
+    final savedCurrency = prefs.getString('currency') ?? 'BDT (৳)';
 
     setState(() {
       language = LanguageService.languages.contains(savedLanguage)
@@ -40,7 +51,11 @@ class _SettingsPageState extends State<SettingsPage> {
           : 'English';
 
       theme = prefs.getString('theme') ?? 'Light';
-      currency = prefs.getString('currency') ?? 'BDT (৳)';
+
+      currency = currencies.contains(savedCurrency)
+          ? savedCurrency
+          : 'BDT (৳)';
+
       notifications = prefs.getBool('notifications') ?? true;
       loading = false;
     });
@@ -78,6 +93,14 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       language = value;
     });
+  }
+
+  Future<void> changeCurrency(String value) async {
+    setState(() {
+      currency = value;
+    });
+
+    await save('currency', value);
   }
 
   String t({
@@ -312,10 +335,6 @@ class _SettingsPageState extends State<SettingsPage> {
             body: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // =========================
-                // APPEARANCE
-                // =========================
-
                 sectionTitle(
                   english: 'Appearance',
                   bangla: 'চেহারা',
@@ -381,10 +400,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
                 const SizedBox(height: 16),
 
-                // =========================
-                // LANGUAGE
-                // =========================
-
                 sectionTitle(
                   english: 'Language',
                   bangla: 'ভাষা',
@@ -433,10 +448,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
                 const SizedBox(height: 16),
 
-                // =========================
-                // CURRENCY
-                // =========================
-
                 sectionTitle(
                   english: 'Currency',
                   bangla: 'মুদ্রা',
@@ -445,48 +456,44 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
 
                 settingCard(
-                  icon: Icons.currency_exchange,
+                  icon: Icons.currency_exchange_rounded,
                   title: Text(
                     t(
-                      english: 'Currency',
-                      bangla: 'মুদ্রা',
-                      hindi: 'मुद्रा',
-                      arabic: 'العملة',
+                      english: 'App Currency',
+                      bangla: 'অ্যাপের মুদ্রা',
+                      hindi: 'ऐप की मुद्रा',
+                      arabic: 'عملة التطبيق',
+                    ),
+                  ),
+                  subtitle: Text(
+                    t(
+                      english: 'Choose your preferred currency',
+                      bangla: 'আপনার পছন্দের মুদ্রা নির্বাচন করুন',
+                      hindi: 'अपनी पसंदीदा मुद्रा चुनें',
+                      arabic: 'اختر العملة المفضلة لديك',
                     ),
                   ),
                   trailing: DropdownButton<String>(
                     value: currency,
                     underline: const SizedBox(),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'BDT (৳)',
-                        child: Text('BDT (৳)'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'USD (\$)',
-                        child: Text('USD (\$)'),
-                      ),
-                    ],
-                    onChanged: (value) async {
-                      if (value == null) return;
-
-                      setState(() {
-                        currency = value;
-                      });
-
-                      await save('currency', value);
+                    items: currencies.map((item) {
+                      return DropdownMenuItem<String>(
+                        value: item,
+                        child: Text(item),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        changeCurrency(value);
+                      }
                     },
                   ),
                 ),
 
                 const SizedBox(height: 16),
 
-                // =========================
-                // NOTIFICATIONS
-                // =========================
-
                 settingCard(
-                  icon: Icons.notifications_outlined,
+                  icon: Icons.notifications_active_outlined,
                   title: Text(
                     t(
                       english: 'Notifications',
@@ -516,10 +523,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
 
                 const SizedBox(height: 16),
-
-                // =========================
-                // BACKUP & RESTORE
-                // =========================
 
                 sectionTitle(
                   english: 'Backup & Restore',
@@ -551,7 +554,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
 
                 settingCard(
-                  icon: Icons.restore_outlined,
+                  icon: Icons.restore_rounded,
                   title: Text(
                     t(
                       english: 'Restore Data',
@@ -574,10 +577,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
                 const SizedBox(height: 20),
 
-                // =========================
-                // APP INFORMATION
-                // =========================
-
                 sectionTitle(
                   english: 'App Information',
                   bangla: 'অ্যাপের তথ্য',
@@ -586,15 +585,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
 
                 settingCard(
-                  icon: Icons.info_outline,
-                  title: Text(
-                    t(
-                      english: 'LifeMate',
-                      bangla: 'LifeMate',
-                      hindi: 'LifeMate',
-                      arabic: 'LifeMate',
-                    ),
-                  ),
+                  icon: Icons.info_rounded,
+                  title: const Text('LifeMate'),
                   subtitle: Text(
                     t(
                       english: 'Personal Management App',
