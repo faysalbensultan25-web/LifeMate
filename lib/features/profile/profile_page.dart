@@ -1,7 +1,10 @@
+
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../../core/database/app_database.dart';
 
@@ -22,6 +25,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   bool isLoading = true;
   bool isSaving = false;
+  bool isPickingPhoto = false;
 
   final List<String> genderOptions = [
     'Male',
@@ -31,14 +35,7 @@ class _ProfilePageState extends State<ProfilePage> {
   ];
 
   final List<String> bloodGroups = [
-    'A+',
-    'A-',
-    'B+',
-    'B-',
-    'AB+',
-    'AB-',
-    'O+',
-    'O-',
+    'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-',
   ];
 
   final List<String> occupationOptions = [
@@ -119,6 +116,72 @@ class _ProfilePageState extends State<ProfilePage> {
     super.dispose();
   }
 
+  Future<Directory> _photoDirectory() async {
+    final appDirectory = await getApplicationDocumentsDirectory();
+    final directory = Directory(
+      p.join(appDirectory.path, 'profile_photos'),
+    );
+
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+    }
+
+    return directory;
+  }
+
+  Future<String> _copyPhotoToPermanentStorage(String sourcePath) async {
+    final source = File(sourcePath);
+
+    if (!await source.exists()) {
+      throw Exception('Selected image file does not exist.');
+    }
+
+    final directory = await _photoDirectory();
+
+    var extension = p.extension(sourcePath).toLowerCase();
+
+    if (extension.isEmpty || extension.length > 10) {
+      extension = '.jpg';
+    }
+
+    final fileName =
+        'profile_${DateTime.now().microsecondsSinceEpoch}$extension';
+
+    final destination = File(p.join(directory.path, fileName));
+
+    await source.copy(destination.path);
+
+    return destination.path;
+  }
+
+  Future<String?> _migrateOldPhotoPath(String? oldPath) async {
+    if (oldPath == null || oldPath.trim().isEmpty) {
+      return null;
+    }
+
+    try {
+      final oldFile = File(oldPath);
+
+      if (!await oldFile.exists()) {
+        return null;
+      }
+
+      final directory = await _photoDirectory();
+      final permanentDirectoryPath = p.normalize(directory.path);
+      final oldNormalizedPath = p.normalize(oldFile.path);
+
+      // Already stored in the permanent app folder.
+      if (p.isWithin(permanentDirectoryPath, oldNormalizedPath)) {
+        return oldFile.path;
+      }
+
+      // Move the old temporary image into permanent storage.
+      return await _copyPhotoToPermanentStorage(oldFile.path);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> loadProfile() async {
     try {
       final db = await AppDatabase.database;
@@ -137,9 +200,24 @@ class _ProfilePageState extends State<ProfilePage> {
           entry.value.text = profile[entry.key]?.toString() ?? '';
         }
 
-        photoPath = profile['photo_path']?.toString();
         gender = profile['gender']?.toString() ?? '';
         bloodGroup = profile['blood_group']?.toString() ?? '';
+
+        final oldPath = profile['photo_path']?.toString();
+        final permanentPath = await _migrateOldPhotoPath(oldPath);
+
+        photoPath = permanentPath;
+
+        // Update the database if the old image was migrated
+        // or if the old image is no longer available.
+        if (profileId != null && oldPath != permanentPath) {
+          await db.update(
+            'profiles',
+            {'photo_path': permanentPath},
+            where: 'id = ?',
+            whereArgs: [profileId],
+          );
+        }
       }
     } catch (e) {
       showMessage('Could not load profile: $e');
@@ -266,24 +344,54 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> pickPhoto() async {
+    if (isPickingPhoto) return;
+
+    setState(() => isPickingPhoto = true);
+
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.image,
         allowMultiple: false,
+        withData: false,
       );
 
       if (result == null || result.files.isEmpty) return;
 
-      final path = result.files.single.path;
+      final sourcePath = result.files.single.path;
 
-      if (path == null) {
+      if (sourcePath == null) {
         showMessage('Could not access selected image.');
         return;
       }
 
-      setState(() => photoPath = path);
+      // Copy the selected image to permanent app storage.
+      final permanentPath =
+          await _copyPhotoToPermanentStorage(sourcePath);
+
+      // Save the permanent path immediately in the database.
+      final db = await AppDatabase.database;
+      final id = await ensureProfileId();
+
+      await db.update(
+        'profiles',
+        {'photo_path': permanentPath},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        photoPath = permanentPath;
+      });
+
+      showMessage('Profile photo saved permanently.');
     } catch (e) {
       showMessage('Image selection failed: $e');
+    } finally {
+      if (mounted) {
+        setState(() => isPickingPhoto = false);
+      }
     }
   }
 
@@ -480,6 +588,8 @@ class _ProfilePageState extends State<ProfilePage> {
       );
     }
 
+    final hasPhoto = photoPath != null && File(photoPath!).existsSync();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Profile'),
@@ -502,12 +612,10 @@ class _ProfilePageState extends State<ProfilePage> {
                   CircleAvatar(
                     radius: 52,
                     backgroundColor: Colors.blue.shade50,
-                    backgroundImage: photoPath != null &&
-                            File(photoPath!).existsSync()
+                    backgroundImage: hasPhoto
                         ? FileImage(File(photoPath!))
                         : null,
-                    child: photoPath == null ||
-                            !File(photoPath!).existsSync()
+                    child: !hasPhoto
                         ? const Icon(
                             Icons.person,
                             size: 55,
@@ -516,27 +624,34 @@ class _ProfilePageState extends State<ProfilePage> {
                         : null,
                   ),
                   TextButton.icon(
-                    onPressed: pickPhoto,
-                    icon: const Icon(Icons.camera_alt),
-                    label: const Text('Choose Profile Photo'),
+                    onPressed: isPickingPhoto ? null : pickPhoto,
+                    icon: isPickingPhoto
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(Icons.camera_alt),
+                    label: Text(
+                      isPickingPhoto
+                          ? 'Saving Photo...'
+                          : 'Choose Profile Photo',
+                    ),
                   ),
                 ],
               ),
             ),
 
-            sectionTitle(
-              'Personal Information',
-              Icons.person,
-            ),
+            sectionTitle('Personal Information', Icons.person),
 
             textField('name', 'Full Name'),
-
             textField(
               'phone',
               'Phone Number',
               keyboardType: TextInputType.phone,
             ),
-
             textField(
               'email',
               'Email Address',
@@ -558,77 +673,40 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
 
             textField('birth_date', 'Date of Birth'),
-
-            textField(
-              'address',
-              'Present Address',
-              multiline: true,
-            ),
-
-            textField(
-              'location',
-              'Location',
-            ),
-
+            textField('address', 'Present Address', multiline: true),
+            textField('location', 'Location'),
             textField(
               'permanent_address',
               'Permanent Address',
               multiline: true,
             ),
-
             textField(
               'emergency_contact',
               'Emergency Contact',
               keyboardType: TextInputType.phone,
             ),
 
-            sectionTitle(
-              'Professional Information',
-              Icons.work,
-            ),
+            sectionTitle('Professional Information', Icons.work),
 
             profileDropdown(
               'occupation',
               'Occupation',
               occupationOptions,
             ),
-
-            textField(
-              'workplace',
-              'Workplace',
-            ),
-
+            textField('workplace', 'Workplace'),
             profileDropdown(
               'designation',
               'Designation',
               designationOptions,
             ),
 
-            sectionTitle(
-              'Career Objective',
-              Icons.flag,
-            ),
+            sectionTitle('Career Objective', Icons.flag),
+            templateField('career_objective', 'Career Objective'),
 
-            templateField(
-              'career_objective',
-              'Career Objective',
-            ),
+            sectionTitle('About Me', Icons.info_outline),
+            templateField('about', 'About Me'),
 
-            sectionTitle(
-              'About Me',
-              Icons.info_outline,
-            ),
-
-            templateField(
-              'about',
-              'About Me',
-            ),
-
-            // Social Links
-            sectionTitle(
-              'Social Links',
-              Icons.link,
-            ),
+            sectionTitle('Social Links', Icons.link),
 
             textField(
               'facebook',
@@ -636,21 +714,18 @@ class _ProfilePageState extends State<ProfilePage> {
               keyboardType: TextInputType.url,
               capitalization: TextCapitalization.none,
             ),
-
             textField(
               'linkedin',
               'LinkedIn URL',
               keyboardType: TextInputType.url,
               capitalization: TextCapitalization.none,
             ),
-
             textField(
               'github',
               'GitHub URL',
               keyboardType: TextInputType.url,
               capitalization: TextCapitalization.none,
             ),
-
             textField(
               'website',
               'Website URL',
@@ -664,35 +739,13 @@ class _ProfilePageState extends State<ProfilePage> {
               table: 'profile_education',
               titleKey: 'qualification',
               fields: [
-                RecordField(
-                  'qualification',
-                  'Qualification',
-                  required: true,
-                ),
-                RecordField(
-                  'institution',
-                  'Institution',
-                ),
-                RecordField(
-                  'subject',
-                  'Subject / Group',
-                ),
-                RecordField(
-                  'result',
-                  'Result / GPA',
-                ),
-                RecordField(
-                  'passing_year',
-                  'Passing Year',
-                ),
-                RecordField(
-                  'start_year',
-                  'Start Year',
-                ),
-                RecordField(
-                  'end_year',
-                  'End Year',
-                ),
+                RecordField('qualification', 'Qualification', required: true),
+                RecordField('institution', 'Institution'),
+                RecordField('subject', 'Subject / Group'),
+                RecordField('result', 'Result / GPA'),
+                RecordField('passing_year', 'Passing Year'),
+                RecordField('start_year', 'Start Year'),
+                RecordField('end_year', 'End Year'),
               ],
             ),
 
@@ -702,23 +755,10 @@ class _ProfilePageState extends State<ProfilePage> {
               table: 'profile_training',
               titleKey: 'title',
               fields: [
-                RecordField(
-                  'title',
-                  'Training Title',
-                  required: true,
-                ),
-                RecordField(
-                  'institution',
-                  'Training Institution',
-                ),
-                RecordField(
-                  'duration',
-                  'Duration',
-                ),
-                RecordField(
-                  'completion_year',
-                  'Completion Year',
-                ),
+                RecordField('title', 'Training Title', required: true),
+                RecordField('institution', 'Training Institution'),
+                RecordField('duration', 'Duration'),
+                RecordField('completion_year', 'Completion Year'),
                 RecordField(
                   'certificate_details',
                   'Certificate Details',
@@ -738,26 +778,11 @@ class _ProfilePageState extends State<ProfilePage> {
                   'Job Title / Designation',
                   required: true,
                 ),
-                RecordField(
-                  'workplace',
-                  'Company / Workplace',
-                ),
-                RecordField(
-                  'location',
-                  'Job Location',
-                ),
-                RecordField(
-                  'employment_type',
-                  'Employment Type',
-                ),
-                RecordField(
-                  'start_date',
-                  'Joining Date',
-                ),
-                RecordField(
-                  'end_date',
-                  'Ending Date',
-                ),
+                RecordField('workplace', 'Company / Workplace'),
+                RecordField('location', 'Job Location'),
+                RecordField('employment_type', 'Employment Type'),
+                RecordField('start_date', 'Joining Date'),
+                RecordField('end_date', 'Ending Date'),
                 RecordField(
                   'responsibilities',
                   'Responsibilities',
@@ -777,15 +802,8 @@ class _ProfilePageState extends State<ProfilePage> {
               table: 'profile_skills',
               titleKey: 'skill_name',
               fields: [
-                RecordField(
-                  'skill_name',
-                  'Skill Name',
-                  required: true,
-                ),
-                RecordField(
-                  'proficiency',
-                  'Proficiency',
-                ),
+                RecordField('skill_name', 'Skill Name', required: true),
+                RecordField('proficiency', 'Proficiency'),
               ],
             ),
 
@@ -795,15 +813,8 @@ class _ProfilePageState extends State<ProfilePage> {
               table: 'profile_languages',
               titleKey: 'language_name',
               fields: [
-                RecordField(
-                  'language_name',
-                  'Language',
-                  required: true,
-                ),
-                RecordField(
-                  'proficiency',
-                  'Proficiency',
-                ),
+                RecordField('language_name', 'Language', required: true),
+                RecordField('proficiency', 'Proficiency'),
               ],
             ),
 
@@ -813,20 +824,13 @@ class _ProfilePageState extends State<ProfilePage> {
               table: 'profile_achievements',
               titleKey: 'title',
               fields: [
-                RecordField(
-                  'title',
-                  'Achievement Title',
-                  required: true,
-                ),
+                RecordField('title', 'Achievement Title', required: true),
                 RecordField(
                   'description',
                   'Description',
                   multiline: true,
                 ),
-                RecordField(
-                  'achievement_date',
-                  'Date / Year',
-                ),
+                RecordField('achievement_date', 'Date / Year'),
               ],
             ),
 
@@ -1035,10 +1039,7 @@ class _RecordSectionState extends State<RecordSection> {
                 TextButton(
                   onPressed: isSaving
                       ? null
-                      : () => Navigator.pop(
-                            dialogContext,
-                            false,
-                          ),
+                      : () => Navigator.pop(dialogContext, false),
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
@@ -1063,10 +1064,10 @@ class _RecordSectionState extends State<RecordSection> {
                                 data[field.key] =
                                     currentlyWorking ? 1 : 0;
                               } else {
-                                final value = formControllers[
-                                        field.key]!
-                                    .text
-                                    .trim();
+                                final value =
+                                    formControllers[field.key]!
+                                        .text
+                                        .trim();
 
                                 data[field.key] =
                                     value.isEmpty ? null : value;
@@ -1084,48 +1085,33 @@ class _RecordSectionState extends State<RecordSection> {
                               data['created_at'] =
                                   DateTime.now().toIso8601String();
 
-                              await db.insert(
-                                widget.table,
-                                data,
-                              );
+                              await db.insert(widget.table, data);
                             } else {
                               await db.update(
                                 widget.table,
                                 data,
                                 where: 'id = ? AND profile_id = ?',
-                                whereArgs: [
-                                  record['id'],
-                                  id,
-                                ],
+                                whereArgs: [record['id'], id],
                               );
                             }
 
                             if (dialogContext.mounted) {
-                              Navigator.pop(
-                                dialogContext,
-                                true,
-                              );
+                              Navigator.pop(dialogContext, true);
                             }
                           } catch (e) {
-                            setDialogState(
-                              () => isSaving = false,
-                            );
+                            setDialogState(() => isSaving = false);
 
                             if (dialogContext.mounted) {
                               ScaffoldMessenger.of(dialogContext)
                                   .showSnackBar(
                                 SnackBar(
-                                  content: Text(
-                                    'Save failed: $e',
-                                  ),
+                                  content: Text('Save failed: $e'),
                                 ),
                               );
                             }
                           }
                         },
-                  child: Text(
-                    isSaving ? 'Saving...' : 'Save',
-                  ),
+                  child: Text(isSaving ? 'Saving...' : 'Save'),
                 ),
               ],
             );
@@ -1155,17 +1141,11 @@ class _RecordSectionState extends State<RecordSection> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(
-              dialogContext,
-              false,
-            ),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(
-              dialogContext,
-              true,
-            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Delete'),
           ),
         ],
@@ -1183,10 +1163,7 @@ class _RecordSectionState extends State<RecordSection> {
       await db.delete(
         widget.table,
         where: 'id = ? AND profile_id = ?',
-        whereArgs: [
-          record['id'],
-          id,
-        ],
+        whereArgs: [record['id'], id],
       );
 
       await loadRecords();
@@ -1215,10 +1192,7 @@ class _RecordSectionState extends State<RecordSection> {
           children: [
             Row(
               children: [
-                Icon(
-                  widget.icon,
-                  color: Colors.blue,
-                ),
+                Icon(widget.icon, color: Colors.blue),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -1241,9 +1215,7 @@ class _RecordSectionState extends State<RecordSection> {
             ),
 
             if (isLoading)
-              const Center(
-                child: CircularProgressIndicator(),
-              )
+              const Center(child: CircularProgressIndicator())
             else if (records.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 10),
@@ -1275,11 +1247,12 @@ class _RecordSectionState extends State<RecordSection> {
                     )
                     .join('\n');
 
-                final isCurrent =
-                    record['is_current'] == 1;
+                final isCurrent = record['is_current'] == 1;
 
                 return Card(
-                  color: Colors.grey.shade50,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? null
+                      : Colors.grey.shade50,
                   elevation: 0,
                   margin: const EdgeInsets.only(top: 8),
                   child: ListTile(
@@ -1290,11 +1263,9 @@ class _RecordSectionState extends State<RecordSection> {
                       ),
                     ),
                     subtitle: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (subtitle.isNotEmpty)
-                          Text(subtitle),
+                        if (subtitle.isNotEmpty) Text(subtitle),
                         if (isCurrent)
                           const Padding(
                             padding: EdgeInsets.only(top: 5),
@@ -1312,9 +1283,7 @@ class _RecordSectionState extends State<RecordSection> {
                     trailing: PopupMenuButton<String>(
                       onSelected: (value) {
                         if (value == 'edit') {
-                          openRecordForm(
-                            record: record,
-                          );
+                          openRecordForm(record: record);
                         } else if (value == 'delete') {
                           deleteRecord(record);
                         }
