@@ -319,4 +319,296 @@ class _SettingsPageState extends State<SettingsPage> {
                 sectionTitle(
                   english: 'Appearance',
                   bangla: 'চেহারা',
-                  hindi: 'दिख
+                  hindi: 'दिखावट',
+                  arabic: 'المظهر',
+                ),
+
+                settingCard(
+                  icon: Icons.palette_outlined,
+                  title: Text(
+                    t(
+                      english: 'Theme',
+                      bangla: 'থিম',
+                      hindi: 'थीम',
+                      arabic: 'السمة',
+                    ),
+                  ),
+                  trailing: DropdownButton<String>(
+                    value: theme,
+                    underline: const SizedBox(),
+                    items: [
+                      DropdownMenuItem(
+                        value: 'Light',
+                        child: Text(
+                          t(
+                            english: 'Light',
+                            bangla: 'লাইট',
+                            hindi: 'लाइट',
+                            arabic: 'فاتح',
+                          ),
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Dark',
+                        child: Text(
+                          t(
+                            english: 'Dark',
+                            bangla: 'ডার্ক',
+                            hindi: 'डार्क',
+                            arabic: 'داكن',
+                          ),
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'System Default',
+                        child: Text(
+                          t(
+                            english: 'System Default',
+                            bangla: 'সিস্টেম ডিফল্ট',
+                            hindi: 'सिस्टम डिफ़ॉल्ट',
+                            arabic: 'افتراضي النظام',
+                          ),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        changeTheme(value);
+                      }
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // =========================
+                // LANGUAGE
+                // =========================
+
+                sectionTitle(
+                  english: 'Language',
+                  bangla: 'ভাষা',
+                  hindi: 'भाषा',
+                  arabic: 'اللغة',
+                ),
+
+                settingCard(
+                  icon: Icons.language,
+                  title: Text(
+                    t(
+                      english: 'App Language',
+                      bangla: 'অ্যাপের ভাষা',
+                      hindi: 'ऐप की भाषा',
+                      arabic: 'لغة التطبيق',
+                    ),
+                  ),
+                  trailing: DropdownButton<String>(
+                    value: language,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'English',
+                        child: Text('English'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Bangla',
+                        child: Text('বাংলা'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Hindi',
+                        child: Text('हिन्दी'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Arabic',
+                        child: Text('العربية'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        changeLanguage(value);
+                      }
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // =========================
+                // CURRENCY
+                // =========================
+
+                sectionTitle(
+                  english: 'Currency',
+                  bangla: 'মুদ্রা',
+                  hindi: 'मुद्रा',
+                  arabic: 'العملة',
+                ),
+
+                settingCard(
+                  icon: Icons.currency_exchange,
+                  title: Text(
+                    t(
+                      english: 'Currency',
+                      bangla: 'মুদ্রা',
+                      hindi: 'मुद्रा',
+                      arabic: 'العملة',
+                    ),
+                  ),
+                  trailing: DropdownButton<String>(
+                    value: currency,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'BDT (৳)',
+                        child: Text('BDT (৳)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'USD (\$)',
+                        child: Text('USD (\$)'),
+                      ),
+                    ],
+                    onChanged: (value) async {
+                      if (value == null) return;
+
+                      setState(() {
+                        currency = value;
+                      });
+
+                      await save('currency', value);
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // =========================
+                // NOTIFICATIONS
+                // =========================
+
+                settingCard(
+                  icon: Icons.notifications_outlined,
+                  title: Text(
+                    t(
+                      english: 'Notifications',
+                      bangla: 'নোটিফিকেশন',
+                      hindi: 'सूचनाएँ',
+                      arabic: 'الإشعارات',
+                    ),
+                  ),
+                  subtitle: Text(
+                    t(
+                      english: 'Enable app notifications',
+                      bangla: 'অ্যাপের নোটিফিকেশন চালু করুন',
+                      hindi: 'ऐप सूचनाएँ चालू करें',
+                      arabic: 'تفعيل إشعارات التطبيق',
+                    ),
+                  ),
+                  trailing: Switch(
+                    value: notifications,
+                    onChanged: (value) async {
+                      setState(() {
+                        notifications = value;
+                      });
+
+                      await save('notifications', value);
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // =========================
+                // BACKUP & RESTORE
+                // =========================
+
+                sectionTitle(
+                  english: 'Backup & Restore',
+                  bangla: 'ব্যাকআপ ও পুনরুদ্ধার',
+                  hindi: 'बैकअप और पुनर्स्थापना',
+                  arabic: 'النسخ الاحتياطي والاستعادة',
+                ),
+
+                settingCard(
+                  icon: Icons.backup_outlined,
+                  title: Text(
+                    t(
+                      english: 'Backup Data',
+                      bangla: 'ডেটা ব্যাকআপ',
+                      hindi: 'डेटा बैकअप',
+                      arabic: 'نسخ البيانات احتياطيًا',
+                    ),
+                  ),
+                  subtitle: Text(
+                    t(
+                      english: 'Save LifeMate data to a file',
+                      bangla: 'LifeMate-এর ডেটা ফাইলে সংরক্ষণ করুন',
+                      hindi: 'LifeMate डेटा को फ़ाइल में सहेजें',
+                      arabic: 'حفظ بيانات LifeMate في ملف',
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: backup,
+                ),
+
+                settingCard(
+                  icon: Icons.restore_outlined,
+                  title: Text(
+                    t(
+                      english: 'Restore Data',
+                      bangla: 'ডেটা পুনরুদ্ধার',
+                      hindi: 'डेटा पुनर्स्थापित करें',
+                      arabic: 'استعادة البيانات',
+                    ),
+                  ),
+                  subtitle: Text(
+                    t(
+                      english: 'Restore data from a backup file',
+                      bangla: 'ব্যাকআপ ফাইল থেকে ডেটা পুনরুদ্ধার করুন',
+                      hindi: 'बैकअप फ़ाइल से डेटा पुनर्स्थापित करें',
+                      arabic: 'استعادة البيانات من ملف النسخ الاحتياطي',
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: restore,
+                ),
+
+                const SizedBox(height: 20),
+
+                // =========================
+                // APP INFORMATION
+                // =========================
+
+                sectionTitle(
+                  english: 'App Information',
+                  bangla: 'অ্যাপের তথ্য',
+                  hindi: 'ऐप की जानकारी',
+                  arabic: 'معلومات التطبيق',
+                ),
+
+                settingCard(
+                  icon: Icons.info_outline,
+                  title: Text(
+                    t(
+                      english: 'LifeMate',
+                      bangla: 'LifeMate',
+                      hindi: 'LifeMate',
+                      arabic: 'LifeMate',
+                    ),
+                  ),
+                  subtitle: Text(
+                    t(
+                      english: 'Personal Management App',
+                      bangla: 'ব্যক্তিগত ব্যবস্থাপনা অ্যাপ',
+                      hindi: 'व्यक्तिगत प्रबंधन ऐप',
+                      arabic: 'تطبيق الإدارة الشخصية',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
