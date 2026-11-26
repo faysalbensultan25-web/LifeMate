@@ -1,5 +1,7 @@
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/database/app_database.dart';
 
@@ -21,14 +23,68 @@ class _BudgetPageState extends State<BudgetPage> {
   double actualIncome = 0;
   double actualExpense = 0;
 
+  String currency = 'BDT (৳)';
+
+  static const List<String> supportedCurrencies = [
+    'BDT (৳)',
+    'USD (\$)',
+    'INR (₹)',
+    'SAR (﷼)',
+    'AED (د.إ)',
+  ];
+
+  String get currencySymbol {
+    switch (currency) {
+      case 'USD (\$)':
+        return '\$';
+      case 'INR (₹)':
+        return '₹';
+      case 'SAR (﷼)':
+        return '﷼';
+      case 'AED (د.إ)':
+        return 'د.إ';
+      default:
+        return '৳';
+    }
+  }
+
+  String formatMoney(double value) {
+    return '$currencySymbol ${value.toStringAsFixed(0)}';
+  }
+
   @override
   void initState() {
     super.initState();
-    loadData();
+    initialize();
+  }
+
+  Future<void> initialize() async {
+    await loadCurrency();
+    await loadData();
+  }
+
+  Future<void> loadCurrency() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedCurrency = prefs.getString('currency');
+
+      if (!mounted) return;
+
+      setState(() {
+        currency = savedCurrency != null &&
+                supportedCurrencies.contains(savedCurrency)
+            ? savedCurrency
+            : 'BDT (৳)';
+      });
+    } catch (e) {
+      debugPrint('Currency loading error: $e');
+    }
   }
 
   Future<void> loadData() async {
-    setState(() => loading = true);
+    if (mounted) {
+      setState(() => loading = true);
+    }
 
     try {
       final db = await AppDatabase.database;
@@ -58,7 +114,9 @@ class _BudgetPageState extends State<BudgetPage> {
         );
       }
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) {
+        setState(() => loading = false);
+      }
     }
   }
 
@@ -115,8 +173,7 @@ class _BudgetPageState extends State<BudgetPage> {
         59,
       );
     } else {
-      endDate = parseDate(budget['end_date']) ??
-          startDate;
+      endDate = parseDate(budget['end_date']) ?? startDate;
       endDate = DateTime(
         endDate.year,
         endDate.month,
@@ -133,8 +190,7 @@ class _BudgetPageState extends State<BudgetPage> {
       startDate.day,
     );
 
-    final table =
-        type == 'income' ? 'incomes' : 'expenses';
+    final table = type == 'income' ? 'incomes' : 'expenses';
 
     final rows = await db.query(table);
 
@@ -152,8 +208,7 @@ class _BudgetPageState extends State<BudgetPage> {
       }
 
       if (categoryId != null &&
-          row['category_id'].toString() !=
-              categoryId.toString()) {
+          row['category_id'].toString() != categoryId.toString()) {
         continue;
       }
 
@@ -163,9 +218,7 @@ class _BudgetPageState extends State<BudgetPage> {
     return total;
   }
 
-  List<Map<String, dynamic>> categoriesFor(
-    String type,
-  ) {
+  List<Map<String, dynamic>> categoriesFor(String type) {
     return categories
         .where((x) => x['type']?.toString() == type)
         .toList();
@@ -188,11 +241,8 @@ class _BudgetPageState extends State<BudgetPage> {
   }) async {
     final editing = existing != null;
 
-    String type =
-        existing?['type']?.toString() ?? 'expense';
-
-    String period =
-        existing?['period']?.toString() ?? 'monthly';
+    String type = existing?['type']?.toString() ?? 'expense';
+    String period = existing?['period']?.toString() ?? 'monthly';
 
     final title = TextEditingController(
       text: existing?['title']?.toString() ?? '',
@@ -204,36 +254,29 @@ class _BudgetPageState extends State<BudgetPage> {
           : toDouble(existing['amount']).toStringAsFixed(2),
     );
 
-    DateTime start =
-        parseDate(existing?['start_date']) ??
-            DateTime(
-              DateTime.now().year,
-              DateTime.now().month,
-              1,
-            );
+    DateTime start = parseDate(existing?['start_date']) ??
+        DateTime(
+          DateTime.now().year,
+          DateTime.now().month,
+          1,
+        );
 
-    DateTime? end =
-        parseDate(existing?['end_date']);
+    DateTime? end = parseDate(existing?['end_date']);
 
     int? categoryId = existing?['category_id'] == null
         ? null
-        : int.tryParse(
-            existing!['category_id'].toString(),
-          );
+        : int.tryParse(existing!['category_id'].toString());
 
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialog) {
-            final available =
-                categoriesFor(type);
+            final available = categoriesFor(type);
 
             if (categoryId != null &&
                 !available.any(
-                  (x) =>
-                      x['id'].toString() ==
-                      categoryId.toString(),
+                  (x) => x['id'].toString() == categoryId.toString(),
                 )) {
               categoryId = null;
             }
@@ -285,14 +328,13 @@ class _BudgetPageState extends State<BudgetPage> {
 
                     TextField(
                       controller: amount,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(
+                      keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Amount',
-                        prefixText: '৳ ',
-                        border: OutlineInputBorder(),
+                        prefixText: '$currencySymbol ',
+                        border: const OutlineInputBorder(),
                       ),
                     ),
 
@@ -312,9 +354,7 @@ class _BudgetPageState extends State<BudgetPage> {
                         ...available.map(
                           (x) => DropdownMenuItem<int?>(
                             value: x['id'] as int,
-                            child: Text(
-                              x['name'].toString(),
-                            ),
+                            child: Text(x['name'].toString()),
                           ),
                         ),
                       ],
@@ -367,21 +407,15 @@ class _BudgetPageState extends State<BudgetPage> {
 
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const Icon(
-                        Icons.calendar_month,
-                      ),
+                      leading: const Icon(Icons.calendar_month),
                       title: Text(
-                        period == 'monthly'
-                            ? 'Month'
-                            : 'Start Date',
+                        period == 'monthly' ? 'Month' : 'Start Date',
                       ),
                       subtitle: Text(
-                        DateFormat('dd MMM yyyy')
-                            .format(start),
+                        DateFormat('dd MMM yyyy').format(start),
                       ),
                       onTap: () async {
-                        final picked =
-                            await showDatePicker(
+                        final picked = await showDatePicker(
                           context: context,
                           initialDate: start,
                           firstDate: DateTime(2000),
@@ -392,15 +426,10 @@ class _BudgetPageState extends State<BudgetPage> {
 
                         setDialog(() {
                           start = period == 'monthly'
-                              ? DateTime(
-                                  picked.year,
-                                  picked.month,
-                                  1,
-                                )
+                              ? DateTime(picked.year, picked.month, 1)
                               : picked;
 
-                          if (end != null &&
-                              end!.isBefore(start)) {
+                          if (end != null && end!.isBefore(start)) {
                             end = start;
                           }
                         });
@@ -410,19 +439,15 @@ class _BudgetPageState extends State<BudgetPage> {
                     if (period == 'custom')
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: const Icon(
-                          Icons.event_available,
-                        ),
+                        leading: const Icon(Icons.event_available),
                         title: const Text('End Date'),
                         subtitle: Text(
                           end == null
                               ? 'Select end date'
-                              : DateFormat('dd MMM yyyy')
-                                  .format(end!),
+                              : DateFormat('dd MMM yyyy').format(end!),
                         ),
                         onTap: () async {
-                          final picked =
-                              await showDatePicker(
+                          final picked = await showDatePicker(
                             context: context,
                             initialDate: end ?? start,
                             firstDate: start,
@@ -441,8 +466,7 @@ class _BudgetPageState extends State<BudgetPage> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () =>
-                      Navigator.pop(dialogContext, false),
+                  onPressed: () => Navigator.pop(dialogContext, false),
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
@@ -453,37 +477,26 @@ class _BudgetPageState extends State<BudgetPage> {
                       amount.text.trim().replaceAll(',', ''),
                     );
 
-                    if (name.isEmpty ||
-                        value == null ||
-                        value <= 0) {
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(
+                    if (name.isEmpty || value == null || value <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text(
-                            'Enter title and valid amount.',
-                          ),
+                          content: Text('Enter title and valid amount.'),
                         ),
                       );
                       return;
                     }
 
-                    if (period == 'custom' &&
-                        end == null) {
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(
+                    if (period == 'custom' && end == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text(
-                            'Select end date.',
-                          ),
+                          content: Text('Select end date.'),
                         ),
                       );
                       return;
                     }
 
-                    if (period == 'custom' &&
-                        end!.isBefore(start)) {
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(
+                    if (period == 'custom' && end!.isBefore(start)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
                             'End date cannot be before start date.',
@@ -493,8 +506,7 @@ class _BudgetPageState extends State<BudgetPage> {
                       return;
                     }
 
-                    final db =
-                        await AppDatabase.database;
+                    final db = await AppDatabase.database;
 
                     final data = {
                       'title': name,
@@ -502,12 +514,9 @@ class _BudgetPageState extends State<BudgetPage> {
                       'type': type,
                       'category_id': categoryId,
                       'period': period,
-                      'start_date': DateFormat(
-                        'yyyy-MM-dd',
-                      ).format(start),
+                      'start_date': DateFormat('yyyy-MM-dd').format(start),
                       'end_date': period == 'custom'
-                          ? DateFormat('yyyy-MM-dd')
-                              .format(end!)
+                          ? DateFormat('yyyy-MM-dd').format(end!)
                           : null,
                     };
 
@@ -519,22 +528,14 @@ class _BudgetPageState extends State<BudgetPage> {
                         whereArgs: [existing['id']],
                       );
                     } else {
-                      await db.insert(
-                        'budgets',
-                        data,
-                      );
+                      await db.insert('budgets', data);
                     }
 
                     if (dialogContext.mounted) {
-                      Navigator.pop(
-                        dialogContext,
-                        true,
-                      );
+                      Navigator.pop(dialogContext, true);
                     }
                   },
-                  child: Text(
-                    editing ? 'Update' : 'Save',
-                  ),
+                  child: Text(editing ? 'Update' : 'Save'),
                 ),
               ],
             );
@@ -551,25 +552,19 @@ class _BudgetPageState extends State<BudgetPage> {
     }
   }
 
-  Future<void> deleteBudget(
-    Map<String, dynamic> budget,
-  ) async {
+  Future<void> deleteBudget(Map<String, dynamic> budget) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Budget'),
-        content: const Text(
-          'Delete this budget?',
-        ),
+        content: const Text('Delete this budget?'),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () =>
-                Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Delete'),
           ),
         ],
@@ -618,8 +613,7 @@ class _BudgetPageState extends State<BudgetPage> {
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(icon),
               const SizedBox(height: 6),
@@ -632,7 +626,7 @@ class _BudgetPageState extends State<BudgetPage> {
               ),
               const SizedBox(height: 4),
               Text(
-                '৳${value.toStringAsFixed(0)}',
+                formatMoney(value),
                 style: const TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
@@ -645,15 +639,10 @@ class _BudgetPageState extends State<BudgetPage> {
     );
   }
 
-  Widget budgetCard(
-    Map<String, dynamic> budget,
-  ) {
-    final type =
-        budget['type']?.toString() ?? 'expense';
+  Widget budgetCard(Map<String, dynamic> budget) {
+    final type = budget['type']?.toString() ?? 'expense';
 
-    final planned =
-        toDouble(budget['amount']);
-
+    final planned = toDouble(budget['amount']);
     final income = type == 'income';
 
     return FutureBuilder<double>(
@@ -665,17 +654,11 @@ class _BudgetPageState extends State<BudgetPage> {
             ? 0.0
             : (actual / planned).clamp(0.0, 1.0);
 
-        final exceeded = income
-            ? actual < planned
-            : actual > planned;
-
-        final remaining =
-            (planned - actual).abs();
+        final exceeded = income ? actual < planned : actual > planned;
+        final remaining = (planned - actual).abs();
 
         return Card(
-          margin: const EdgeInsets.only(
-            bottom: 12,
-          ),
+          margin: const EdgeInsets.only(bottom: 12),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
@@ -684,21 +667,16 @@ class _BudgetPageState extends State<BudgetPage> {
                   children: [
                     CircleAvatar(
                       child: Icon(
-                        income
-                            ? Icons.trending_up
-                            : Icons.trending_down,
+                        income ? Icons.trending_up : Icons.trending_down,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            budget['title']
-                                    ?.toString() ??
-                                'Budget',
+                            budget['title']?.toString() ?? 'Budget',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
@@ -725,9 +703,7 @@ class _BudgetPageState extends State<BudgetPage> {
                     PopupMenuButton<String>(
                       onSelected: (v) {
                         if (v == 'edit') {
-                          showBudgetDialog(
-                            existing: budget,
-                          );
+                          showBudgetDialog(existing: budget);
                         } else {
                           deleteBudget(budget);
                         }
@@ -749,21 +725,12 @@ class _BudgetPageState extends State<BudgetPage> {
                 const SizedBox(height: 14),
 
                 Row(
-                  mainAxisAlignment:
-                      MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    amountText('Planned', planned),
+                    amountText('Actual', actual),
                     amountText(
-                      'Planned',
-                      planned,
-                    ),
-                    amountText(
-                      'Actual',
-                      actual,
-                    ),
-                    amountText(
-                      income
-                          ? 'Shortfall'
-                          : 'Remaining',
+                      income ? 'Shortfall' : 'Remaining',
                       remaining,
                     ),
                   ],
@@ -772,8 +739,7 @@ class _BudgetPageState extends State<BudgetPage> {
                 const SizedBox(height: 12),
 
                 ClipRRect(
-                  borderRadius:
-                      BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(8),
                   child: LinearProgressIndicator(
                     value: progress,
                     minHeight: 8,
@@ -789,15 +755,11 @@ class _BudgetPageState extends State<BudgetPage> {
                         ? (exceeded
                             ? 'Income target not reached'
                             : 'Income target reached')
-                        : (exceeded
-                            ? 'Budget exceeded'
-                            : 'Within budget'),
+                        : (exceeded ? 'Budget exceeded' : 'Within budget'),
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: exceeded
-                          ? Colors.orange
-                          : Colors.green,
+                      color: exceeded ? Colors.orange : Colors.green,
                     ),
                   ),
                 ),
@@ -809,13 +771,9 @@ class _BudgetPageState extends State<BudgetPage> {
     );
   }
 
-  Widget amountText(
-    String title,
-    double amount,
-  ) {
+  Widget amountText(String title, double amount) {
     return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
@@ -826,7 +784,7 @@ class _BudgetPageState extends State<BudgetPage> {
         ),
         const SizedBox(height: 3),
         Text(
-          '৳${amount.toStringAsFixed(0)}',
+          formatMoney(amount),
           style: const TextStyle(
             fontWeight: FontWeight.bold,
           ),
@@ -838,35 +796,25 @@ class _BudgetPageState extends State<BudgetPage> {
   double toDouble(dynamic value) {
     if (value is num) return value.toDouble();
 
-    return double.tryParse(
-          value?.toString() ?? '',
-        ) ??
-        0;
+    return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   DateTime? parseDate(dynamic value) {
     if (value == null) return null;
 
-    return DateTime.tryParse(
-      value.toString(),
-    );
+    return DateTime.tryParse(value.toString());
   }
 
   @override
   Widget build(BuildContext context) {
-    final plannedSavings =
-        plannedIncome - plannedExpense;
-
-    final actualSavings =
-        actualIncome - actualExpense;
+    final plannedSavings = plannedIncome - plannedExpense;
+    final actualSavings = actualIncome - actualExpense;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text(
           'Budget Planning',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
@@ -876,28 +824,19 @@ class _BudgetPageState extends State<BudgetPage> {
         ],
       ),
 
-      floatingActionButton:
-          FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => showBudgetDialog(),
         icon: const Icon(Icons.add),
         label: const Text('Budget'),
       ),
 
       body: loading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: loadData,
               child: ListView(
-                physics:
-                    const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(
-                  12,
-                  12,
-                  12,
-                  90,
-                ),
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
                 children: [
                   Row(
                     children: [
@@ -933,19 +872,15 @@ class _BudgetPageState extends State<BudgetPage> {
 
                   Card(
                     child: ListTile(
-                      leading: const Icon(
-                        Icons.savings_outlined,
-                      ),
+                      leading: const Icon(Icons.savings_outlined),
                       title: const Text(
                         'Savings',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                       subtitle: Text(
-                        'Planned: ৳${plannedSavings.toStringAsFixed(0)}'
+                        'Planned: ${formatMoney(plannedSavings)}'
                         '  •  '
-                        'Actual: ৳${actualSavings.toStringAsFixed(0)}',
+                        'Actual: ${formatMoney(actualSavings)}',
                       ),
                     ),
                   ),
@@ -970,8 +905,7 @@ class _BudgetPageState extends State<BudgetPage> {
                           child: Column(
                             children: [
                               Icon(
-                                Icons
-                                    .account_balance_wallet_outlined,
+                                Icons.account_balance_wallet_outlined,
                                 size: 55,
                                 color: Colors.grey,
                               ),
@@ -979,16 +913,13 @@ class _BudgetPageState extends State<BudgetPage> {
                               Text(
                                 'No budgets yet',
                                 style: TextStyle(
-                                  fontWeight:
-                                      FontWeight.bold,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                               SizedBox(height: 5),
                               Text(
                                 'Create your first budget.',
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                ),
+                                style: TextStyle(color: Colors.grey),
                               ),
                             ],
                           ),
