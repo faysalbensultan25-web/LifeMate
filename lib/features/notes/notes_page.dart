@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../../core/database/app_database.dart';
@@ -198,7 +199,8 @@ class _NotesPageState extends State<NotesPage> {
 
     if (selectedColor != 'all') {
       result = result.where((note) {
-        return (note['color'] as String? ?? 'yellow') == selectedColor;
+        return (note['color'] as String? ?? 'yellow') ==
+            selectedColor;
       }).toList();
     }
 
@@ -318,9 +320,7 @@ class _NotesPageState extends State<NotesPage> {
                         border: OutlineInputBorder(),
                       ),
                     ),
-
                     const SizedBox(height: 12),
-
                     TextField(
                       controller: contentController,
                       maxLines: 7,
@@ -337,9 +337,7 @@ class _NotesPageState extends State<NotesPage> {
                         border: OutlineInputBorder(),
                       ),
                     ),
-
                     const SizedBox(height: 18),
-
                     const Text(
                       'Importance / Color',
                       style: TextStyle(
@@ -347,9 +345,7 @@ class _NotesPageState extends State<NotesPage> {
                         fontSize: 15,
                       ),
                     ),
-
                     const SizedBox(height: 10),
-
                     Wrap(
                       spacing: 10,
                       runSpacing: 10,
@@ -396,9 +392,7 @@ class _NotesPageState extends State<NotesPage> {
                         );
                       }).toList(),
                     ),
-
                     const SizedBox(height: 8),
-
                     Text(
                       getColorLabel(selectedNoteColor),
                       style: TextStyle(
@@ -418,21 +412,15 @@ class _NotesPageState extends State<NotesPage> {
                 ),
                 ElevatedButton.icon(
                   onPressed: () async {
-                    final title =
-                        titleController.text.trim();
-
-                    final content =
-                        contentController.text.trim();
+                    final title = titleController.text.trim();
+                    final content = contentController.text.trim();
 
                     if (title.isEmpty && content.isEmpty) {
                       return;
                     }
 
-                    final db =
-                        await AppDatabase.database;
-
-                    final now =
-                        DateTime.now().toIso8601String();
+                    final db = await AppDatabase.database;
+                    final now = DateTime.now().toIso8601String();
 
                     if (isEditing) {
                       await db.update(
@@ -469,9 +457,7 @@ class _NotesPageState extends State<NotesPage> {
                     }
                   },
                   icon: Icon(
-                    isEditing
-                        ? Icons.save_outlined
-                        : Icons.add,
+                    isEditing ? Icons.save_outlined : Icons.add,
                   ),
                   label: Text(
                     isEditing ? 'Update' : 'Save',
@@ -488,6 +474,71 @@ class _NotesPageState extends State<NotesPage> {
     contentController.dispose();
 
     await loadNotes();
+  }
+
+  // ============================================================
+  // FULL NOTE DETAILS
+  // ============================================================
+
+  Future<void> showNoteDetails(
+    Map<String, dynamic> note,
+  ) async {
+    final colorName =
+        note['color'] as String? ?? 'yellow';
+
+    final noteColor = getNoteColor(colorName);
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                getColorIcon(colorName),
+                color: noteColor,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  note['title'] as String? ?? 'Untitled',
+                ),
+              ),
+            ],
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxHeight: 400,
+            ),
+            child: SingleChildScrollView(
+              child: SelectableText(
+                note['content'] as String? ?? '',
+                style: const TextStyle(
+                  fontSize: 15,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Close'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                showNoteDialog(note: note);
+              },
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Edit'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // ============================================================
@@ -524,22 +575,18 @@ class _NotesPageState extends State<NotesPage> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 14),
-
                 Flexible(
                   child: ListView.builder(
                     shrinkWrap: true,
                     itemCount: noteTemplates.length,
                     itemBuilder: (context, index) {
-                      final template =
-                          noteTemplates[index];
+                      final template = noteTemplates[index];
 
                       final colorName =
                           template['color'] ?? 'yellow';
 
-                      final color =
-                          getNoteColor(colorName);
+                      final color = getNoteColor(colorName);
 
                       return Card(
                         margin:
@@ -562,8 +609,7 @@ class _NotesPageState extends State<NotesPage> {
                           subtitle: Text(
                             template['content'] ?? '',
                             maxLines: 1,
-                            overflow:
-                                TextOverflow.ellipsis,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           trailing: const Icon(
                             Icons.chevron_right,
@@ -572,12 +618,10 @@ class _NotesPageState extends State<NotesPage> {
                             Navigator.pop(sheetContext);
 
                             showNoteDialog(
-                              templateTitle:
-                                  template['title'],
+                              templateTitle: template['title'],
                               templateContent:
                                   template['content'],
-                              templateColor:
-                                  template['color'],
+                              templateColor: template['color'],
                             );
                           },
                         ),
@@ -585,21 +629,16 @@ class _NotesPageState extends State<NotesPage> {
                     },
                   ),
                 ),
-
                 const SizedBox(height: 8),
-
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     onPressed: () {
                       Navigator.pop(sheetContext);
-
                       showNoteDialog();
                     },
                     icon: const Icon(Icons.edit_note),
-                    label: const Text(
-                      'Blank Note',
-                    ),
+                    label: const Text('Blank Note'),
                   ),
                 ),
               ],
@@ -667,8 +706,7 @@ class _NotesPageState extends State<NotesPage> {
       'notes',
       {
         'pinned': note['pinned'] == 1 ? 0 : 1,
-        'updated_at':
-            DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
       },
       where: 'id = ?',
       whereArgs: [note['id']],
@@ -707,7 +745,7 @@ class _NotesPageState extends State<NotesPage> {
   }
 
   // ============================================================
-  // NOTE CARD
+  // NOTE CARD - HORIZONTAL 4:3
   // ============================================================
 
   Widget buildNoteCard(
@@ -716,8 +754,7 @@ class _NotesPageState extends State<NotesPage> {
     final colorName =
         note['color'] as String? ?? 'yellow';
 
-    final noteColor =
-        getNoteColor(colorName);
+    final noteColor = getNoteColor(colorName);
 
     final title =
         note['title'] as String? ?? 'Untitled';
@@ -725,162 +762,152 @@ class _NotesPageState extends State<NotesPage> {
     final content =
         note['content'] as String? ?? '';
 
-    final pinned =
-        note['pinned'] == 1;
+    final pinned = note['pinned'] == 1;
 
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 2,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          showNoteDialog(note: note);
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border(
-              top: BorderSide(
-                color: noteColor,
-                width: 5,
-              ),
-            ),
-          ),
-          padding: const EdgeInsets.fromLTRB(
-            12,
-            10,
-            8,
-            10,
-          ),
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+    return AspectRatio(
+      aspectRatio: 4 / 3,
+      child: Card(
+        margin: EdgeInsets.zero,
+        elevation: 2,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => showNoteDetails(note),
+          child: Row(
             children: [
-              Row(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      maxLines: 2,
-                      overflow:
-                          TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
+              Container(
+                width: 7,
+                color: noteColor,
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    12,
+                    8,
+                    8,
+                    8,
                   ),
-
-                  if (pinned)
-                    Icon(
-                      Icons.push_pin_rounded,
-                      size: 18,
-                      color: noteColor,
-                    ),
-
-                  PopupMenuButton<String>(
-                    padding: EdgeInsets.zero,
-                    iconSize: 20,
-                    onSelected: (value) {
-                      if (value == 'edit') {
-                        showNoteDialog(note: note);
-                      } else if (value == 'pin') {
-                        togglePin(note);
-                      } else if (value == 'delete') {
-                        deleteNote(
-                          note['id'] as int,
-                        );
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'edit',
-                        child: ListTile(
-                          contentPadding:
-                              EdgeInsets.zero,
-                          leading:
-                              Icon(Icons.edit_outlined),
-                          title: Text('Edit'),
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          if (pinned)
+                            Icon(
+                              Icons.push_pin_rounded,
+                              size: 17,
+                              color: noteColor,
+                            ),
+                          PopupMenuButton<String>(
+                            padding: EdgeInsets.zero,
+                            iconSize: 20,
+                            onSelected: (value) {
+                              if (value == 'edit') {
+                                showNoteDialog(note: note);
+                              } else if (value == 'pin') {
+                                togglePin(note);
+                              } else if (value == 'delete') {
+                                deleteNote(
+                                  note['id'] as int,
+                                );
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Icon(Icons.edit_outlined),
+                                  title: Text('Edit'),
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'pin',
+                                child: ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Icon(
+                                    pinned
+                                        ? Icons.push_pin_outlined
+                                        : Icons.push_pin_rounded,
+                                  ),
+                                  title: Text(
+                                    pinned ? 'Unpin' : 'Pin',
+                                  ),
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Icon(
+                                    Icons.delete_outline,
+                                  ),
+                                  title: Text('Delete'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.topLeft,
+                          child: Text(
+                            content.isEmpty
+                                ? 'No content'
+                                : content,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              height: 1.3,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.75),
+                            ),
+                          ),
                         ),
                       ),
-                      PopupMenuItem(
-                        value: 'pin',
-                        child: ListTile(
-                          contentPadding:
-                              EdgeInsets.zero,
-                          leading: Icon(
-                            pinned
-                                ? Icons
-                                    .push_pin_outlined
-                                : Icons
-                                    .push_pin_rounded,
+                      Row(
+                        children: [
+                          Icon(
+                            getColorIcon(colorName),
+                            size: 15,
+                            color: noteColor,
                           ),
-                          title: Text(
-                            pinned ? 'Unpin' : 'Pin',
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              getColorLabel(colorName),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: noteColor,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: ListTile(
-                          contentPadding:
-                              EdgeInsets.zero,
-                          leading: Icon(
-                            Icons.delete_outline,
+                          const Icon(
+                            Icons.open_in_full_rounded,
+                            size: 14,
                           ),
-                          title: Text('Delete'),
-                        ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-
-              const SizedBox(height: 8),
-
-              if (content.isNotEmpty)
-                Text(
-                  content,
-                  maxLines: 6,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.35,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withOpacity(0.78),
-                  ),
                 ),
-
-              const Spacer(),
-
-              const SizedBox(height: 10),
-
-              Row(
-                children: [
-                  Icon(
-                    getColorIcon(colorName),
-                    size: 15,
-                    color: noteColor,
-                  ),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(
-                      getColorLabel(colorName),
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: noteColor,
-                      ),
-                    ),
-                  ),
-                  const Icon(
-                    Icons.arrow_forward_ios,
-                    size: 12,
-                  ),
-                ],
               ),
             ],
           ),
@@ -905,8 +932,7 @@ class _NotesPageState extends State<NotesPage> {
             tooltip: 'Sort by importance',
             onPressed: () {
               setState(() {
-                sortByImportance =
-                    !sortByImportance;
+                sortByImportance = !sortByImportance;
               });
             },
             icon: Icon(
@@ -924,16 +950,17 @@ class _NotesPageState extends State<NotesPage> {
           ),
         ],
       ),
-
       body: Column(
         children: [
-          // ======================================================
           // SEARCH
-          // ======================================================
 
           Padding(
-            padding:
-                const EdgeInsets.fromLTRB(12, 12, 12, 6),
+            padding: const EdgeInsets.fromLTRB(
+              12,
+              12,
+              12,
+              6,
+            ),
             child: TextField(
               onChanged: (value) {
                 setState(() {
@@ -942,51 +969,41 @@ class _NotesPageState extends State<NotesPage> {
               },
               decoration: InputDecoration(
                 hintText: 'Search notes...',
-                prefixIcon:
-                    const Icon(Icons.search),
-                suffixIcon:
-                    searchText.isNotEmpty
-                        ? IconButton(
-                            onPressed: () {
-                              setState(() {
-                                searchText = '';
-                              });
-                            },
-                            icon: const Icon(
-                              Icons.clear,
-                            ),
-                          )
-                        : null,
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: searchText.isNotEmpty
+                    ? IconButton(
+                        onPressed: () {
+                          setState(() {
+                            searchText = '';
+                          });
+                        },
+                        icon: const Icon(Icons.clear),
+                      )
+                    : null,
                 filled: true,
                 border: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide.none,
                 ),
               ),
             ),
           ),
 
-          // ======================================================
           // COLOR FILTER
-          // ======================================================
 
           SizedBox(
             height: 52,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding:
-                  const EdgeInsets.symmetric(
+              padding: const EdgeInsets.symmetric(
                 horizontal: 12,
                 vertical: 5,
               ),
               children: [
                 Padding(
-                  padding:
-                      const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.only(right: 8),
                   child: FilterChip(
-                    selected:
-                        selectedColor == 'all',
+                    selected: selectedColor == 'all',
                     label: const Text('All'),
                     avatar: const Icon(
                       Icons.grid_view_rounded,
@@ -1010,13 +1027,15 @@ class _NotesPageState extends State<NotesPage> {
             ),
           ),
 
-          // ======================================================
           // NOTE COUNT
-          // ======================================================
 
           Padding(
-            padding:
-                const EdgeInsets.fromLTRB(14, 2, 14, 8),
+            padding: const EdgeInsets.fromLTRB(
+              14,
+              2,
+              14,
+              8,
+            ),
             child: Row(
               children: [
                 const Icon(
@@ -1056,27 +1075,21 @@ class _NotesPageState extends State<NotesPage> {
             ),
           ),
 
-          // ======================================================
-          // NOTES GRID
-          // ======================================================
+          // NOTES - SINGLE COLUMN VERTICAL LIST
 
           Expanded(
             child: visibleNotes.isEmpty
                 ? Center(
                     child: Padding(
-                      padding:
-                          const EdgeInsets.all(30),
+                      padding: const EdgeInsets.all(30),
                       child: Column(
-                        mainAxisSize:
-                            MainAxisSize.min,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             searchText.isNotEmpty ||
-                                    selectedColor !=
-                                        'all'
+                                    selectedColor != 'all'
                                 ? Icons.search_off_rounded
-                                : Icons
-                                    .sticky_note_2_outlined,
+                                : Icons.sticky_note_2_outlined,
                             size: 64,
                             color: Theme.of(context)
                                 .colorScheme
@@ -1086,25 +1099,21 @@ class _NotesPageState extends State<NotesPage> {
                           const SizedBox(height: 14),
                           Text(
                             searchText.isNotEmpty ||
-                                    selectedColor !=
-                                        'all'
+                                    selectedColor != 'all'
                                 ? 'No matching notes'
                                 : 'No notes yet',
                             style: const TextStyle(
                               fontSize: 19,
-                              fontWeight:
-                                  FontWeight.bold,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             searchText.isNotEmpty ||
-                                    selectedColor !=
-                                        'all'
+                                    selectedColor != 'all'
                                 ? 'Try another search or color.'
                                 : 'Create your first note or use a template.',
-                            textAlign:
-                                TextAlign.center,
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Theme.of(context)
                                   .colorScheme
@@ -1114,35 +1123,27 @@ class _NotesPageState extends State<NotesPage> {
                           ),
                           const SizedBox(height: 18),
                           ElevatedButton.icon(
-                            onPressed:
-                                showTemplateDialog,
+                            onPressed: showTemplateDialog,
                             icon: const Icon(
                               Icons.auto_awesome,
                             ),
-                            label: const Text(
-                              'Use Template',
-                            ),
+                            label: const Text('Use Template'),
                           ),
                         ],
                       ),
                     ),
                   )
-                : GridView.builder(
-                    padding:
-                        const EdgeInsets.fromLTRB(
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(
                       12,
                       4,
                       12,
                       90,
                     ),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 10,
-                      childAspectRatio: 0.82,
-                    ),
                     itemCount: visibleNotes.length,
+                    separatorBuilder: (context, index) {
+                      return const SizedBox(height: 10);
+                    },
                     itemBuilder: (context, index) {
                       return buildNoteCard(
                         visibleNotes[index],
@@ -1153,12 +1154,9 @@ class _NotesPageState extends State<NotesPage> {
         ],
       ),
 
-      // ==========================================================
       // ADD NOTE
-      // ==========================================================
 
-      floatingActionButton:
-          FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: showTemplateDialog,
         icon: const Icon(Icons.add),
         label: const Text('New Note'),
