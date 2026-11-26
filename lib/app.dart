@@ -7,7 +7,7 @@ import 'core/services/language_service.dart';
 import 'features/home/lifemate_shell.dart';
 
 final ValueNotifier<ThemeMode> lifeMateThemeMode =
-    ValueNotifier(ThemeMode.light);
+    ValueNotifier(ThemeMode.dark);
 
 class LifeMateApp extends StatefulWidget {
   const LifeMateApp({super.key});
@@ -25,18 +25,22 @@ class _LifeMateAppState extends State<LifeMateApp> {
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    final theme = prefs.getString('theme') ?? 'Light';
+
+    // Dark is the default theme for first-time users.
+    final theme = prefs.getString('theme') ?? 'Dark';
 
     switch (theme.toLowerCase()) {
-      case 'dark':
-        lifeMateThemeMode.value = ThemeMode.dark;
+      case 'light':
+        lifeMateThemeMode.value = ThemeMode.light;
         break;
+
       case 'system':
       case 'system default':
         lifeMateThemeMode.value = ThemeMode.system;
         break;
+
       default:
-        lifeMateThemeMode.value = ThemeMode.light;
+        lifeMateThemeMode.value = ThemeMode.dark;
     }
   }
 
