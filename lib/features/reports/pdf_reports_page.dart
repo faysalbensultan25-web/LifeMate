@@ -1,4 +1,3 @@
-
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -8,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/database/app_database.dart';
 import '../../core/services/language_service.dart';
@@ -23,6 +23,52 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
   bool isGeneratingFinancial = false;
   bool isGeneratingProfile = false;
   bool isGeneratingBudget = false;
+
+  // ============================================================
+  // CURRENCY
+  // ============================================================
+
+  static const List<String> supportedCurrencies = [
+    'BDT (৳)',
+    'USD (\$)',
+    'INR (₹)',
+    'SAR (﷼)',
+    'AED (د.إ)',
+  ];
+
+  String currency = 'BDT (৳)';
+
+  String get currencySymbol {
+    switch (currency) {
+      case 'USD (\$)':
+        return '\$';
+      case 'INR (₹)':
+        return '₹';
+      case 'SAR (﷼)':
+        return '﷼';
+      case 'AED (د.إ)':
+        return 'د.إ';
+      default:
+        return '৳';
+    }
+  }
+
+  String formatMoney(double amount) {
+    return '$currencySymbol ${amount.toStringAsFixed(2)}';
+  }
+
+  Future<void> _loadCurrency() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final savedCurrency = prefs.getString('currency');
+
+    if (savedCurrency != null &&
+        supportedCurrencies.contains(savedCurrency)) {
+      currency = savedCurrency;
+    } else {
+      currency = 'BDT (৳)';
+    }
+  }
 
   // ============================================================
   // LOAD PDF FONT ACCORDING TO SELECTED APP LANGUAGE
@@ -121,6 +167,9 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
     setState(() => isGeneratingFinancial = true);
 
     try {
+      // Load latest selected currency before generating PDF.
+      await _loadCurrency();
+
       final db = await AppDatabase.database;
 
       final incomes = await db.query(
@@ -245,6 +294,14 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                 style: const pw.TextStyle(fontSize: 7),
               ),
               pw.SizedBox(height: 8),
+
+              // Currency information
+              pw.Text(
+                'Currency: $currency',
+                style: const pw.TextStyle(fontSize: 7),
+              ),
+              pw.SizedBox(height: 5),
+
               pw.Container(
                 padding: const pw.EdgeInsets.symmetric(
                   vertical: 6,
@@ -261,21 +318,21 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                       pw.MainAxisAlignment.spaceAround,
                   children: [
                     pw.Text(
-                      'Income: ${totalIncome.toStringAsFixed(2)}',
+                      'Income: ${formatMoney(totalIncome)}',
                       style: pw.TextStyle(
                         fontSize: 8,
                         fontWeight: pw.FontWeight.bold,
                       ),
                     ),
                     pw.Text(
-                      'Expense: ${totalExpense.toStringAsFixed(2)}',
+                      'Expense: ${formatMoney(totalExpense)}',
                       style: pw.TextStyle(
                         fontSize: 8,
                         fontWeight: pw.FontWeight.bold,
                       ),
                     ),
                     pw.Text(
-                      'Balance: ${balance.toStringAsFixed(2)}',
+                      'Balance: ${formatMoney(balance)}',
                       style: pw.TextStyle(
                         fontSize: 8,
                         fontWeight: pw.FontWeight.bold,
@@ -305,7 +362,9 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                       item['type'],
                       item['category'],
                       item['description'],
-                      item['amount'].toStringAsFixed(2),
+                      formatMoney(
+                        (item['amount'] as num?)?.toDouble() ?? 0,
+                      ),
                     ];
                   }).toList(),
                   columnWidths: {
@@ -313,7 +372,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                     1: const pw.FlexColumnWidth(0.8),
                     2: const pw.FlexColumnWidth(1.1),
                     3: const pw.FlexColumnWidth(2.2),
-                    4: const pw.FlexColumnWidth(1.0),
+                    4: const pw.FlexColumnWidth(1.2),
                   },
                   headerStyle: pw.TextStyle(
                     fontSize: 7.5,
@@ -370,6 +429,9 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
     setState(() => isGeneratingBudget = true);
 
     try {
+      // Load latest selected currency before generating PDF.
+      await _loadCurrency();
+
       final db = await AppDatabase.database;
 
       final budgets = await db.query(
@@ -472,6 +534,14 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                 style: const pw.TextStyle(fontSize: 7),
               ),
               pw.SizedBox(height: 8),
+
+              // Currency information
+              pw.Text(
+                'Currency: $currency',
+                style: const pw.TextStyle(fontSize: 7),
+              ),
+              pw.SizedBox(height: 5),
+
               pw.Container(
                 padding: const pw.EdgeInsets.symmetric(
                   vertical: 7,
@@ -488,21 +558,21 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                       pw.MainAxisAlignment.spaceAround,
                   children: [
                     pw.Text(
-                      'Income Budget: ${totalIncomeBudget.toStringAsFixed(2)}',
+                      'Income Budget: ${formatMoney(totalIncomeBudget)}',
                       style: pw.TextStyle(
                         fontSize: 8,
                         fontWeight: pw.FontWeight.bold,
                       ),
                     ),
                     pw.Text(
-                      'Expense Budget: ${totalExpenseBudget.toStringAsFixed(2)}',
+                      'Expense Budget: ${formatMoney(totalExpenseBudget)}',
                       style: pw.TextStyle(
                         fontSize: 8,
                         fontWeight: pw.FontWeight.bold,
                       ),
                     ),
                     pw.Text(
-                      'Planned Balance: ${plannedBalance.toStringAsFixed(2)}',
+                      'Planned Balance: ${formatMoney(plannedBalance)}',
                       style: pw.TextStyle(
                         fontSize: 8,
                         fontWeight: pw.FontWeight.bold,
@@ -542,7 +612,9 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                       item['period'],
                       formatDate(item['start_date']),
                       formatDate(item['end_date']),
-                      item['amount'].toStringAsFixed(2),
+                      formatMoney(
+                        (item['amount'] as num?)?.toDouble() ?? 0,
+                      ),
                     ];
                   }).toList(),
                   columnWidths: {
@@ -551,7 +623,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                     2: const pw.FlexColumnWidth(0.9),
                     3: const pw.FlexColumnWidth(0.9),
                     4: const pw.FlexColumnWidth(0.9),
-                    5: const pw.FlexColumnWidth(1.0),
+                    5: const pw.FlexColumnWidth(1.2),
                   },
                   headerStyle: pw.TextStyle(
                     fontSize: 7.5,
@@ -598,7 +670,9 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                       item['period'],
                       formatDate(item['start_date']),
                       formatDate(item['end_date']),
-                      item['amount'].toStringAsFixed(2),
+                      formatMoney(
+                        (item['amount'] as num?)?.toDouble() ?? 0,
+                      ),
                     ];
                   }).toList(),
                   columnWidths: {
@@ -607,7 +681,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                     2: const pw.FlexColumnWidth(0.9),
                     3: const pw.FlexColumnWidth(0.9),
                     4: const pw.FlexColumnWidth(0.9),
-                    5: const pw.FlexColumnWidth(1.0),
+                    5: const pw.FlexColumnWidth(1.2),
                   },
                   headerStyle: pw.TextStyle(
                     fontSize: 7.5,
