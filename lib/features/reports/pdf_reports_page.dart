@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -22,6 +23,43 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
   bool isGeneratingFinancial = false;
   bool isGeneratingProfile = false;
   bool isGeneratingBudget = false;
+
+  // ============================================================
+  // LOAD PDF FONT ACCORDING TO SELECTED APP LANGUAGE
+  // ============================================================
+
+  Future<pw.ThemeData> _loadPdfTheme() async {
+    final language = LanguageService.language.value;
+
+    String fontPath;
+
+    switch (language) {
+      case 'Bangla':
+        fontPath = 'assets/fonts/NotoSansBengali-Regular.ttf';
+        break;
+
+      case 'Hindi':
+        fontPath = 'assets/fonts/NotoSansDevanagari-Regular.ttf';
+        break;
+
+      case 'Arabic':
+        fontPath = 'assets/fonts/NotoSansArabic-Regular.ttf';
+        break;
+
+      case 'English':
+      default:
+        fontPath = 'assets/fonts/NotoSans-Regular.ttf';
+        break;
+    }
+
+    final fontData = await rootBundle.load(fontPath);
+    final pdfFont = pw.Font.ttf(fontData);
+
+    return pw.ThemeData.withFont(
+      base: pdfFont,
+      bold: pdfFont,
+    );
+  }
 
   String t({
     required String en,
@@ -159,10 +197,12 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         return bDate.compareTo(aDate);
       });
 
+      final pdfTheme = await _loadPdfTheme();
       final pdf = pw.Document();
 
       pdf.addPage(
         pw.MultiPage(
+          theme: pdfTheme,
           pageFormat: PdfPageFormat.a4,
           margin: const pw.EdgeInsets.fromLTRB(18, 18, 18, 20),
           footer: (context) {
@@ -384,10 +424,12 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
       final plannedBalance =
           totalIncomeBudget - totalExpenseBudget;
 
+      final pdfTheme = await _loadPdfTheme();
       final pdf = pw.Document();
 
       pdf.addPage(
         pw.MultiPage(
+          theme: pdfTheme,
           pageFormat: PdfPageFormat.a4,
           margin: const pw.EdgeInsets.fromLTRB(18, 18, 18, 20),
           footer: (context) {
@@ -704,6 +746,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         return formatDate(profile[key]);
       }
 
+      final pdfTheme = await _loadPdfTheme();
       final pdf = pw.Document();
       final profileSections = <pw.Widget>[];
 
@@ -733,7 +776,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
         );
       }
 
-      // EDUCATION TABLE
+      // EDUCATION
 
       if (education.isNotEmpty) {
         profileSections.add(
@@ -929,6 +972,7 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
 
       pdf.addPage(
         pw.MultiPage(
+          theme: pdfTheme,
           pageFormat: PdfPageFormat.a4,
           margin: const pw.EdgeInsets.all(28),
           footer: (context) {
@@ -1290,8 +1334,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
             body: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // FINANCIAL STATEMENT
-
                 _buildReportCard(
                   icon: Icons.account_balance_wallet_outlined,
                   title: t(
@@ -1326,8 +1368,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
 
                 const SizedBox(height: 16),
 
-                // BUDGET PDF
-
                 _buildReportCard(
                   icon: Icons.account_balance_outlined,
                   title: t(
@@ -1361,8 +1401,6 @@ class _PdfReportsPageState extends State<PdfReportsPage> {
                 ),
 
                 const SizedBox(height: 16),
-
-                // PROFESSIONAL CV
 
                 _buildReportCard(
                   icon: Icons.person_outline,
