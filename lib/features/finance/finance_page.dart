@@ -1,6 +1,8 @@
+
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -298,12 +300,7 @@ class _FinancePageState extends State<FinancePage> {
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
             child: Text(
-              tr(
-                'Cancel',
-                'বাতিল',
-                'रद्द करें',
-                'إلغاء',
-              ),
+              tr('Cancel', 'বাতিল', 'रद्द करें', 'إلغاء'),
             ),
           ),
           ElevatedButton(
@@ -334,12 +331,7 @@ class _FinancePageState extends State<FinancePage> {
               }
             },
             child: Text(
-              tr(
-                'Save',
-                'সংরক্ষণ',
-                'सहेजें',
-                'حفظ',
-              ),
+              tr('Save', 'সংরক্ষণ', 'सहेजें', 'حفظ'),
             ),
           ),
         ],
@@ -376,18 +368,8 @@ class _FinancePageState extends State<FinancePage> {
             return AlertDialog(
               title: Text(
                 isIncome
-                    ? tr(
-                        'Add Income',
-                        'আয় যোগ করুন',
-                        'आय जोड़ें',
-                        'إضافة دخل',
-                      )
-                    : tr(
-                        'Add Expense',
-                        'ব্যয় যোগ করুন',
-                        'व्यय जोड़ें',
-                        'إضافة مصروف',
-                      ),
+                    ? tr('Add Income', 'আয় যোগ করুন', 'आय जोड़ें', 'إضافة دخل')
+                    : tr('Add Expense', 'ব্যয় যোগ করুন', 'व्यय जोड़ें', 'إضافة مصروف'),
               ),
               content: SingleChildScrollView(
                 child: Column(
@@ -399,12 +381,7 @@ class _FinancePageState extends State<FinancePage> {
                         decimal: true,
                       ),
                       decoration: InputDecoration(
-                        labelText: tr(
-                          'Amount',
-                          'পরিমাণ',
-                          'राशि',
-                          'المبلغ',
-                        ),
+                        labelText: tr('Amount', 'পরিমাণ', 'राशि', 'المبلغ'),
                         prefixText: '$currencySymbol ',
                         border: const OutlineInputBorder(),
                       ),
@@ -413,12 +390,7 @@ class _FinancePageState extends State<FinancePage> {
                     DropdownButtonFormField<int>(
                       value: selectedCategoryId,
                       decoration: InputDecoration(
-                        labelText: tr(
-                          'Category',
-                          'খাত',
-                          'श्रेणी',
-                          'الفئة',
-                        ),
+                        labelText: tr('Category', 'খাত', 'श्रेणी', 'الفئة'),
                         border: const OutlineInputBorder(),
                       ),
                       items: availableCategories.map((x) {
@@ -453,12 +425,7 @@ class _FinancePageState extends State<FinancePage> {
                         },
                         icon: const Icon(Icons.add),
                         label: Text(
-                          tr(
-                            'Add Category',
-                            'খাত যোগ করুন',
-                            'श्रेणी जोड़ें',
-                            'إضافة فئة',
-                          ),
+                          tr('Add Category', 'খাত যোগ করুন', 'श्रेणी जोड़ें', 'إضافة فئة'),
                         ),
                       ),
                     ),
@@ -466,14 +433,8 @@ class _FinancePageState extends State<FinancePage> {
                       controller: dateController,
                       readOnly: true,
                       decoration: InputDecoration(
-                        labelText: tr(
-                          'Date',
-                          'তারিখ',
-                          'तारीख',
-                          'التاريخ',
-                        ),
-                        prefixIcon:
-                            const Icon(Icons.calendar_today),
+                        labelText: tr('Date', 'তারিখ', 'तारीख', 'التاريخ'),
+                        prefixIcon: const Icon(Icons.calendar_today),
                         border: const OutlineInputBorder(),
                       ),
                       onTap: () async {
@@ -498,12 +459,7 @@ class _FinancePageState extends State<FinancePage> {
                       controller: descriptionController,
                       maxLines: 2,
                       decoration: InputDecoration(
-                        labelText: tr(
-                          'Description',
-                          'বিবরণ',
-                          'विवरण',
-                          'الوصف',
-                        ),
+                        labelText: tr('Description', 'বিবরণ', 'विवरण', 'الوصف'),
                         border: const OutlineInputBorder(),
                       ),
                     ),
@@ -513,14 +469,7 @@ class _FinancePageState extends State<FinancePage> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(dialogContext),
-                  child: Text(
-                    tr(
-                      'Cancel',
-                      'বাতিল',
-                      'रद्द करें',
-                      'إلغاء',
-                    ),
-                  ),
+                  child: Text(tr('Cancel', 'বাতিল', 'रद्द करें', 'إلغاء')),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -552,11 +501,9 @@ class _FinancePageState extends State<FinancePage> {
                       {
                         'amount': amount,
                         'category_id': selectedCategoryId,
-                        'description':
-                            descriptionController.text.trim(),
+                        'description': descriptionController.text.trim(),
                         'date': selectedDate.toIso8601String(),
-                        'created_at':
-                            DateTime.now().toIso8601String(),
+                        'created_at': DateTime.now().toIso8601String(),
                       },
                     );
 
@@ -564,14 +511,7 @@ class _FinancePageState extends State<FinancePage> {
                       Navigator.pop(dialogContext);
                     }
                   },
-                  child: Text(
-                    tr(
-                      'Save',
-                      'সংরক্ষণ',
-                      'सहेजें',
-                      'حفظ',
-                    ),
-                  ),
+                  child: Text(tr('Save', 'সংরক্ষণ', 'सहेजें', 'حفظ')),
                 ),
               ],
             );
@@ -585,6 +525,117 @@ class _FinancePageState extends State<FinancePage> {
     dateController.dispose();
 
     await loadFinanceData();
+  }
+
+  // ============================================================
+  // CONTACT PICKER
+  // ============================================================
+
+  Future<void> pickContact({
+    required BuildContext dialogContext,
+    required StateSetter update,
+    required TextEditingController personController,
+    required TextEditingController phoneController,
+  }) async {
+    try {
+      // Contacts permission যাচাই এবং প্রয়োজন হলে অনুরোধ
+      final permissionGranted =
+          await FlutterContacts.requestPermission(
+        readonly: true,
+      );
+
+      if (!dialogContext.mounted) return;
+
+      if (!permissionGranted) {
+        ScaffoldMessenger.of(dialogContext).showSnackBar(
+          SnackBar(
+            content: Text(
+              tr(
+                'Contacts permission denied. Please allow permission.',
+                'পরিচিতি ব্যবহারের অনুমতি দেওয়া হয়নি। অনুমতি দিন।',
+                'संपर्क अनुमति नहीं मिली। कृपया अनुमति दें।',
+                'لم يتم منح إذن جهات الاتصال. يرجى السماح بالإذن.',
+              ),
+            ),
+          ),
+        );
+        return;
+      }
+
+      // Android-এর Contact Picker
+      final contact = await FlutterContacts.openExternalPick();
+
+      if (contact == null) return;
+      if (!dialogContext.mounted) return;
+
+      update(() {
+        final name = contact.displayName.trim();
+
+        if (name.isNotEmpty) {
+          personController.text = name;
+        }
+
+        if (contact.phones.isNotEmpty) {
+          phoneController.text =
+              contact.phones.first.number;
+        }
+      });
+
+      if (contact.phones.isEmpty) {
+        ScaffoldMessenger.of(dialogContext).showSnackBar(
+          SnackBar(
+            content: Text(
+              tr(
+                'No phone number found for this contact.',
+                'এই পরিচিতির কোনো ফোন নম্বর পাওয়া যায়নি।',
+                'इस संपर्क का फोन नंबर नहीं मिला।',
+                'لا يوجد رقم هاتف لجهة الاتصال هذه.',
+              ),
+            ),
+          ),
+        );
+      }
+    } on PlatformException catch (e) {
+      if (!dialogContext.mounted) return;
+
+      ScaffoldMessenger.of(dialogContext).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Contact error: ${e.message ?? e.code}',
+          ),
+        ),
+      );
+    } on MissingPluginException {
+      if (!dialogContext.mounted) return;
+
+      ScaffoldMessenger.of(dialogContext).showSnackBar(
+        SnackBar(
+          content: Text(
+            tr(
+              'Contact service is unavailable. Please install the latest APK.',
+              'পরিচিতি সেবা পাওয়া যাচ্ছে না। সর্বশেষ APK ইনস্টল করুন।',
+              'संपर्क सेवा उपलब्ध नहीं है। नवीनतम APK इंस्टॉल करें।',
+              'خدمة جهات الاتصال غير متاحة. يرجى تثبيت أحدث إصدار.',
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!dialogContext.mounted) return;
+
+      ScaffoldMessenger.of(dialogContext).showSnackBar(
+        SnackBar(
+          content: Text(
+            tr(
+              'Could not open contacts.',
+              'পরিচিতি তালিকা খোলা যায়নি।',
+              'संपर्क सूची नहीं खुल सकी।',
+              'تعذر فتح جهات الاتصال.',
+            ),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> addMoneyRecord(String type) async {
@@ -605,18 +656,8 @@ class _FinancePageState extends State<FinancePage> {
           return AlertDialog(
             title: Text(
               isReceivable
-                  ? tr(
-                      'Add Receivable',
-                      'পাওনা যোগ করুন',
-                      'प्राप्य जोड़ें',
-                      'إضافة مستحق',
-                    )
-                  : tr(
-                      'Add Payable',
-                      'দেনা যোগ করুন',
-                      'देय जोड़ें',
-                      'إضافة مستحق عليه',
-                    ),
+                  ? tr('Add Receivable', 'পাওনা যোগ করুন', 'प्राप्य जोड़ें', 'إضافة مستحق')
+                  : tr('Add Payable', 'দেনা যোগ করুন', 'देय जोड़ें', 'إضافة مستحق عليه'),
             ),
             content: SingleChildScrollView(
               child: Column(
@@ -635,7 +676,6 @@ class _FinancePageState extends State<FinancePage> {
                   ),
                   const SizedBox(height: 10),
 
-                  // Contacts থেকে মোবাইল নম্বর নির্বাচন
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -665,62 +705,12 @@ class _FinancePageState extends State<FinancePage> {
                             'संपर्क चुनें',
                             'اختر جهة اتصال',
                           ),
-                          onPressed: () async {
-                            try {
-                              final contact =
-                                  await FlutterContacts.openExternalPick();
-
-                              if (contact == null) return;
-
-                              if (!dialogContext.mounted) return;
-
-                              update(() {
-                                final contactName =
-                                    contact.displayName.trim();
-
-                                if (contactName.isNotEmpty) {
-                                  personController.text = contactName;
-                                }
-
-                                if (contact.phones.isNotEmpty) {
-                                  phoneController.text =
-                                      contact.phones.first.number;
-                                }
-                              });
-
-                              if (contact.phones.isEmpty) {
-                                ScaffoldMessenger.of(dialogContext)
-                                    .showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      tr(
-                                        'No mobile number found for this contact',
-                                        'এই পরিচিতির কোনো মোবাইল নম্বর পাওয়া যায়নি',
-                                        'इस संपर्क के लिए मोबाइल नंबर नहीं मिला',
-                                        'لا يوجد رقم هاتف لهذا الشخص',
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              if (!dialogContext.mounted) return;
-
-                              ScaffoldMessenger.of(dialogContext)
-                                  .showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    tr(
-                                      'Could not open contacts',
-                                      'পরিচিতি তালিকা খোলা যায়নি',
-                                      'संपर्क नहीं खुल सके',
-                                      'تعذر فتح جهات الاتصال',
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }
-                          },
+                          onPressed: () => pickContact(
+                            dialogContext: dialogContext,
+                            update: update,
+                            personController: personController,
+                            phoneController: phoneController,
+                          ),
                           icon: const Icon(
                             Icons.contacts,
                             color: Colors.blue,
@@ -739,12 +729,7 @@ class _FinancePageState extends State<FinancePage> {
                       decimal: true,
                     ),
                     decoration: InputDecoration(
-                      labelText: tr(
-                        'Amount',
-                        'পরিমাণ',
-                        'राशि',
-                        'المبلغ',
-                      ),
+                      labelText: tr('Amount', 'পরিমাণ', 'राशि', 'المبلغ'),
                       prefixText: '$currencySymbol ',
                       border: const OutlineInputBorder(),
                     ),
@@ -753,19 +738,12 @@ class _FinancePageState extends State<FinancePage> {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(
-                      tr(
-                        'Record Date',
-                        'হিসাবের তারিখ',
-                        'रिकॉर्ड तारीख',
-                        'تاريخ التسجيل',
-                      ),
+                      tr('Record Date', 'হিসাবের তারিখ', 'रिकॉर्ड तारीख', 'تاريخ التسجيل'),
                     ),
                     subtitle: Text(
-                      DateFormat('dd MMM yyyy')
-                          .format(recordDate),
+                      DateFormat('dd MMM yyyy').format(recordDate),
                     ),
-                    trailing:
-                        const Icon(Icons.calendar_month),
+                    trailing: const Icon(Icons.calendar_month),
                     onTap: () async {
                       final date = await showDatePicker(
                         context: context,
@@ -791,21 +769,14 @@ class _FinancePageState extends State<FinancePage> {
                     ),
                     subtitle: Text(
                       expectedDate == null
-                          ? tr(
-                              'Not set',
-                              'নির্ধারণ করা হয়নি',
-                              'निर्धारित नहीं',
-                              'غير محدد',
-                            )
-                          : DateFormat('dd MMM yyyy')
-                              .format(expectedDate!),
+                          ? tr('Not set', 'নির্ধারণ করা হয়নি', 'निर्धारित नहीं', 'غير محدد')
+                          : DateFormat('dd MMM yyyy').format(expectedDate!),
                     ),
                     trailing: const Icon(Icons.event),
                     onTap: () async {
                       final date = await showDatePicker(
                         context: context,
-                        initialDate:
-                            expectedDate ?? DateTime.now(),
+                        initialDate: expectedDate ?? DateTime.now(),
                         firstDate: DateTime(2000),
                         lastDate: DateTime(2100),
                       );
@@ -834,14 +805,7 @@ class _FinancePageState extends State<FinancePage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
-                child: Text(
-                  tr(
-                    'Cancel',
-                    'বাতিল',
-                    'रद्द करें',
-                    'إلغاء',
-                  ),
-                ),
+                child: Text(tr('Cancel', 'বাতিল', 'रद्द करें', 'إلغاء')),
               ),
               ElevatedButton(
                 onPressed: () async {
@@ -849,9 +813,7 @@ class _FinancePageState extends State<FinancePage> {
                   final amount =
                       double.tryParse(amountController.text.trim());
 
-                  if (name.isEmpty ||
-                      amount == null ||
-                      amount <= 0) {
+                  if (name.isEmpty || amount == null || amount <= 0) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
@@ -874,28 +836,17 @@ class _FinancePageState extends State<FinancePage> {
                     'person_name': name,
                     'phone': phoneController.text.trim(),
                     'amount': amount,
-                    'record_date':
-                        recordDate.toIso8601String(),
-                    'expected_date':
-                        expectedDate?.toIso8601String(),
-                    'description':
-                        descriptionController.text.trim(),
-                    'created_at':
-                        DateTime.now().toIso8601String(),
+                    'record_date': recordDate.toIso8601String(),
+                    'expected_date': expectedDate?.toIso8601String(),
+                    'description': descriptionController.text.trim(),
+                    'created_at': DateTime.now().toIso8601String(),
                   });
 
                   if (dialogContext.mounted) {
                     Navigator.pop(dialogContext);
                   }
                 },
-                child: Text(
-                  tr(
-                    'Save',
-                    'সংরক্ষণ',
-                    'सहेजें',
-                    'حفظ',
-                  ),
-                ),
+                child: Text(tr('Save', 'সংরক্ষণ', 'सहेजें', 'حفظ')),
               ),
             ],
           );
@@ -923,29 +874,20 @@ class _FinancePageState extends State<FinancePage> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, update) => AlertDialog(
           title: Text(
-            tr(
-              'Add Payment',
-              'পরিশোধ যোগ করুন',
-              'भुगतान जोड़ें',
-              'إضافة دفعة',
-            ),
+            tr('Add Payment', 'পরিশোধ যোগ করুন', 'भुगतान जोड़ें', 'إضافة دفعة'),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 '${tr('Remaining', 'বাকি', 'शेष', 'المتبقي')}: ${formatMoney(remaining)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: controller,
                 keyboardType:
-                    const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
+                    const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
                   labelText: tr(
                     'Payment Amount',
@@ -961,19 +903,12 @@ class _FinancePageState extends State<FinancePage> {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(
-                  tr(
-                    'Payment Date',
-                    'পরিশোধের তারিখ',
-                    'भुगतान की तारीख',
-                    'تاريخ الدفع',
-                  ),
+                  tr('Payment Date', 'পরিশোধের তারিখ', 'भुगतान की तारीख', 'تاريخ الدفع'),
                 ),
                 subtitle: Text(
-                  DateFormat('dd MMM yyyy')
-                      .format(paymentDate),
+                  DateFormat('dd MMM yyyy').format(paymentDate),
                 ),
-                trailing:
-                    const Icon(Icons.calendar_month),
+                trailing: const Icon(Icons.calendar_month),
                 onTap: () async {
                   final date = await showDatePicker(
                     context: context,
@@ -990,12 +925,7 @@ class _FinancePageState extends State<FinancePage> {
               TextField(
                 controller: noteController,
                 decoration: InputDecoration(
-                  labelText: tr(
-                    'Note',
-                    'মন্তব্য',
-                    'टिप्पणी',
-                    'ملاحظة',
-                  ),
+                  labelText: tr('Note', 'মন্তব্য', 'टिप्पणी', 'ملاحظة'),
                   border: const OutlineInputBorder(),
                 ),
               ),
@@ -1004,14 +934,7 @@ class _FinancePageState extends State<FinancePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: Text(
-                tr(
-                  'Cancel',
-                  'বাতিল',
-                  'रद्द करें',
-                  'إلغاء',
-                ),
-              ),
+              child: Text(tr('Cancel', 'বাতিল', 'रद्द करें', 'إلغاء')),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -1041,25 +964,16 @@ class _FinancePageState extends State<FinancePage> {
                 await db.insert('money_payments', {
                   'record_id': record['id'],
                   'amount': amount,
-                  'payment_date':
-                      paymentDate.toIso8601String(),
+                  'payment_date': paymentDate.toIso8601String(),
                   'note': noteController.text.trim(),
-                  'created_at':
-                      DateTime.now().toIso8601String(),
+                  'created_at': DateTime.now().toIso8601String(),
                 });
 
                 if (dialogContext.mounted) {
                   Navigator.pop(dialogContext);
                 }
               },
-              child: Text(
-                tr(
-                  'Save',
-                  'সংরক্ষণ',
-                  'सहेजें',
-                  'حفظ',
-                ),
-              ),
+              child: Text(tr('Save', 'সংরক্ষণ', 'सहेजें', 'حفظ')),
             ),
           ],
         ),
@@ -1084,10 +998,7 @@ class _FinancePageState extends State<FinancePage> {
     await loadFinanceData();
   }
 
-  Future<void> deleteTransaction(
-    bool isIncome,
-    int id,
-  ) async {
+  Future<void> deleteTransaction(bool isIncome, int id) async {
     final db = await AppDatabase.database;
 
     await db.delete(
@@ -1112,22 +1023,14 @@ class _FinancePageState extends State<FinancePage> {
           children: [
             CircleAvatar(
               backgroundColor: color.withOpacity(.12),
-              child: Icon(
-                icon,
-                color: color,
-              ),
+              child: Icon(icon, color: color),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style:
-                        const TextStyle(color: Colors.grey),
-                  ),
+                  Text(title, style: const TextStyle(color: Colors.grey)),
                   const SizedBox(height: 5),
                   Text(
                     formatMoney(amount),
@@ -1150,8 +1053,7 @@ class _FinancePageState extends State<FinancePage> {
     Map<String, dynamic> item,
     bool isIncome,
   ) {
-    final amount =
-        (item['amount'] as num).toDouble();
+    final amount = (item['amount'] as num).toDouble();
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1161,20 +1063,15 @@ class _FinancePageState extends State<FinancePage> {
               ? Colors.green.shade50
               : Colors.red.shade50,
           child: Icon(
-            isIncome
-                ? Icons.arrow_downward
-                : Icons.arrow_upward,
-            color: isIncome
-                ? Colors.green
-                : Colors.red,
+            isIncome ? Icons.arrow_downward : Icons.arrow_upward,
+            color: isIncome ? Colors.green : Colors.red,
           ),
         ),
         title: Text(
           '${isIncome ? '+' : '-'} ${formatMoney(amount)}',
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            color:
-                isIncome ? Colors.green : Colors.red,
+            color: isIncome ? Colors.green : Colors.red,
           ),
         ),
         subtitle: Text(
@@ -1186,10 +1083,7 @@ class _FinancePageState extends State<FinancePage> {
         ),
         isThreeLine: true,
         trailing: IconButton(
-          icon: const Icon(
-            Icons.delete_outline,
-            color: Colors.red,
-          ),
+          icon: const Icon(Icons.delete_outline, color: Colors.red),
           onPressed: () => deleteTransaction(
             isIncome,
             item['id'] as int,
@@ -1205,8 +1099,7 @@ class _FinancePageState extends State<FinancePage> {
     bool isIncome,
   ) {
     return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 14),
         Text(
@@ -1227,25 +1120,13 @@ class _FinancePageState extends State<FinancePage> {
               ),
               title: Text(
                 isIncome
-                    ? tr(
-                        'No income recorded',
-                        'কোনো আয় নেই',
-                        'कोई आय दर्ज नहीं',
-                        'لا يوجد دخل مسجل',
-                      )
-                    : tr(
-                        'No expense recorded',
-                        'কোনো ব্যয় নেই',
-                        'कोई व्यय दर्ज नहीं',
-                        'لا توجد مصروفات مسجلة',
-                      ),
+                    ? tr('No income recorded', 'কোনো আয় নেই', 'कोई आय दर्ज नहीं', 'لا يوجد دخل مسجل')
+                    : tr('No expense recorded', 'কোনো ব্যয় নেই', 'कोई व्यय दर्ज नहीं', 'لا توجد مصروفات مسجلة'),
               ),
             ),
           )
         else
-          ...items.map(
-            (x) => transactionCard(x, isIncome),
-          ),
+          ...items.map((x) => transactionCard(x, isIncome)),
       ],
     );
   }
@@ -1257,8 +1138,7 @@ class _FinancePageState extends State<FinancePage> {
 
     if (recordPayments.isEmpty) {
       return Padding(
-        padding:
-            const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
           tr(
             'No payments recorded',
@@ -1266,24 +1146,17 @@ class _FinancePageState extends State<FinancePage> {
             'कोई भुगतान दर्ज नहीं',
             'لا توجد دفعات مسجلة',
           ),
-          style:
-              const TextStyle(color: Colors.grey),
+          style: const TextStyle(color: Colors.grey),
         ),
       );
     }
 
     return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Divider(),
         Text(
-          tr(
-            'Payment History',
-            'পরিশোধের ইতিহাস',
-            'भुगतान इतिहास',
-            'سجل الدفعات',
-          ),
+          tr('Payment History', 'পরিশোধের ইতিহাস', 'भुगतान इतिहास', 'سجل الدفعات'),
           style: const TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 15,
@@ -1291,18 +1164,13 @@ class _FinancePageState extends State<FinancePage> {
         ),
         const SizedBox(height: 6),
         ...recordPayments.map((payment) {
-          final amount =
-              (payment['amount'] as num).toDouble();
-          final note =
-              (payment['note'] ?? '').toString();
+          final amount = (payment['amount'] as num).toDouble();
+          final note = (payment['note'] ?? '').toString();
 
           return ListTile(
             contentPadding: EdgeInsets.zero,
             dense: true,
-            leading: const Icon(
-              Icons.check_circle,
-              color: Colors.green,
-            ),
+            leading: const Icon(Icons.check_circle, color: Colors.green),
             title: Text(
               formatMoney(amount),
               style: const TextStyle(
@@ -1321,30 +1189,18 @@ class _FinancePageState extends State<FinancePage> {
   }
 
   Widget moneySection(String type) {
-    final isReceivable =
-        type == 'receivable';
+    final isReceivable = type == 'receivable';
 
     final records = moneyRecords
         .where((x) => x['type'] == type)
         .toList();
 
     final title = isReceivable
-        ? tr(
-            'Receivable - My Money',
-            'আমার পাওনা',
-            'मेरा प्राप्य',
-            'مستحقاتي',
-          )
-        : tr(
-            'Payable - My Debt',
-            'আমার দেনা',
-            'मेरे ऋण',
-            'ديوني',
-          );
+        ? tr('Receivable - My Money', 'আমার পাওনা', 'मेरा प्राप्य', 'مستحقاتي')
+        : tr('Payable - My Debt', 'আমার দেনা', 'मेरे ऋण', 'ديوني');
 
     return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 18),
         Row(
@@ -1360,16 +1216,8 @@ class _FinancePageState extends State<FinancePage> {
             ),
             IconButton(
               onPressed: () => addMoneyRecord(type),
-              icon: const Icon(
-                Icons.add_circle,
-                color: Colors.blue,
-              ),
-              tooltip: tr(
-                'Add',
-                'যোগ করুন',
-                'जोड़ें',
-                'إضافة',
-              ),
+              icon: const Icon(Icons.add_circle, color: Colors.blue),
+              tooltip: tr('Add', 'যোগ করুন', 'जोड़ें', 'إضافة'),
             ),
           ],
         ),
@@ -1377,9 +1225,7 @@ class _FinancePageState extends State<FinancePage> {
           Card(
             child: ListTile(
               leading: Icon(
-                isReceivable
-                    ? Icons.call_received
-                    : Icons.call_made,
+                isReceivable ? Icons.call_received : Icons.call_made,
               ),
               title: Text(
                 tr(
@@ -1394,35 +1240,26 @@ class _FinancePageState extends State<FinancePage> {
         else
           ...records.map((record) {
             final id = record['id'] as int;
-            final amount =
-                (record['amount'] as num).toDouble();
+            final amount = (record['amount'] as num).toDouble();
             final paid = paidAmount(id);
-            final remaining =
-                remainingAmount(record);
+            final remaining = remainingAmount(record);
             final isPaid = remaining <= 0;
 
             return Card(
-              margin:
-                  const EdgeInsets.only(bottom: 9),
+              margin: const EdgeInsets.only(bottom: 9),
               child: ExpansionTile(
                 leading: CircleAvatar(
                   backgroundColor: isReceivable
                       ? Colors.green.shade50
                       : Colors.orange.shade50,
                   child: Icon(
-                    isReceivable
-                        ? Icons.call_received
-                        : Icons.call_made,
-                    color: isReceivable
-                        ? Colors.green
-                        : Colors.orange,
+                    isReceivable ? Icons.call_received : Icons.call_made,
+                    color: isReceivable ? Colors.green : Colors.orange,
                   ),
                 ),
                 title: Text(
                   record['person_name'].toString(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 subtitle: Text(
                   '${tr('Total', 'মোট', 'कुल', 'الإجمالي')}: ${formatMoney(amount)}'
@@ -1430,64 +1267,33 @@ class _FinancePageState extends State<FinancePage> {
                 ),
                 trailing: Text(
                   isPaid
-                      ? tr(
-                          'Paid',
-                          'পরিশোধিত',
-                          'भुगतान',
-                          'مدفوع',
-                        )
+                      ? tr('Paid', 'পরিশোধিত', 'भुगतान', 'مدفوع')
                       : paid > 0
-                          ? tr(
-                              'Partial',
-                              'আংশিক',
-                              'आंशिक',
-                              'جزئي',
-                            )
-                          : tr(
-                              'Due',
-                              'বাকি',
-                              'बकाया',
-                              'مستحق',
-                            ),
+                          ? tr('Partial', 'আংশিক', 'आंशिक', 'جزئي')
+                          : tr('Due', 'বাকি', 'बकाया', 'مستحق'),
                   style: TextStyle(
-                    color: isPaid
-                        ? Colors.green
-                        : Colors.orange,
-                    fontWeight:
-                        FontWeight.bold,
+                    color: isPaid ? Colors.green : Colors.orange,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 children: [
                   Padding(
-                    padding:
-                        const EdgeInsets.fromLTRB(
-                      16,
-                      0,
-                      16,
-                      12,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if ((record['phone'] ?? '')
-                            .toString()
-                            .isNotEmpty)
+                        if ((record['phone'] ?? '').toString().isNotEmpty)
                           Text(
                             '${tr('Mobile', 'মোবাইল', 'मोबाइल', 'الهاتف')}: ${record['phone']}',
                           ),
                         Text(
                           '${tr('Date', 'তারিখ', 'तारीख', 'التاريخ')}: ${formatDate(record['record_date'])}',
                         ),
-                        if (record['expected_date'] !=
-                            null)
+                        if (record['expected_date'] != null)
                           Text(
                             '${tr('Expected Date', 'সম্ভাব্য তারিখ', 'अपेक्षित तारीख', 'التاريخ المتوقع')}: ${formatDate(record['expected_date'])}',
                           ),
-                        if ((record['description'] ??
-                                '')
-                            .toString()
-                            .isNotEmpty)
+                        if ((record['description'] ?? '').toString().isNotEmpty)
                           Text(
                             '${tr('Note', 'বিবরণ', 'विवरण', 'ملاحظة')}: ${record['description']}',
                           ),
@@ -1505,34 +1311,19 @@ class _FinancePageState extends State<FinancePage> {
                           children: [
                             if (!isPaid)
                               ElevatedButton.icon(
-                                onPressed: () =>
-                                    addPayment(record),
-                                icon: const Icon(
-                                  Icons.payments,
-                                  size: 18,
-                                ),
+                                onPressed: () => addPayment(record),
+                                icon: const Icon(Icons.payments, size: 18),
                                 label: Text(
-                                  tr(
-                                    'Add Payment',
-                                    'পরিশোধ যোগ',
-                                    'भुगतान जोड़ें',
-                                    'إضافة دفعة',
-                                  ),
+                                  tr('Add Payment', 'পরিশোধ যোগ', 'भुगतान जोड़ें', 'إضافة دفعة'),
                                 ),
                               ),
                             IconButton(
-                              onPressed: () =>
-                                  deleteMoneyRecord(id),
+                              onPressed: () => deleteMoneyRecord(id),
                               icon: const Icon(
                                 Icons.delete_outline,
                                 color: Colors.red,
                               ),
-                              tooltip: tr(
-                                'Delete',
-                                'মুছুন',
-                                'हटाएं',
-                                'حذف',
-                              ),
+                              tooltip: tr('Delete', 'মুছুন', 'हटाएं', 'حذف'),
                             ),
                           ],
                         ),
@@ -1556,15 +1347,8 @@ class _FinancePageState extends State<FinancePage> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(
-            tr(
-              'Finance',
-              'আর্থিক হিসাব',
-              'वित्त',
-              'المالية',
-            ),
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
+            tr('Finance', 'আর্থিক হিসাব', 'वित्त', 'المالية'),
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           actions: [
             PopupMenuButton<String>(
@@ -1573,23 +1357,13 @@ class _FinancePageState extends State<FinancePage> {
                 PopupMenuItem(
                   value: 'income',
                   child: Text(
-                    tr(
-                      'Add Income Category',
-                      'আয়ের খাত যোগ',
-                      'आय श्रेणी जोड़ें',
-                      'إضافة فئة دخل',
-                    ),
+                    tr('Add Income Category', 'আয়ের খাত যোগ', 'आय श्रेणी जोड़ें', 'إضافة فئة دخل'),
                   ),
                 ),
                 PopupMenuItem(
                   value: 'expense',
                   child: Text(
-                    tr(
-                      'Add Expense Category',
-                      'ব্যয়ের খাত যোগ',
-                      'व्यय श्रेणी जोड़ें',
-                      'إضافة فئة مصروف',
-                    ),
+                    tr('Add Expense Category', 'ব্যয়ের খাত যোগ', 'व्यय श्रेणी जोड़ें', 'إضافة فئة مصروف'),
                   ),
                 ),
               ],
@@ -1599,59 +1373,32 @@ class _FinancePageState extends State<FinancePage> {
         body: RefreshIndicator(
           onRefresh: loadFinanceData,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(
-              14,
-              10,
-              14,
-              30,
-            ),
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 30),
             children: [
               summaryCard(
-                tr(
-                  'Total Income',
-                  'মোট আয়',
-                  'कुल आय',
-                  'إجمالي الدخل',
-                ),
+                tr('Total Income', 'মোট আয়', 'कुल आय', 'إجمالي الدخل'),
                 totalIncome,
                 Icons.trending_up,
                 Colors.green,
               ),
               summaryCard(
-                tr(
-                  'Total Expense',
-                  'মোট ব্যয়',
-                  'कुल व्यय',
-                  'إجمالي المصروفات',
-                ),
+                tr('Total Expense', 'মোট ব্যয়', 'कुल व्यय', 'إجمالي المصروفات'),
                 totalExpense,
                 Icons.trending_down,
                 Colors.red,
               ),
               summaryCard(
-                tr(
-                  'Current Balance',
-                  'বর্তমান জমা',
-                  'वर्तमान शेष',
-                  'الرصيد الحالي',
-                ),
+                tr('Current Balance', 'বর্তমান জমা', 'वर्तमान शेष', 'الرصيد الحالي'),
                 balance,
                 Icons.account_balance_wallet,
-                balance >= 0
-                    ? Colors.blue
-                    : Colors.red,
+                balance >= 0 ? Colors.blue : Colors.red,
               ),
               const SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
                     child: summaryCard(
-                      tr(
-                        'Receivable',
-                        'আমার পাওনা',
-                        'मेरा प्राप्य',
-                        'مستحقاتي',
-                      ),
+                      tr('Receivable', 'আমার পাওনা', 'मेरा प्राप्य', 'مستحقاتي'),
                       totalReceivable,
                       Icons.call_received,
                       Colors.teal,
@@ -1659,12 +1406,7 @@ class _FinancePageState extends State<FinancePage> {
                   ),
                   Expanded(
                     child: summaryCard(
-                      tr(
-                        'Payable',
-                        'আমার দেনা',
-                        'मेरे ऋण',
-                        'ديوني',
-                      ),
+                      tr('Payable', 'আমার দেনা', 'मेरे ऋण', 'ديوني'),
                       totalPayable,
                       Icons.call_made,
                       Colors.orange,
@@ -1676,18 +1418,10 @@ class _FinancePageState extends State<FinancePage> {
                 color: Colors.blue.withOpacity(.07),
                 child: ListTile(
                   title: Text(
-                    tr(
-                      'Net Receivable',
-                      'নিট পাওনা',
-                      'शुद्ध प्राप्य',
-                      'صافي المستحقات',
-                    ),
+                    tr('Net Receivable', 'নিট পাওনা', 'शुद्ध प्राप्य', 'صافي المستحقات'),
                   ),
                   trailing: Text(
-                    formatMoney(
-                      totalReceivable -
-                          totalPayable,
-                    ),
+                    formatMoney(totalReceivable - totalPayable),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 17,
@@ -1700,46 +1434,22 @@ class _FinancePageState extends State<FinancePage> {
                 children: [
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () =>
-                          addTransaction(true),
+                      onPressed: () => addTransaction(true),
                       icon: const Icon(Icons.add),
-                      label: Text(
-                        tr(
-                          'Income',
-                          'আয়',
-                          'आय',
-                          'دخل',
-                        ),
-                      ),
-                      style:
-                          ElevatedButton.styleFrom(
-                        padding:
-                            const EdgeInsets.symmetric(
-                          vertical: 14,
-                        ),
+                      label: Text(tr('Income', 'আয়', 'आय', 'دخل')),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () =>
-                          addTransaction(false),
+                      onPressed: () => addTransaction(false),
                       icon: const Icon(Icons.remove),
-                      label: Text(
-                        tr(
-                          'Expense',
-                          'ব্যয়',
-                          'व्यय',
-                          'مصروف',
-                        ),
-                      ),
-                      style:
-                          ElevatedButton.styleFrom(
-                        padding:
-                            const EdgeInsets.symmetric(
-                          vertical: 14,
-                        ),
+                      label: Text(tr('Expense', 'ব্যয়', 'व्यय', 'مصروف')),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),
                   ),
@@ -1748,22 +1458,12 @@ class _FinancePageState extends State<FinancePage> {
               moneySection('receivable'),
               moneySection('payable'),
               history(
-                tr(
-                  'Income History',
-                  'আয়ের ইতিহাস',
-                  'आय का इतिहास',
-                  'سجل الدخل',
-                ),
+                tr('Income History', 'আয়ের ইতিহাস', 'आय का इतिहास', 'سجل الدخل'),
                 incomes,
                 true,
               ),
               history(
-                tr(
-                  'Expense History',
-                  'ব্যয়ের ইতিহাস',
-                  'व्यय का इतिहास',
-                  'سجل المصروفات',
-                ),
+                tr('Expense History', 'ব্যয়ের ইতিহাস', 'व्यय का इतिहास', 'سجل المصروفات'),
                 expenses,
                 false,
               ),
