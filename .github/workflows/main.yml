@@ -34,7 +34,7 @@ jobs:
 
 
       # =========================================================
-      # 3. Flutter
+      # 3. Flutter Stable
       # =========================================================
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -44,7 +44,7 @@ jobs:
 
 
       # =========================================================
-      # 4. Python Pillow
+      # 4. Install Pillow
       # =========================================================
       - name: Install Python Image Library
         run: |
@@ -58,6 +58,7 @@ jobs:
       - name: Generate Android project
         run: |
           if [ ! -f android/gradlew ]; then
+
             echo "Generating Android project..."
 
             flutter create \
@@ -67,11 +68,15 @@ jobs:
               /tmp/lifemate_scaffold
 
             rm -rf android
+
             cp -R /tmp/lifemate_scaffold/android ./android
 
-            echo "Android project generated."
+            echo "Android project generated successfully."
+
           else
+
             echo "Android project already exists."
+
           fi
 
 
@@ -84,20 +89,23 @@ jobs:
 
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" \
             -name sdkmanager \
-            -type f | head -n 1)
+            -type f \
+            | head -n 1)
 
           if [ -z "$SDKMANAGER" ]; then
             echo "ERROR: SDK Manager not found."
             exit 1
           fi
 
-          echo "SDK Manager found:"
+          echo "SDK Manager:"
           echo "$SDKMANAGER"
 
           yes | "$SDKMANAGER" --licenses || true
 
           "$SDKMANAGER" "platform-tools"
+
           "$SDKMANAGER" "platforms;android-36"
+
           "$SDKMANAGER" "build-tools;36.0.0"
 
           echo "Android SDK 36 installed successfully."
@@ -119,16 +127,13 @@ jobs:
           set -e
 
           ICON_SOURCE="assets/lifemate_icon.png"
-          RES_DIR="android/app/src/main/res"
 
           if [ ! -f "$ICON_SOURCE" ]; then
             echo "ERROR: $ICON_SOURCE not found."
-            echo "Please make sure the icon exists in assets/."
             exit 1
           fi
 
-          echo "LifeMate icon found:"
-          ls -lh "$ICON_SOURCE"
+          echo "LifeMate icon found."
 
           python3 - <<'PY'
           from PIL import Image
@@ -143,7 +148,7 @@ jobs:
 
           print("Original icon size:", image.size)
 
-          # Make the image square.
+          # Make square canvas
           size = max(image.width, image.height)
 
           canvas = Image.new(
@@ -157,7 +162,7 @@ jobs:
 
           canvas.alpha_composite(image, (x, y))
 
-          output_sizes = {
+          sizes = {
               "mipmap-mdpi": 48,
               "mipmap-hdpi": 72,
               "mipmap-xhdpi": 96,
@@ -167,9 +172,10 @@ jobs:
 
           res = Path("android/app/src/main/res")
 
-          for folder, target_size in output_sizes.items():
+          for folder, target_size in sizes.items():
 
               directory = res / folder
+
               directory.mkdir(
                   parents=True,
                   exist_ok=True
@@ -200,13 +206,11 @@ jobs:
 
 
       # =========================================================
-      # 9. Configure Android Launcher Icon
+      # 9. Configure Launcher Icon
       # =========================================================
       - name: Configure Android Launcher Icon
         run: |
           set -e
-
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
 
           python3 - <<'PY'
           from pathlib import Path
@@ -232,8 +236,9 @@ jobs:
               content
           )
 
-          # Add icon if it does not exist
+          # Add icons if missing
           if 'android:icon="@mipmap/ic_launcher"' not in content:
+
               content = content.replace(
                   "<application",
                   '<application\n'
@@ -244,17 +249,17 @@ jobs:
 
           manifest.write_text(content)
 
-          print("Launcher icon configuration completed.")
+          print("Launcher icon configured.")
           PY
 
-          # Remove adaptive icon XML files so that
-          # our generated PNG icons are used directly.
+          # Remove adaptive icon definitions so the
+          # generated PNG icons are used directly.
           rm -f \
             android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml \
             android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml \
             2>/dev/null || true
 
-          echo "Launcher icon configuration completed."
+          echo "Launcher icon setup completed."
 
 
       # =========================================================
@@ -265,7 +270,9 @@ jobs:
           set -e
 
           MAIN_ACTIVITY="android/app/src/main/kotlin/com/lifemate/lifemate/MainActivity.kt"
+
           FLOATING_SERVICE="android/app/src/main/kotlin/com/lifemate/lifemate/LifeMateFloatingService.kt"
+
           MANIFEST="android/app/src/main/AndroidManifest.xml"
 
           mkdir -p "$(dirname "$MAIN_ACTIVITY")"
@@ -288,13 +295,17 @@ jobs:
 
           class MainActivity : FlutterActivity() {
 
-              private val channelName = "com.lifemate/floating_home"
+              private val channelName =
+                  "com.lifemate/floating_home"
 
-              private val prefsName = "lifemate_floating"
+              private val prefsName =
+                  "lifemate_floating"
 
-              private val enabledKey = "enabled"
+              private val enabledKey =
+                  "enabled"
 
-              private val foregroundKey = "app_foreground"
+              private val foregroundKey =
+                  "app_foreground"
 
 
               override fun configureFlutterEngine(
@@ -348,11 +359,8 @@ jobs:
                                   if (
                                       Settings.canDrawOverlays(this)
                                   ) {
-
                                       startFloatingService()
-
                                   } else {
-
                                       openOverlaySettings()
                                   }
 
@@ -409,7 +417,6 @@ jobs:
                       enabled &&
                       Settings.canDrawOverlays(this)
                   ) {
-
                       startFloatingService()
                   }
               }
@@ -540,14 +547,17 @@ jobs:
 
           class LifeMateFloatingService : Service() {
 
-              private var windowManager: WindowManager? = null
+              private var windowManager: WindowManager? =
+                  null
 
-              private var floatingView: TextView? = null
+              private var floatingView: TextView? =
+                  null
 
               private val channelId =
                   "lifemate_floating_channel"
 
-              private val notificationId = 1001
+              private val notificationId =
+                  1001
 
               private val prefsName =
                   "lifemate_floating"
@@ -594,7 +604,6 @@ jobs:
                               NotificationManager.IMPORTANCE_LOW
                           )
 
-
                       channel.description =
                           "Keeps the LifeMate Home button available."
 
@@ -605,7 +614,9 @@ jobs:
                           )
 
 
-                      manager.createNotificationChannel(channel)
+                      manager.createNotificationChannel(
+                          channel
+                      )
                   }
               }
 
@@ -667,9 +678,13 @@ jobs:
 
                   button.textSize = 22f
 
-                  button.setTextColor(Color.WHITE)
+                  button.setTextColor(
+                      Color.WHITE
+                  )
 
-                  button.gravity = Gravity.CENTER
+                  button.gravity =
+                      Gravity.CENTER
+
 
                   button.setPadding(
                       0,
@@ -711,7 +726,9 @@ jobs:
 
                   val params =
                       WindowManager.LayoutParams(
+
                           dp(52),
+
                           dp(52),
 
                           if (
@@ -728,10 +745,12 @@ jobs:
                                   .TYPE_PHONE
                           },
 
+
                           WindowManager.LayoutParams
                               .FLAG_NOT_FOCUSABLE or
                               WindowManager.LayoutParams
                                   .FLAG_LAYOUT_NO_LIMITS,
+
 
                           PixelFormat.TRANSLUCENT
                       )
@@ -799,16 +818,18 @@ jobs:
                                           kotlin.math.abs(dy) >
                                               dp(8)
                                       ) {
-
                                           moved = true
                                       }
 
 
                                       params.x =
-                                          startX - dx.toInt()
+                                          startX -
+                                          dx.toInt()
+
 
                                       params.y =
-                                          startY + dy.toInt()
+                                          startY +
+                                          dy.toInt()
 
 
                                       try {
@@ -830,7 +851,6 @@ jobs:
                                   MotionEvent.ACTION_UP -> {
 
                                       if (!moved) {
-
                                           handleFloatingTap()
                                       }
 
@@ -919,7 +939,9 @@ jobs:
                   try {
 
                       val intent =
-                          Intent(Intent.ACTION_MAIN)
+                          Intent(
+                              Intent.ACTION_MAIN
+                          )
 
 
                       intent.addCategory(
@@ -939,7 +961,9 @@ jobs:
               }
 
 
-              private fun dp(value: Int): Int {
+              private fun dp(
+                  value: Int
+              ): Int {
 
                   return (
                       value *
@@ -979,7 +1003,7 @@ jobs:
 
 
           # -----------------------------------------------------
-          # AndroidManifest permissions + service
+          # Manifest Permissions
           # -----------------------------------------------------
           python3 - <<'PY'
           from pathlib import Path
@@ -1006,18 +1030,17 @@ jobs:
 
           for permission in permissions:
 
-              permission_tag = (
-                  f'<uses-permission '
+              tag = (
+                  '<uses-permission '
                   f'android:name="{permission}" />'
               )
 
-
-              if permission_tag not in content:
+              if tag not in content:
 
                   content = content.replace(
                       "<application",
-                      f"    {permission_tag}\n"
-                      f"    <application",
+                      "    " + tag + "\n"
+                      "    <application",
                       1
                   )
 
@@ -1058,7 +1081,7 @@ jobs:
           )
 
           print(
-              "READ_CONTACTS permission configured."
+              "READ_CONTACTS configured."
           )
           PY
 
@@ -1087,7 +1110,7 @@ jobs:
               content = file.read_text()
 
 
-              content = re.sub(
+              updated = re.sub(
                   r'(?m)^(\s*compileSdk(?:Version)?\s*'
                   r'(?:=\s*)?)'
                   r'(?:flutter\.compileSdkVersion|\d+)',
@@ -1098,12 +1121,12 @@ jobs:
 
               if not re.search(
                   r'compileSdk(?:Version)?',
-                  content
+                  updated
               ):
 
                   if file.suffix == ".kts":
 
-                      content = content.replace(
+                      updated = updated.replace(
                           "android {",
                           "android {\n"
                           "    compileSdk = 36",
@@ -1112,7 +1135,7 @@ jobs:
 
                   else:
 
-                      content = content.replace(
+                      updated = updated.replace(
                           "android {",
                           "android {\n"
                           "    compileSdk 36",
@@ -1120,12 +1143,9 @@ jobs:
                       )
 
 
-              file.write_text(content)
+              file.write_text(updated)
 
-              print(
-                  "Updated:",
-                  file
-              )
+              print("Updated:", file)
           PY
 
 
@@ -1145,15 +1165,12 @@ jobs:
               )
           )
 
-
           target_names = [
               "file_picker",
               "flutter_plugin_android_lifecycle",
           ]
 
-
           changed = []
-
 
           if pub_root.exists():
 
@@ -1163,13 +1180,10 @@ jobs:
                       f"{name}-*"
                   ):
 
-                      android_folder =
-                          folder / "android"
-
+                      android_folder = folder / "android"
 
                       if not android_folder.exists():
                           continue
-
 
                       for file in android_folder.glob(
                           "build.gradle*"
@@ -1177,40 +1191,13 @@ jobs:
 
                           content = file.read_text()
 
-
                           updated = re.sub(
-                              r'(?m)^(\s*compileSdk'
-                              r'(?:Version)?\s*'
+                              r'(?m)^(\s*compileSdk(?:Version)?\s*'
                               r'(?:=\s*)?)'
                               r'(?:flutter\.compileSdkVersion|\d+)',
                               r'\g<1>36',
                               content
                           )
-
-
-                          if not re.search(
-                              r'compileSdk(?:Version)?',
-                              updated
-                          ):
-
-                              if file.suffix == ".kts":
-
-                                  updated = updated.replace(
-                                      "android {",
-                                      "android {\n"
-                                      "    compileSdk = 36",
-                                      1
-                                  )
-
-                              else:
-
-                                  updated = updated.replace(
-                                      "android {",
-                                      "android {\n"
-                                      "    compileSdk 36",
-                                      1
-                                  )
-
 
                           if updated != content:
 
@@ -1225,25 +1212,27 @@ jobs:
               "Total plugin files updated:",
               len(changed)
           )
+
+          for item in changed:
+              print("Updated:", item)
           PY
 
 
       # =========================================================
-      # 13. Verify Configuration
+      # 13. Verify Android Configuration
       # =========================================================
       - name: Verify Android configuration
         run: |
 
           echo "======================================"
-          echo "ANDROID MANIFEST"
+          echo "ANDROID SDK"
           echo "======================================"
 
-          cat android/app/src/main/AndroidManifest.xml
-
+          ls "$ANDROID_HOME/platforms/" || true
 
           echo ""
           echo "======================================"
-          echo "APP ICON FILES"
+          echo "APP ICONS"
           echo "======================================"
 
           find android/app/src/main/res \
@@ -1253,20 +1242,10 @@ jobs:
 
           echo ""
           echo "======================================"
-          echo "MAIN ACTIVITY"
+          echo "ANDROID MANIFEST"
           echo "======================================"
 
-          cat \
-            android/app/src/main/kotlin/com/lifemate/lifemate/MainActivity.kt
-
-
-          echo ""
-          echo "======================================"
-          echo "FLOATING SERVICE"
-          echo "======================================"
-
-          cat \
-            android/app/src/main/kotlin/com/lifemate/lifemate/LifeMateFloatingService.kt
+          cat android/app/src/main/AndroidManifest.xml
 
 
           echo ""
@@ -1296,7 +1275,7 @@ jobs:
 
 
       # =========================================================
-      # 16. Download Gradle Dependencies
+      # 16. Gradle Dependencies
       # =========================================================
       - name: Download Gradle dependencies
         working-directory: android
@@ -1304,11 +1283,13 @@ jobs:
 
           echo "Downloading Gradle dependencies..."
 
+
           for attempt in 1 2 3 4 5
           do
 
             echo ""
             echo "Gradle dependency attempt: $attempt"
+
 
             if ./gradlew dependencies \
               --no-daemon \
@@ -1333,13 +1314,13 @@ jobs:
           done
 
 
-          echo "Gradle dependency download failed after 5 attempts."
+          echo "Gradle dependency download failed."
 
           exit 1
 
 
       # =========================================================
-      # 17. Build Release APK
+      # 17. Build APK
       # =========================================================
       - name: Build APK
         env:
