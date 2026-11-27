@@ -2,6 +2,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app.dart';
@@ -15,13 +16,20 @@ class SettingsPage extends StatefulWidget {
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageState extends State<SettingsPage>
+    with WidgetsBindingObserver {
+  static const MethodChannel floatingChannel =
+      MethodChannel('com.lifemate/floating_home');
+
   String language = 'English';
   String theme = 'Light';
   String currency = 'BDT (৳)';
 
   bool notifications = true;
+  bool floatingHomeButton = false;
   bool loading = true;
+  bool floatingLoading = false;
+  bool pendingOverlayPermission = false;
 
   static const List<String> currencies = [
     'BDT (৳)',
@@ -34,7 +42,23 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     loadSettings();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        pendingOverlayPermission) {
+      pendingOverlayPermission = false;
+      finishOverlayPermission();
+    }
   }
 
   Future<void> loadSettings() async {
@@ -57,8 +81,16 @@ class _SettingsPageState extends State<SettingsPage> {
           : 'BDT (৳)';
 
       notifications = prefs.getBool('notifications') ?? true;
+
+      floatingHomeButton =
+          prefs.getBool('floating_home_button') ?? false;
+
       loading = false;
     });
+
+    if (floatingHomeButton) {
+      await syncFloatingButton();
+    }
   }
 
   Future<void> save(String key, dynamic value) async {
@@ -115,6 +147,181 @@ class _SettingsPageState extends State<SettingsPage> {
       hindi: hindi,
       arabic: arabic,
     );
+  }
+
+  void showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<bool> checkOverlayPermission() async {
+    try {
+      final result = await floatingChannel.invokeMethod<bool>(
+        'isOverlayPermissionGranted',
+      );
+
+      return result ?? false;
+    } on PlatformException catch (e) {
+      showMessage('Permission check failed: ${e.message ?? e.code}');
+      return false;
+    } on MissingPluginException {
+      showMessage(
+        t(
+          english: 'Please install the latest LifeMate APK.',
+          bangla: 'অনুগ্রহ করে LifeMate-এর সর্বশেষ APK ইনস্টল করুন।',
+          hindi: 'कृपया LifeMate का नवीनतम APK इंस्टॉल करें।',
+          arabic: 'يرجى تثبيت أحدث إصدار من LifeMate.',
+        ),
+      );
+      return false;
+    }
+  }
+
+  Future<void> syncFloatingButton() async {
+    final granted = await checkOverlayPermission();
+
+    if (!mounted) return;
+
+    if (!granted) {
+      setState(() {
+        floatingHomeButton = false;
+      });
+
+      await save('floating_home_button', false);
+      return;
+    }
+
+    try {
+      await floatingChannel.invokeMethod(
+        'setFloatingEnabled',
+        {'enabled': true},
+      );
+    } catch (e) {
+      showMessage('Floating button error: $e');
+    }
+  }
+
+  Future<void> changeFloatingButton(bool value) async {
+    if (floatingLoading) return;
+
+    if (!value) {
+      setState(() {
+        floatingLoading = true;
+        floatingHomeButton = false;
+      });
+
+      await save('floating_home_button', false);
+
+      try {
+        await floatingChannel.invokeMethod(
+          'setFloatingEnabled',
+          {'enabled': false},
+        );
+      } catch (e) {
+        showMessage('Floating button error: $e');
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        floatingLoading = false;
+      });
+
+      return;
+    }
+
+    setState(() {
+      floatingLoading = true;
+    });
+
+    final granted = await checkOverlayPermission();
+
+    if (!mounted) return;
+
+    if (granted) {
+      await enableFloatingButton();
+    } else {
+      pendingOverlayPermission = true;
+
+      try {
+        await floatingChannel.invokeMethod(
+          'requestOverlayPermission',
+        );
+      } catch (e) {
+        pendingOverlayPermission = false;
+        showMessage('Permission error: $e');
+      }
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      floatingLoading = false;
+    });
+  }
+
+  Future<void> finishOverlayPermission() async {
+    final granted = await checkOverlayPermission();
+
+    if (!mounted) return;
+
+    if (granted) {
+      await enableFloatingButton();
+    } else {
+      setState(() {
+        floatingHomeButton = false;
+      });
+
+      await save('floating_home_button', false);
+
+      showMessage(
+        t(
+          english: 'Overlay permission was not granted.',
+          bangla: 'ওভারলে অনুমতি দেওয়া হয়নি।',
+          hindi: 'ओवरले अनुमति नहीं दी गई।',
+          arabic: 'لم يتم منح إذن العرض فوق التطبيقات.',
+        ),
+      );
+    }
+  }
+
+  Future<void> enableFloatingButton() async {
+    try {
+      await floatingChannel.invokeMethod(
+        'setFloatingEnabled',
+        {'enabled': true},
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        floatingHomeButton = true;
+      });
+
+      await save('floating_home_button', true);
+
+      showMessage(
+        t(
+          english: 'Floating Home Button enabled',
+          bangla: 'ফ্লোটিং হোম বাটন চালু হয়েছে',
+          hindi: 'फ्लोटिंग होम बटन चालू हो गया',
+          arabic: 'تم تفعيل زر الصفحة الرئيسية العائم',
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        floatingHomeButton = false;
+      });
+
+      await save('floating_home_button', false);
+
+      showMessage('Unable to start Floating Button: $e');
+    }
   }
 
   Future<void> backup() async {
@@ -488,6 +695,51 @@ class _SettingsPageState extends State<SettingsPage> {
                       }
                     },
                   ),
+                ),
+
+                const SizedBox(height: 16),
+
+                sectionTitle(
+                  english: 'Floating Home Button',
+                  bangla: 'ভাসমান হোম বাটন',
+                  hindi: 'फ्लोटिंग होम बटन',
+                  arabic: 'زر الصفحة الرئيسية العائم',
+                ),
+
+                settingCard(
+                  icon: Icons.home_work_outlined,
+                  title: Text(
+                    t(
+                      english: 'Floating Home Button',
+                      bangla: 'ভাসমান হোম বাটন',
+                      hindi: 'फ्लोटिंग होम बटन',
+                      arabic: 'زر الصفحة الرئيسية العائم',
+                    ),
+                  ),
+                  subtitle: Text(
+                    t(
+                      english:
+                          'Show a small Home button over other apps',
+                      bangla:
+                          'অন্য অ্যাপের ওপর ছোট হোম বাটন দেখান',
+                      hindi:
+                          'अन्य ऐप्स के ऊपर छोटा होम बटन दिखाएँ',
+                      arabic:
+                          'إظهار زر الصفحة الرئيسية فوق التطبيقات الأخرى',
+                    ),
+                  ),
+                  trailing: floatingLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Switch(
+                          value: floatingHomeButton,
+                          onChanged: changeFloatingButton,
+                        ),
                 ),
 
                 const SizedBox(height: 16),
