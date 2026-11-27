@@ -1,4 +1,3 @@
-
 name: Build LifeMate APK
 
 on:
@@ -93,7 +92,433 @@ jobs:
           flutter pub get
 
       # --------------------------------------------------
-      # 7. Force App compileSdk = 36
+      # 7. Install Floating Home Button Android files
+      # --------------------------------------------------
+      - name: Install Floating Home Button
+        run: |
+          set -e
+
+          echo "Installing LifeMate Floating Home Button..."
+
+          MAIN_ACTIVITY="android/app/src/main/kotlin/com/lifemate/lifemate/MainActivity.kt"
+          FLOATING_SERVICE="android/app/src/main/kotlin/com/lifemate/lifemate/LifeMateFloatingService.kt"
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+
+          mkdir -p "$(dirname "$MAIN_ACTIVITY")"
+
+          # ------------------------------------------------
+          # MainActivity
+          # ------------------------------------------------
+          cat > "$MAIN_ACTIVITY" <<'KOTLIN'
+          package com.lifemate.lifemate
+
+          import android.content.Intent
+          import android.net.Uri
+          import android.os.Build
+          import android.os.Bundle
+          import android.provider.Settings
+          import io.flutter.embedding.android.FlutterActivity
+
+          class MainActivity : FlutterActivity() {
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+
+                  checkOverlayPermission()
+              }
+
+              override fun onResume() {
+                  super.onResume()
+
+                  if (Settings.canDrawOverlays(this)) {
+                      startFloatingService()
+                  }
+              }
+
+              private fun checkOverlayPermission() {
+                  if (!Settings.canDrawOverlays(this)) {
+                      try {
+                          val intent = Intent(
+                              Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                              Uri.parse("package:$packageName")
+                          )
+
+                          startActivity(intent)
+                      } catch (_: Exception) {
+                          val intent = Intent(
+                              Settings.ACTION_MANAGE_OVERLAY_PERMISSION
+                          )
+
+                          startActivity(intent)
+                      }
+                  } else {
+                      startFloatingService()
+                  }
+              }
+
+              private fun startFloatingService() {
+                  try {
+                      val intent = Intent(
+                          this,
+                          LifeMateFloatingService::class.java
+                      )
+
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                          startForegroundService(intent)
+                      } else {
+                          startService(intent)
+                      }
+                  } catch (_: Exception) {
+                      // Ignore service-start errors.
+                  }
+              }
+          }
+          KOTLIN
+
+          # ------------------------------------------------
+          # Floating Service
+          # ------------------------------------------------
+          cat > "$FLOATING_SERVICE" <<'KOTLIN'
+          package com.lifemate.lifemate
+
+          import android.app.Notification
+          import android.app.NotificationChannel
+          import android.app.NotificationManager
+          import android.app.Service
+          import android.content.Intent
+          import android.graphics.Color
+          import android.graphics.PixelFormat
+          import android.graphics.drawable.GradientDrawable
+          import android.os.Build
+          import android.os.IBinder
+          import android.provider.Settings
+          import android.view.Gravity
+          import android.view.MotionEvent
+          import android.view.View
+          import android.view.WindowManager
+          import android.widget.TextView
+
+          class LifeMateFloatingService : Service() {
+
+              private var windowManager: WindowManager? = null
+              private var floatingView: TextView? = null
+
+              private val channelId = "lifemate_floating_channel"
+              private val notificationId = 1001
+
+              override fun onCreate() {
+                  super.onCreate()
+
+                  if (!Settings.canDrawOverlays(this)) {
+                      stopSelf()
+                      return
+                  }
+
+                  createNotificationChannel()
+                  startForeground(
+                      notificationId,
+                      createNotification()
+                  )
+
+                  showFloatingButton()
+              }
+
+              private fun createNotificationChannel() {
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      val channel = NotificationChannel(
+                          channelId,
+                          "LifeMate Floating Button",
+                          NotificationManager.IMPORTANCE_LOW
+                      )
+
+                      channel.description =
+                          "Keeps the LifeMate Home button available."
+
+                      val manager =
+                          getSystemService(
+                              NotificationManager::class.java
+                          )
+
+                      manager.createNotificationChannel(channel)
+                  }
+              }
+
+              private fun createNotification(): Notification {
+                  return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      Notification.Builder(this, channelId)
+                          .setContentTitle("LifeMate")
+                          .setContentText(
+                              "Floating Home button is active"
+                          )
+                          .setSmallIcon(
+                              android.R.drawable.ic_menu_view
+                          )
+                          .setOngoing(true)
+                          .build()
+                  } else {
+                      Notification.Builder(this)
+                          .setContentTitle("LifeMate")
+                          .setContentText(
+                              "Floating Home button is active"
+                          )
+                          .setSmallIcon(
+                              android.R.drawable.ic_menu_view
+                          )
+                          .setOngoing(true)
+                          .build()
+                  }
+              }
+
+              private fun showFloatingButton() {
+                  if (floatingView != null) return
+
+                  windowManager =
+                      getSystemService(WINDOW_SERVICE)
+                          as WindowManager
+
+                  val button = TextView(this)
+
+                  button.text = "⌂"
+                  button.textSize = 22f
+                  button.setTextColor(Color.WHITE)
+                  button.gravity = Gravity.CENTER
+                  button.setPadding(0, 0, 0, 1)
+
+                  val background =
+                      GradientDrawable()
+
+                  background.shape =
+                      GradientDrawable.OVAL
+
+                  background.setColor(
+                      Color.rgb(33, 150, 243)
+                  )
+
+                  background.setStroke(
+                      2,
+                      Color.WHITE
+                  )
+
+                  button.background = background
+
+                  button.elevation = 12f
+
+                  val params =
+                      WindowManager.LayoutParams(
+                          dp(52),
+                          dp(52),
+                          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                              WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                          } else {
+                              WindowManager.LayoutParams.TYPE_PHONE
+                          },
+                          WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                              WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                          PixelFormat.TRANSLUCENT
+                      )
+
+                  params.gravity =
+                      Gravity.CENTER_VERTICAL or Gravity.END
+
+                  params.x = dp(4)
+                  params.y = 0
+
+                  button.setOnTouchListener(
+                      object : View.OnTouchListener {
+
+                          private var downX = 0f
+                          private var downY = 0f
+                          private var startX = 0
+                          private var startY = 0
+                          private var moved = false
+
+                          override fun onTouch(
+                              view: View,
+                              event: MotionEvent
+                          ): Boolean {
+
+                              when (event.action) {
+
+                                  MotionEvent.ACTION_DOWN -> {
+                                      downX = event.rawX
+                                      downY = event.rawY
+                                      startX = params.x
+                                      startY = params.y
+                                      moved = false
+
+                                      return true
+                                  }
+
+                                  MotionEvent.ACTION_MOVE -> {
+                                      val dx =
+                                          event.rawX - downX
+
+                                      val dy =
+                                          event.rawY - downY
+
+                                      if (
+                                          kotlin.math.abs(dx) > dp(8) ||
+                                          kotlin.math.abs(dy) > dp(8)
+                                      ) {
+                                          moved = true
+                                      }
+
+                                      params.x =
+                                          startX - dx.toInt()
+
+                                      params.y =
+                                          startY + dy.toInt()
+
+                                      try {
+                                          windowManager?.updateViewLayout(
+                                              button,
+                                              params
+                                          )
+                                      } catch (_: Exception) {
+                                      }
+
+                                      return true
+                                  }
+
+                                  MotionEvent.ACTION_UP -> {
+                                      if (!moved) {
+                                          openLifeMate()
+                                      }
+
+                                      return true
+                                  }
+                              }
+
+                              return false
+                          }
+                      }
+                  )
+
+                  floatingView = button
+
+                  try {
+                      windowManager?.addView(
+                          button,
+                          params
+                      )
+                  } catch (_: Exception) {
+                      floatingView = null
+                  }
+              }
+
+              private fun openLifeMate() {
+                  try {
+                      val intent =
+                          packageManager.getLaunchIntentForPackage(
+                              packageName
+                          )
+
+                      if (intent != null) {
+                          intent.addFlags(
+                              Intent.FLAG_ACTIVITY_NEW_TASK or
+                                  Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                                  Intent.FLAG_ACTIVITY_CLEAR_TOP
+                          )
+
+                          startActivity(intent)
+                      }
+                  } catch (_: Exception) {
+                  }
+              }
+
+              private fun dp(value: Int): Int {
+                  return (
+                      value *
+                          resources.displayMetrics.density
+                  ).toInt()
+              }
+
+              override fun onDestroy() {
+                  try {
+                      floatingView?.let {
+                          windowManager?.removeView(it)
+                      }
+                  } catch (_: Exception) {
+                  }
+
+                  floatingView = null
+
+                  super.onDestroy()
+              }
+
+              override fun onBind(
+                  intent: Intent?
+              ): IBinder? {
+                  return null
+              }
+          }
+          KOTLIN
+
+          # ------------------------------------------------
+          # AndroidManifest
+          # ------------------------------------------------
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          manifest = Path(
+              "android/app/src/main/AndroidManifest.xml"
+          )
+
+          content = manifest.read_text()
+
+          # Overlay permission
+          if "android.permission.SYSTEM_ALERT_WINDOW" not in content:
+              content = content.replace(
+                  "<manifest",
+                  '<manifest\n    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />',
+                  1
+              )
+
+          # Foreground service permission
+          if "android.permission.FOREGROUND_SERVICE" not in content:
+              content = content.replace(
+                  "<manifest",
+                  '<manifest\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />',
+                  1
+              )
+
+          # Android 14 special-use foreground service permission
+          if "android.permission.FOREGROUND_SERVICE_SPECIAL_USE" not in content:
+              content = content.replace(
+                  "<manifest",
+                  '<manifest\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />',
+                  1
+              )
+
+          service_block = """
+              <service
+                  android:name=".LifeMateFloatingService"
+                  android:enabled="true"
+                  android:exported="false"
+                  android:foregroundServiceType="specialUse">
+                  <property
+                      android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                      android:value="LifeMate floating Home button overlay" />
+              </service>
+          """
+
+          if "LifeMateFloatingService" not in content:
+              content = content.replace(
+                  "</application>",
+                  service_block + "\n    </application>",
+                  1
+              )
+
+          manifest.write_text(content)
+
+          print("Updated AndroidManifest.xml")
+          PY
+
+          echo "Floating Home Button Android files installed."
+
+      # --------------------------------------------------
+      # 8. Force App compileSdk = 36
       # --------------------------------------------------
       - name: Force App compileSdk 36
         run: |
@@ -138,7 +563,7 @@ jobs:
           PY
 
       # --------------------------------------------------
-      # 8. Force Flutter plugin compileSdk = 36
+      # 9. Force Flutter plugin compileSdk = 36
       # --------------------------------------------------
       - name: Force Flutter plugin compileSdk 36
         run: |
@@ -162,13 +587,17 @@ jobs:
 
           if pub_root.exists():
               for name in target_names:
-                  for folder in pub_root.glob(f"{name}-*"):
+                  for folder in pub_root.glob(
+                      f"{name}-*"
+                  ):
                       android_folder = folder / "android"
 
                       if not android_folder.exists():
                           continue
 
-                      for file in android_folder.glob("build.gradle*"):
+                      for file in android_folder.glob(
+                          "build.gradle*"
+                      ):
                           content = file.read_text()
 
                           updated = re.sub(
@@ -198,11 +627,6 @@ jobs:
                               file.write_text(updated)
                               changed.append(str(file))
 
-          print("Plugin Gradle files updated:")
-
-          for item in changed:
-              print(item)
-
           print(
               "Total plugin files updated:",
               len(changed)
@@ -210,10 +634,31 @@ jobs:
           PY
 
       # --------------------------------------------------
-      # 9. Verify compileSdk
+      # 10. Verify Android configuration
       # --------------------------------------------------
-      - name: Verify compileSdk
+      - name: Verify Android configuration
         run: |
+          echo "========================================"
+          echo "ANDROID MANIFEST"
+          echo "========================================"
+
+          cat android/app/src/main/AndroidManifest.xml
+
+          echo ""
+          echo "========================================"
+          echo "MAIN ACTIVITY"
+          echo "========================================"
+
+          cat android/app/src/main/kotlin/com/lifemate/lifemate/MainActivity.kt
+
+          echo ""
+          echo "========================================"
+          echo "FLOATING SERVICE"
+          echo "========================================"
+
+          cat android/app/src/main/kotlin/com/lifemate/lifemate/LifeMateFloatingService.kt
+
+          echo ""
           echo "========================================"
           echo "APP BUILD GRADLE"
           echo "========================================"
@@ -221,42 +666,22 @@ jobs:
           cat android/app/build.gradle || true
           cat android/app/build.gradle.kts || true
 
-          echo ""
-          echo "========================================"
-          echo "FILE PICKER GRADLE"
-          echo "========================================"
-
-          find ~/.pub-cache/hosted/pub.dev \
-            -path "*file_picker*/android/build.gradle*" \
-            -print \
-            -exec cat {} \; || true
-
-          echo ""
-          echo "========================================"
-          echo "FLUTTER PLUGIN ANDROID LIFECYCLE"
-          echo "========================================"
-
-          find ~/.pub-cache/hosted/pub.dev \
-            -path "*flutter_plugin_android_lifecycle*/android/build.gradle*" \
-            -print \
-            -exec cat {} \; || true
-
       # --------------------------------------------------
-      # 10. Flutter Clean
+      # 11. Flutter Clean
       # --------------------------------------------------
       - name: Flutter Clean
         run: |
           flutter clean
 
       # --------------------------------------------------
-      # 11. Flutter Pub Get Again
+      # 12. Flutter Pub Get Again
       # --------------------------------------------------
       - name: Flutter Pub Get Again
         run: |
           flutter pub get
 
       # --------------------------------------------------
-      # 12. Gradle dependency warm-up with retry
+      # 13. Gradle dependency warm-up with retry
       # --------------------------------------------------
       - name: Download Gradle dependencies
         working-directory: android
@@ -282,7 +707,7 @@ jobs:
           exit 1
 
       # --------------------------------------------------
-      # 13. Build APK with retry
+      # 14. Build APK with retry
       # --------------------------------------------------
       - name: Build APK
         env:
@@ -311,7 +736,7 @@ jobs:
           exit 1
 
       # --------------------------------------------------
-      # 14. Upload APK
+      # 15. Upload APK
       # --------------------------------------------------
       - name: Upload APK
         uses: actions/upload-artifact@v4
