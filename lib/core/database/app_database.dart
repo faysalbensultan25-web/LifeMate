@@ -1,3 +1,4 @@
+
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -19,7 +20,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 10,
+      version: 11,
 
       onCreate: (db, version) async {
         await db.execute('''
@@ -129,80 +130,8 @@ class AppDatabase {
           )
         ''');
 
-        await db.execute('''
-          CREATE TABLE profile_education (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            profile_id INTEGER NOT NULL DEFAULT 1,
-            qualification TEXT NOT NULL,
-            institution TEXT,
-            subject TEXT,
-            result TEXT,
-            passing_year TEXT,
-            start_year TEXT,
-            end_year TEXT,
-            created_at TEXT NOT NULL
-          )
-        ''');
-
-        await db.execute('''
-          CREATE TABLE profile_training (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            profile_id INTEGER NOT NULL DEFAULT 1,
-            title TEXT NOT NULL,
-            institution TEXT,
-            duration TEXT,
-            completion_year TEXT,
-            certificate_details TEXT,
-            created_at TEXT NOT NULL
-          )
-        ''');
-
-        await db.execute('''
-          CREATE TABLE profile_experience (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            profile_id INTEGER NOT NULL DEFAULT 1,
-            designation TEXT NOT NULL,
-            workplace TEXT,
-            location TEXT,
-            employment_type TEXT,
-            start_date TEXT,
-            end_date TEXT,
-            is_current INTEGER NOT NULL DEFAULT 0,
-            responsibilities TEXT,
-            created_at TEXT NOT NULL
-          )
-        ''');
-
-        await db.execute('''
-          CREATE TABLE profile_skills (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            profile_id INTEGER NOT NULL DEFAULT 1,
-            skill_name TEXT NOT NULL,
-            proficiency TEXT,
-            created_at TEXT NOT NULL
-          )
-        ''');
-
-        await db.execute('''
-          CREATE TABLE profile_languages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            profile_id INTEGER NOT NULL DEFAULT 1,
-            language_name TEXT NOT NULL,
-            proficiency TEXT,
-            created_at TEXT NOT NULL
-          )
-        ''');
-
-        await db.execute('''
-          CREATE TABLE profile_achievements (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            profile_id INTEGER NOT NULL DEFAULT 1,
-            title TEXT NOT NULL,
-            description TEXT,
-            achievement_date TEXT,
-            created_at TEXT NOT NULL
-          )
-        ''');
+        await _createProfileRecordTables(db);
+        await _createProfileExtraTables(db);
 
         await db.execute('''
           CREATE TABLE notifications (
@@ -222,7 +151,6 @@ class AppDatabase {
           )
         ''');
 
-        // Receivable and Payable
         await _createMoneyTables(db);
       },
 
@@ -291,80 +219,7 @@ class AppDatabase {
         }
 
         if (oldVersion < 5) {
-          await db.execute('''
-            CREATE TABLE profile_education (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              profile_id INTEGER NOT NULL DEFAULT 1,
-              qualification TEXT NOT NULL,
-              institution TEXT,
-              subject TEXT,
-              result TEXT,
-              passing_year TEXT,
-              start_year TEXT,
-              end_year TEXT,
-              created_at TEXT NOT NULL
-            )
-          ''');
-
-          await db.execute('''
-            CREATE TABLE profile_training (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              profile_id INTEGER NOT NULL DEFAULT 1,
-              title TEXT NOT NULL,
-              institution TEXT,
-              duration TEXT,
-              completion_year TEXT,
-              certificate_details TEXT,
-              created_at TEXT NOT NULL
-            )
-          ''');
-
-          await db.execute('''
-            CREATE TABLE profile_experience (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              profile_id INTEGER NOT NULL DEFAULT 1,
-              designation TEXT NOT NULL,
-              workplace TEXT,
-              location TEXT,
-              employment_type TEXT,
-              start_date TEXT,
-              end_date TEXT,
-              is_current INTEGER NOT NULL DEFAULT 0,
-              responsibilities TEXT,
-              created_at TEXT NOT NULL
-            )
-          ''');
-
-          await db.execute('''
-            CREATE TABLE profile_skills (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              profile_id INTEGER NOT NULL DEFAULT 1,
-              skill_name TEXT NOT NULL,
-              proficiency TEXT,
-              created_at TEXT NOT NULL
-            )
-          ''');
-
-          await db.execute('''
-            CREATE TABLE profile_languages (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              profile_id INTEGER NOT NULL DEFAULT 1,
-              language_name TEXT NOT NULL,
-              proficiency TEXT,
-              created_at TEXT NOT NULL
-            )
-          ''');
-
-          await db.execute('''
-            CREATE TABLE profile_achievements (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              profile_id INTEGER NOT NULL DEFAULT 1,
-              title TEXT NOT NULL,
-              description TEXT,
-              achievement_date TEXT,
-              created_at TEXT NOT NULL
-            )
-          ''');
+          await _createProfileRecordTables(db);
         }
 
         if (oldVersion < 6) {
@@ -404,17 +259,136 @@ class AppDatabase {
           await _createMoneyTables(db);
         }
 
-        // Notes Color support
         if (oldVersion < 10) {
           await db.execute(
             "ALTER TABLE notes ADD COLUMN color TEXT NOT NULL DEFAULT 'yellow'",
           );
         }
+
+        if (oldVersion < 11) {
+          await _createProfileExtraTables(db);
+        }
       },
     );
   }
 
-  static Future<void> _createMoneyTables(DatabaseExecutor db) async {
+  static Future<void> _createProfileRecordTables(
+    DatabaseExecutor db,
+  ) async {
+    await db.execute('''
+      CREATE TABLE profile_education (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        profile_id INTEGER NOT NULL DEFAULT 1,
+        qualification TEXT NOT NULL,
+        institution TEXT,
+        subject TEXT,
+        result TEXT,
+        passing_year TEXT,
+        start_year TEXT,
+        end_year TEXT,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE profile_training (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        profile_id INTEGER NOT NULL DEFAULT 1,
+        title TEXT NOT NULL,
+        institution TEXT,
+        duration TEXT,
+        completion_year TEXT,
+        certificate_details TEXT,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE profile_experience (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        profile_id INTEGER NOT NULL DEFAULT 1,
+        designation TEXT NOT NULL,
+        workplace TEXT,
+        location TEXT,
+        employment_type TEXT,
+        start_date TEXT,
+        end_date TEXT,
+        is_current INTEGER NOT NULL DEFAULT 0,
+        responsibilities TEXT,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE profile_skills (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        profile_id INTEGER NOT NULL DEFAULT 1,
+        skill_name TEXT NOT NULL,
+        proficiency TEXT,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE profile_languages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        profile_id INTEGER NOT NULL DEFAULT 1,
+        language_name TEXT NOT NULL,
+        proficiency TEXT,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE profile_achievements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        profile_id INTEGER NOT NULL DEFAULT 1,
+        title TEXT NOT NULL,
+        description TEXT,
+        achievement_date TEXT,
+        created_at TEXT NOT NULL
+      )
+    ''');
+  }
+
+  static Future<void> _createProfileExtraTables(
+    DatabaseExecutor db,
+  ) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS profile_social_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        profile_id INTEGER NOT NULL,
+        platform TEXT NOT NULL,
+        label TEXT,
+        url TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS profile_important_contacts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        profile_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        relation TEXT,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS profile_designations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        profile_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
+  }
+
+  static Future<void> _createMoneyTables(
+    DatabaseExecutor db,
+  ) async {
     await db.execute('''
       CREATE TABLE money_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
