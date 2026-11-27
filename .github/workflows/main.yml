@@ -14,22 +14,47 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+      # =========================================================
+      # 1. Checkout
+      # =========================================================
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java
+
+      # =========================================================
+      # 2. Java 17
+      # =========================================================
+      - name: Setup Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
 
+
+      # =========================================================
+      # 3. Flutter
+      # =========================================================
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
+
+      # =========================================================
+      # 4. Python Pillow
+      # =========================================================
+      - name: Install Python Image Library
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install Pillow
+
+
+      # =========================================================
+      # 5. Generate Android Project
+      # =========================================================
       - name: Generate Android project
         run: |
           if [ ! -f android/gradlew ]; then
@@ -43,29 +68,52 @@ jobs:
 
             rm -rf android
             cp -R /tmp/lifemate_scaffold/android ./android
+
+            echo "Android project generated."
+          else
+            echo "Android project already exists."
           fi
 
+
+      # =========================================================
+      # 6. Install Android SDK 36
+      # =========================================================
       - name: Install Android SDK 36
         run: |
+          set -e
+
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" \
-            -name sdkmanager -type f | head -n 1)
+            -name sdkmanager \
+            -type f | head -n 1)
 
           if [ -z "$SDKMANAGER" ]; then
-            echo "SDK Manager not found"
+            echo "ERROR: SDK Manager not found."
             exit 1
           fi
 
+          echo "SDK Manager found:"
+          echo "$SDKMANAGER"
+
           yes | "$SDKMANAGER" --licenses || true
+
           "$SDKMANAGER" "platform-tools"
           "$SDKMANAGER" "platforms;android-36"
           "$SDKMANAGER" "build-tools;36.0.0"
 
-      - name: Flutter Pub Get
-        run: flutter pub get
+          echo "Android SDK 36 installed successfully."
 
-      # ---------------------------------------------------------
-      # LifeMate App Icon
-      # ---------------------------------------------------------
+
+      # =========================================================
+      # 7. Flutter Pub Get
+      # =========================================================
+      - name: Flutter Pub Get
+        run: |
+          flutter pub get
+
+
+      # =========================================================
+      # 8. Install LifeMate App Icon
+      # =========================================================
       - name: Install LifeMate App Icon
         run: |
           set -e
@@ -75,10 +123,12 @@ jobs:
 
           if [ ! -f "$ICON_SOURCE" ]; then
             echo "ERROR: $ICON_SOURCE not found."
+            echo "Please make sure the icon exists in assets/."
             exit 1
           fi
 
-          echo "Installing LifeMate App Icon..."
+          echo "LifeMate icon found:"
+          ls -lh "$ICON_SOURCE"
 
           python3 - <<'PY'
           from PIL import Image
@@ -91,7 +141,9 @@ jobs:
 
           image = Image.open(source).convert("RGBA")
 
-          # Make a square canvas using the largest dimension.
+          print("Original icon size:", image.size)
+
+          # Make the image square.
           size = max(image.width, image.height)
 
           canvas = Image.new(
@@ -116,8 +168,12 @@ jobs:
           res = Path("android/app/src/main/res")
 
           for folder, target_size in output_sizes.items():
+
               directory = res / folder
-              directory.mkdir(parents=True, exist_ok=True)
+              directory.mkdir(
+                  parents=True,
+                  exist_ok=True
+              )
 
               resized = canvas.resize(
                   (target_size, target_size),
@@ -134,8 +190,23 @@ jobs:
                   "PNG"
               )
 
-          print("LifeMate launcher icons generated successfully.")
+              print(
+                  f"Created {folder}: "
+                  f"{target_size}x{target_size}"
+              )
+
+          print("LifeMate App Icon generated successfully.")
           PY
+
+
+      # =========================================================
+      # 9. Configure Android Launcher Icon
+      # =========================================================
+      - name: Configure Android Launcher Icon
+        run: |
+          set -e
+
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
 
           python3 - <<'PY'
           from pathlib import Path
@@ -147,18 +218,21 @@ jobs:
 
           content = manifest.read_text()
 
+          # Replace existing icon
           content = re.sub(
               r'android:icon="[^"]*"',
               'android:icon="@mipmap/ic_launcher"',
               content
           )
 
+          # Replace existing round icon
           content = re.sub(
               r'android:roundIcon="[^"]*"',
               'android:roundIcon="@mipmap/ic_launcher_round"',
               content
           )
 
+          # Add icon if it does not exist
           if 'android:icon="@mipmap/ic_launcher"' not in content:
               content = content.replace(
                   "<application",
@@ -170,14 +244,22 @@ jobs:
 
           manifest.write_text(content)
 
-          print("Android launcher icon configuration updated.")
+          print("Launcher icon configuration completed.")
           PY
 
-          echo "LifeMate App Icon installation complete."
+          # Remove adaptive icon XML files so that
+          # our generated PNG icons are used directly.
+          rm -f \
+            android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml \
+            android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml \
+            2>/dev/null || true
 
-      # ---------------------------------------------------------
-      # Floating Home Button + Contacts Permission
-      # ---------------------------------------------------------
+          echo "Launcher icon configuration completed."
+
+
+      # =========================================================
+      # 10. Floating Home Button
+      # =========================================================
       - name: Install Floating Home Button
         run: |
           set -e
@@ -188,6 +270,10 @@ jobs:
 
           mkdir -p "$(dirname "$MAIN_ACTIVITY")"
 
+
+          # -----------------------------------------------------
+          # MainActivity.kt
+          # -----------------------------------------------------
           cat > "$MAIN_ACTIVITY" <<'KOTLIN'
           package com.lifemate.lifemate
 
@@ -203,11 +289,17 @@ jobs:
           class MainActivity : FlutterActivity() {
 
               private val channelName = "com.lifemate/floating_home"
+
               private val prefsName = "lifemate_floating"
+
               private val enabledKey = "enabled"
+
               private val foregroundKey = "app_foreground"
 
-              override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+
+              override fun configureFlutterEngine(
+                  flutterEngine: FlutterEngine
+              ) {
                   super.configureFlutterEngine(flutterEngine)
 
                   MethodChannel(
@@ -218,30 +310,54 @@ jobs:
                       when (call.method) {
 
                           "isOverlayPermissionGranted" -> {
-                              result.success(Settings.canDrawOverlays(this))
+
+                              result.success(
+                                  Settings.canDrawOverlays(this)
+                              )
                           }
 
+
                           "requestOverlayPermission" -> {
+
                               openOverlaySettings()
+
                               result.success(true)
                           }
 
-                          "setFloatingEnabled" -> {
-                              val enabled =
-                                  call.argument<Boolean>("enabled") ?: false
 
-                              getSharedPreferences(prefsName, MODE_PRIVATE)
+                          "setFloatingEnabled" -> {
+
+                              val enabled =
+                                  call.argument<Boolean>("enabled")
+                                      ?: false
+
+                              getSharedPreferences(
+                                  prefsName,
+                                  MODE_PRIVATE
+                              )
                                   .edit()
-                                  .putBoolean(enabledKey, enabled)
+                                  .putBoolean(
+                                      enabledKey,
+                                      enabled
+                                  )
                                   .apply()
 
+
                               if (enabled) {
-                                  if (Settings.canDrawOverlays(this)) {
+
+                                  if (
+                                      Settings.canDrawOverlays(this)
+                                  ) {
+
                                       startFloatingService()
+
                                   } else {
+
                                       openOverlaySettings()
                                   }
+
                               } else {
+
                                   stopService(
                                       Intent(
                                           this,
@@ -253,83 +369,154 @@ jobs:
                               result.success(true)
                           }
 
-                          else -> result.notImplemented()
+
+                          else -> {
+                              result.notImplemented()
+                          }
                       }
                   }
               }
 
+
               override fun onResume() {
+
                   super.onResume()
 
-                  getSharedPreferences(prefsName, MODE_PRIVATE)
+                  getSharedPreferences(
+                      prefsName,
+                      MODE_PRIVATE
+                  )
                       .edit()
-                      .putBoolean(foregroundKey, true)
+                      .putBoolean(
+                          foregroundKey,
+                          true
+                      )
                       .apply()
 
-                  val enabled =
-                      getSharedPreferences(prefsName, MODE_PRIVATE)
-                          .getBoolean(enabledKey, false)
 
-                  if (enabled && Settings.canDrawOverlays(this)) {
+                  val enabled =
+                      getSharedPreferences(
+                          prefsName,
+                          MODE_PRIVATE
+                      )
+                          .getBoolean(
+                              enabledKey,
+                              false
+                          )
+
+
+                  if (
+                      enabled &&
+                      Settings.canDrawOverlays(this)
+                  ) {
+
                       startFloatingService()
                   }
               }
 
+
               override fun onPause() {
-                  getSharedPreferences(prefsName, MODE_PRIVATE)
+
+                  getSharedPreferences(
+                      prefsName,
+                      MODE_PRIVATE
+                  )
                       .edit()
-                      .putBoolean(foregroundKey, false)
+                      .putBoolean(
+                          foregroundKey,
+                          false
+                      )
                       .apply()
 
                   super.onPause()
               }
 
+
               override fun onDestroy() {
-                  getSharedPreferences(prefsName, MODE_PRIVATE)
+
+                  getSharedPreferences(
+                      prefsName,
+                      MODE_PRIVATE
+                  )
                       .edit()
-                      .putBoolean(foregroundKey, false)
+                      .putBoolean(
+                          foregroundKey,
+                          false
+                      )
                       .apply()
 
                   super.onDestroy()
               }
 
+
               private fun openOverlaySettings() {
-                  if (Settings.canDrawOverlays(this)) return
+
+                  if (
+                      Settings.canDrawOverlays(this)
+                  ) {
+                      return
+                  }
+
 
                   try {
+
                       val intent = Intent(
                           Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                          Uri.parse("package:$packageName")
-                      )
-                      startActivity(intent)
-                  } catch (_: Exception) {
-                      try {
-                          startActivity(
-                              Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                          Uri.parse(
+                              "package:$packageName"
                           )
+                      )
+
+                      startActivity(intent)
+
+                  } catch (_: Exception) {
+
+                      try {
+
+                          startActivity(
+                              Intent(
+                                  Settings.ACTION_MANAGE_OVERLAY_PERMISSION
+                              )
+                          )
+
                       } catch (_: Exception) {
                       }
                   }
               }
 
+
               private fun startFloatingService() {
+
                   try {
+
                       val intent = Intent(
                           this,
                           LifeMateFloatingService::class.java
                       )
 
-                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+
+                      if (
+                          Build.VERSION.SDK_INT >=
+                          Build.VERSION_CODES.O
+                      ) {
+
                           startForegroundService(intent)
+
                       } else {
+
                           startService(intent)
                       }
+
                   } catch (_: Exception) {
                   }
               }
           }
           KOTLIN
 
+
+          # -----------------------------------------------------
+          # LifeMateFloatingService.kt
+          # -----------------------------------------------------
           cat > "$FLOATING_SERVICE" <<'KOTLIN'
           package com.lifemate.lifemate
 
@@ -350,112 +537,229 @@ jobs:
           import android.view.WindowManager
           import android.widget.TextView
 
+
           class LifeMateFloatingService : Service() {
 
               private var windowManager: WindowManager? = null
+
               private var floatingView: TextView? = null
 
-              private val channelId = "lifemate_floating_channel"
+              private val channelId =
+                  "lifemate_floating_channel"
+
               private val notificationId = 1001
-              private val prefsName = "lifemate_floating"
-              private val foregroundKey = "app_foreground"
+
+              private val prefsName =
+                  "lifemate_floating"
+
+              private val foregroundKey =
+                  "app_foreground"
+
 
               override fun onCreate() {
+
                   super.onCreate()
 
+
                   if (!Settings.canDrawOverlays(this)) {
+
                       stopSelf()
+
                       return
                   }
 
+
                   createNotificationChannel()
-                  startForeground(notificationId, createNotification())
+
+                  startForeground(
+                      notificationId,
+                      createNotification()
+                  )
+
                   showFloatingButton()
               }
 
+
               private fun createNotificationChannel() {
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                      val channel = NotificationChannel(
-                          channelId,
-                          "LifeMate Floating Button",
-                          NotificationManager.IMPORTANCE_LOW
-                      )
+
+                  if (
+                      Build.VERSION.SDK_INT >=
+                      Build.VERSION_CODES.O
+                  ) {
+
+                      val channel =
+                          NotificationChannel(
+                              channelId,
+                              "LifeMate Floating Button",
+                              NotificationManager.IMPORTANCE_LOW
+                          )
+
 
                       channel.description =
                           "Keeps the LifeMate Home button available."
 
+
                       val manager =
-                          getSystemService(NotificationManager::class.java)
+                          getSystemService(
+                              NotificationManager::class.java
+                          )
+
 
                       manager.createNotificationChannel(channel)
                   }
               }
 
+
               private fun createNotification(): Notification {
-                  return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                      Notification.Builder(this, channelId)
+
+                  return if (
+                      Build.VERSION.SDK_INT >=
+                      Build.VERSION_CODES.O
+                  ) {
+
+                      Notification.Builder(
+                          this,
+                          channelId
+                      )
                           .setContentTitle("LifeMate")
-                          .setContentText("Floating Home button is active")
-                          .setSmallIcon(android.R.drawable.ic_menu_view)
+                          .setContentText(
+                              "Floating Home button is active"
+                          )
+                          .setSmallIcon(
+                              android.R.drawable.ic_menu_view
+                          )
                           .setOngoing(true)
                           .build()
+
                   } else {
+
                       Notification.Builder(this)
                           .setContentTitle("LifeMate")
-                          .setContentText("Floating Home button is active")
-                          .setSmallIcon(android.R.drawable.ic_menu_view)
+                          .setContentText(
+                              "Floating Home button is active"
+                          )
+                          .setSmallIcon(
+                              android.R.drawable.ic_menu_view
+                          )
                           .setOngoing(true)
                           .build()
                   }
               }
 
+
               private fun showFloatingButton() {
-                  if (floatingView != null) return
+
+                  if (floatingView != null) {
+                      return
+                  }
+
 
                   windowManager =
-                      getSystemService(WINDOW_SERVICE) as WindowManager
+                      getSystemService(
+                          WINDOW_SERVICE
+                      ) as WindowManager
+
 
                   val button = TextView(this)
 
+
                   button.text = "⌂"
+
                   button.textSize = 22f
+
                   button.setTextColor(Color.WHITE)
+
                   button.gravity = Gravity.CENTER
-                  button.setPadding(0, 0, 0, 1)
 
-                  val background = GradientDrawable()
-                  background.shape = GradientDrawable.OVAL
-                  background.setColor(Color.rgb(33, 150, 243))
-                  background.setStroke(2, Color.WHITE)
-
-                  button.background = background
-                  button.elevation = 12f
-
-                  val params = WindowManager.LayoutParams(
-                      dp(52),
-                      dp(52),
-                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                          WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                      } else {
-                          WindowManager.LayoutParams.TYPE_PHONE
-                      },
-                      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                          WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                      PixelFormat.TRANSLUCENT
+                  button.setPadding(
+                      0,
+                      0,
+                      0,
+                      1
                   )
 
-                  params.gravity = Gravity.CENTER_VERTICAL or Gravity.END
+
+                  val background =
+                      GradientDrawable()
+
+
+                  background.shape =
+                      GradientDrawable.OVAL
+
+
+                  background.setColor(
+                      Color.rgb(
+                          33,
+                          150,
+                          243
+                      )
+                  )
+
+
+                  background.setStroke(
+                      2,
+                      Color.WHITE
+                  )
+
+
+                  button.background =
+                      background
+
+
+                  button.elevation = 12f
+
+
+                  val params =
+                      WindowManager.LayoutParams(
+                          dp(52),
+                          dp(52),
+
+                          if (
+                              Build.VERSION.SDK_INT >=
+                              Build.VERSION_CODES.O
+                          ) {
+
+                              WindowManager.LayoutParams
+                                  .TYPE_APPLICATION_OVERLAY
+
+                          } else {
+
+                              WindowManager.LayoutParams
+                                  .TYPE_PHONE
+                          },
+
+                          WindowManager.LayoutParams
+                              .FLAG_NOT_FOCUSABLE or
+                              WindowManager.LayoutParams
+                                  .FLAG_LAYOUT_NO_LIMITS,
+
+                          PixelFormat.TRANSLUCENT
+                      )
+
+
+                  params.gravity =
+                      Gravity.CENTER_VERTICAL or
+                      Gravity.END
+
+
                   params.x = dp(4)
+
                   params.y = 0
+
 
                   button.setOnTouchListener(
                       object : View.OnTouchListener {
 
                           private var downX = 0f
+
                           private var downY = 0f
+
                           private var startX = 0
+
                           private var startY = 0
+
                           private var moved = false
+
 
                           override fun onTouch(
                               view: View,
@@ -463,123 +767,220 @@ jobs:
                           ): Boolean {
 
                               when (event.action) {
+
                                   MotionEvent.ACTION_DOWN -> {
+
                                       downX = event.rawX
+
                                       downY = event.rawY
+
                                       startX = params.x
+
                                       startY = params.y
+
                                       moved = false
+
                                       return true
                                   }
 
+
                                   MotionEvent.ACTION_MOVE -> {
-                                      val dx = event.rawX - downX
-                                      val dy = event.rawY - downY
+
+                                      val dx =
+                                          event.rawX - downX
+
+                                      val dy =
+                                          event.rawY - downY
+
 
                                       if (
-                                          kotlin.math.abs(dx) > dp(8) ||
-                                          kotlin.math.abs(dy) > dp(8)
+                                          kotlin.math.abs(dx) >
+                                              dp(8) ||
+                                          kotlin.math.abs(dy) >
+                                              dp(8)
                                       ) {
+
                                           moved = true
                                       }
 
-                                      params.x = startX - dx.toInt()
-                                      params.y = startY + dy.toInt()
+
+                                      params.x =
+                                          startX - dx.toInt()
+
+                                      params.y =
+                                          startY + dy.toInt()
+
 
                                       try {
-                                          windowManager?.updateViewLayout(
-                                              button,
-                                              params
-                                          )
+
+                                          windowManager
+                                              ?.updateViewLayout(
+                                                  button,
+                                                  params
+                                              )
+
                                       } catch (_: Exception) {
                                       }
 
+
                                       return true
                                   }
 
+
                                   MotionEvent.ACTION_UP -> {
+
                                       if (!moved) {
+
                                           handleFloatingTap()
                                       }
+
                                       return true
                                   }
                               }
+
 
                               return false
                           }
                       }
                   )
 
+
                   floatingView = button
 
+
                   try {
-                      windowManager?.addView(button, params)
+
+                      windowManager?.addView(
+                          button,
+                          params
+                      )
+
                   } catch (_: Exception) {
+
                       floatingView = null
                   }
               }
 
+
               private fun handleFloatingTap() {
+
                   val isAppForeground =
-                      getSharedPreferences(prefsName, MODE_PRIVATE)
-                          .getBoolean(foregroundKey, false)
+                      getSharedPreferences(
+                          prefsName,
+                          MODE_PRIVATE
+                      )
+                          .getBoolean(
+                              foregroundKey,
+                              false
+                          )
+
 
                   if (isAppForeground) {
+
                       goToBackground()
+
                   } else {
+
                       openLifeMate()
                   }
               }
 
+
               private fun openLifeMate() {
+
                   try {
+
                       val intent =
-                          packageManager.getLaunchIntentForPackage(packageName)
+                          packageManager
+                              .getLaunchIntentForPackage(
+                                  packageName
+                              )
+
 
                       if (intent != null) {
+
                           intent.addFlags(
                               Intent.FLAG_ACTIVITY_NEW_TASK or
                                   Intent.FLAG_ACTIVITY_SINGLE_TOP or
                                   Intent.FLAG_ACTIVITY_CLEAR_TOP
                           )
+
+
                           startActivity(intent)
                       }
+
                   } catch (_: Exception) {
                   }
               }
+
 
               private fun goToBackground() {
+
                   try {
-                      val intent = Intent(Intent.ACTION_MAIN)
-                      intent.addCategory(Intent.CATEGORY_HOME)
-                      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+                      val intent =
+                          Intent(Intent.ACTION_MAIN)
+
+
+                      intent.addCategory(
+                          Intent.CATEGORY_HOME
+                      )
+
+
+                      intent.addFlags(
+                          Intent.FLAG_ACTIVITY_NEW_TASK
+                      )
+
+
                       startActivity(intent)
+
                   } catch (_: Exception) {
                   }
               }
+
 
               private fun dp(value: Int): Int {
-                  return (value * resources.displayMetrics.density).toInt()
+
+                  return (
+                      value *
+                          resources.displayMetrics.density
+                      ).toInt()
               }
 
+
               override fun onDestroy() {
+
                   try {
+
                       floatingView?.let {
-                          windowManager?.removeView(it)
+
+                          windowManager
+                              ?.removeView(it)
                       }
+
                   } catch (_: Exception) {
                   }
 
+
                   floatingView = null
+
                   super.onDestroy()
               }
 
-              override fun onBind(intent: Intent?): IBinder? {
+
+              override fun onBind(
+                  intent: Intent?
+              ): IBinder? {
+
                   return null
               }
           }
           KOTLIN
 
+
+          # -----------------------------------------------------
+          # AndroidManifest permissions + service
+          # -----------------------------------------------------
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
@@ -590,24 +991,36 @@ jobs:
 
           content = manifest.read_text()
 
+
           permissions = [
+
               "android.permission.SYSTEM_ALERT_WINDOW",
+
               "android.permission.FOREGROUND_SERVICE",
+
               "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
+
               "android.permission.READ_CONTACTS",
           ]
 
+
           for permission in permissions:
+
               permission_tag = (
-                  f'<uses-permission android:name="{permission}" />'
+                  f'<uses-permission '
+                  f'android:name="{permission}" />'
               )
 
+
               if permission_tag not in content:
+
                   content = content.replace(
                       "<application",
-                      f"    {permission_tag}\n    <application",
+                      f"    {permission_tag}\n"
+                      f"    <application",
                       1
                   )
+
 
           service_block = """
               <service
@@ -621,25 +1034,38 @@ jobs:
               </service>
           """
 
+
           if "LifeMateFloatingService" not in content:
+
               content = content.replace(
                   "</application>",
-                  service_block + "\n    </application>",
+                  service_block +
+                  "\n    </application>",
                   1
               )
 
+
           ET.fromstring(content)
+
           manifest.write_text(content)
 
-          print("AndroidManifest XML validation passed.")
-          print("READ_CONTACTS permission added.")
+          print(
+              "AndroidManifest XML validation passed."
+          )
+
+          print(
+              "Floating Home Button configured."
+          )
+
+          print(
+              "READ_CONTACTS permission configured."
+          )
           PY
 
-          echo "Floating Home Button and Contact Permission installed."
 
-      # ---------------------------------------------------------
-      # Force App compileSdk 36
-      # ---------------------------------------------------------
+      # =========================================================
+      # 11. Force App compileSdk 36
+      # =========================================================
       - name: Force App compileSdk 36
         run: |
           python3 - <<'PY'
@@ -651,39 +1077,61 @@ jobs:
               Path("android/app/build.gradle.kts"),
           ]
 
+
           for file in files:
+
               if not file.exists():
                   continue
 
+
               content = file.read_text()
 
+
               content = re.sub(
-                  r'(?m)^(\s*compileSdk(?:Version)?\s*(?:=\s*)?)(?:flutter\.compileSdkVersion|\d+)',
+                  r'(?m)^(\s*compileSdk(?:Version)?\s*'
+                  r'(?:=\s*)?)'
+                  r'(?:flutter\.compileSdkVersion|\d+)',
                   r'\g<1>36',
                   content
               )
 
-              if not re.search(r'compileSdk(?:Version)?', content):
+
+              if not re.search(
+                  r'compileSdk(?:Version)?',
+                  content
+              ):
+
                   if file.suffix == ".kts":
+
                       content = content.replace(
                           "android {",
-                          "android {\n    compileSdk = 36",
+                          "android {\n"
+                          "    compileSdk = 36",
                           1
                       )
+
                   else:
+
                       content = content.replace(
                           "android {",
-                          "android {\n    compileSdk 36",
+                          "android {\n"
+                          "    compileSdk 36",
                           1
                       )
+
 
               file.write_text(content)
-              print("Updated:", file)
+
+              print(
+                  "Updated:",
+                  file
+              )
           PY
 
-      # ---------------------------------------------------------
-      # Force Flutter plugin compileSdk 36
-      # ---------------------------------------------------------
+
+      # =========================================================
+      # 12. Force Flutter Plugin compileSdk 36
+      # =========================================================
       - name: Force Flutter plugin compileSdk 36
         run: |
           python3 - <<'PY'
@@ -692,112 +1140,207 @@ jobs:
           import os
 
           pub_root = Path(
-              os.path.expanduser("~/.pub-cache/hosted/pub.dev")
+              os.path.expanduser(
+                  "~/.pub-cache/hosted/pub.dev"
+              )
           )
+
 
           target_names = [
               "file_picker",
               "flutter_plugin_android_lifecycle",
           ]
 
+
           changed = []
 
+
           if pub_root.exists():
+
               for name in target_names:
-                  for folder in pub_root.glob(f"{name}-*"):
-                      android_folder = folder / "android"
+
+                  for folder in pub_root.glob(
+                      f"{name}-*"
+                  ):
+
+                      android_folder =
+                          folder / "android"
+
 
                       if not android_folder.exists():
                           continue
 
-                      for file in android_folder.glob("build.gradle*"):
+
+                      for file in android_folder.glob(
+                          "build.gradle*"
+                      ):
+
                           content = file.read_text()
 
+
                           updated = re.sub(
-                              r'(?m)^(\s*compileSdk(?:Version)?\s*(?:=\s*)?)(?:flutter\.compileSdkVersion|\d+)',
+                              r'(?m)^(\s*compileSdk'
+                              r'(?:Version)?\s*'
+                              r'(?:=\s*)?)'
+                              r'(?:flutter\.compileSdkVersion|\d+)',
                               r'\g<1>36',
                               content
                           )
+
 
                           if not re.search(
                               r'compileSdk(?:Version)?',
                               updated
                           ):
+
                               if file.suffix == ".kts":
+
                                   updated = updated.replace(
                                       "android {",
-                                      "android {\n    compileSdk = 36",
+                                      "android {\n"
+                                      "    compileSdk = 36",
                                       1
                                   )
+
                               else:
+
                                   updated = updated.replace(
                                       "android {",
-                                      "android {\n    compileSdk 36",
+                                      "android {\n"
+                                      "    compileSdk 36",
                                       1
                                   )
+
 
                           if updated != content:
-                              file.write_text(updated)
-                              changed.append(str(file))
 
-          print("Total plugin files updated:", len(changed))
+                              file.write_text(updated)
+
+                              changed.append(
+                                  str(file)
+                              )
+
+
+          print(
+              "Total plugin files updated:",
+              len(changed)
+          )
           PY
 
-      # ---------------------------------------------------------
-      # Verify Android configuration
-      # ---------------------------------------------------------
+
+      # =========================================================
+      # 13. Verify Configuration
+      # =========================================================
       - name: Verify Android configuration
         run: |
+
+          echo "======================================"
           echo "ANDROID MANIFEST"
+          echo "======================================"
+
           cat android/app/src/main/AndroidManifest.xml
 
-          echo "MAIN ACTIVITY"
-          cat android/app/src/main/kotlin/com/lifemate/lifemate/MainActivity.kt
 
-          echo "FLOATING SERVICE"
-          cat android/app/src/main/kotlin/com/lifemate/lifemate/LifeMateFloatingService.kt
-
+          echo ""
+          echo "======================================"
           echo "APP ICON FILES"
+          echo "======================================"
+
           find android/app/src/main/res \
             -name "ic_launcher*.png" \
             -print
 
+
+          echo ""
+          echo "======================================"
+          echo "MAIN ACTIVITY"
+          echo "======================================"
+
+          cat \
+            android/app/src/main/kotlin/com/lifemate/lifemate/MainActivity.kt
+
+
+          echo ""
+          echo "======================================"
+          echo "FLOATING SERVICE"
+          echo "======================================"
+
+          cat \
+            android/app/src/main/kotlin/com/lifemate/lifemate/LifeMateFloatingService.kt
+
+
+          echo ""
+          echo "======================================"
           echo "APP BUILD GRADLE"
+          echo "======================================"
+
           cat android/app/build.gradle || true
+
           cat android/app/build.gradle.kts || true
 
+
+      # =========================================================
+      # 14. Flutter Clean
+      # =========================================================
       - name: Flutter Clean
-        run: flutter clean
+        run: |
+          flutter clean
 
+
+      # =========================================================
+      # 15. Flutter Pub Get Again
+      # =========================================================
       - name: Flutter Pub Get Again
-        run: flutter pub get
+        run: |
+          flutter pub get
 
+
+      # =========================================================
+      # 16. Download Gradle Dependencies
+      # =========================================================
       - name: Download Gradle dependencies
         working-directory: android
         run: |
+
           echo "Downloading Gradle dependencies..."
 
-          for attempt in 1 2 3 4 5; do
+          for attempt in 1 2 3 4 5
+          do
+
+            echo ""
             echo "Gradle dependency attempt: $attempt"
 
-            if ./gradlew dependencies --no-daemon --stacktrace; then
+            if ./gradlew dependencies \
+              --no-daemon \
+              --stacktrace
+            then
+
               echo "Gradle dependencies downloaded successfully."
+
               exit 0
+
             fi
+
 
             echo "Attempt $attempt failed."
 
-            if [ "$attempt" -lt 5 ]; then
+
+            if [ "$attempt" -lt 5 ]
+            then
               sleep $((attempt * 20))
             fi
+
           done
 
+
           echo "Gradle dependency download failed after 5 attempts."
+
           exit 1
 
-      # ---------------------------------------------------------
-      # Build APK
-      # ---------------------------------------------------------
+
+      # =========================================================
+      # 17. Build Release APK
+      # =========================================================
       - name: Build APK
         env:
           GRADLE_OPTS: >-
@@ -805,28 +1348,47 @@ jobs:
             -Dorg.gradle.parallel=true
             -Dorg.gradle.caching=true
             -Dorg.gradle.jvmargs=-Xmx4g
-        run: |
-          for attempt in 1 2 3 4 5; do
-            echo "APK build attempt: $attempt"
 
-            if flutter build apk --release; then
+        run: |
+
+          for attempt in 1 2 3 4 5
+          do
+
+            echo ""
+            echo "======================================"
+            echo "APK BUILD ATTEMPT: $attempt"
+            echo "======================================"
+
+
+            if flutter build apk --release
+            then
+
               echo "APK build successful."
+
               exit 0
+
             fi
+
 
             echo "Build attempt $attempt failed."
 
-            if [ "$attempt" -lt 5 ]; then
+
+            if [ "$attempt" -lt 5 ]
+            then
               sleep $((attempt * 20))
             fi
+
           done
 
+
           echo "APK build failed after 5 attempts."
+
           exit 1
 
-      # ---------------------------------------------------------
-      # Upload APK
-      # ---------------------------------------------------------
+
+      # =========================================================
+      # 18. Upload APK
+      # =========================================================
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
