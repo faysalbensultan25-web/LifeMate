@@ -15,11 +15,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Java 17
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
@@ -27,18 +25,16 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      # 3. Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
-      # 4. Generate Android project if missing
       - name: Generate Android project
         run: |
           if [ ! -f android/gradlew ]; then
-            echo "Android project not found. Generating..."
+            echo "Generating Android project..."
 
             flutter create \
               --platforms=android \
@@ -48,43 +44,30 @@ jobs:
 
             rm -rf android
             cp -R /tmp/lifemate_scaffold/android ./android
-
-            echo "Android project generated."
-          else
-            echo "Android project already exists."
           fi
 
-      # 5. Install Android SDK 36
       - name: Install Android SDK 36
         run: |
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" \
-            -name sdkmanager \
-            -type f | head -n 1)
+            -name sdkmanager -type f | head -n 1)
 
           if [ -z "$SDKMANAGER" ]; then
             echo "SDK Manager not found"
             exit 1
           fi
 
-          echo "Using SDK Manager:"
-          echo "$SDKMANAGER"
-
           yes | "$SDKMANAGER" --licenses || true
-
           "$SDKMANAGER" "platform-tools"
           "$SDKMANAGER" "platforms;android-36"
           "$SDKMANAGER" "build-tools;36.0.0"
 
-      # 6. Flutter dependencies
       - name: Flutter Pub Get
         run: flutter pub get
 
-      # 7. Install Floating Home Button
+      # Install Floating Home Button
       - name: Install Floating Home Button
         run: |
           set -e
-
-          echo "Installing LifeMate Floating Home Button..."
 
           MAIN_ACTIVITY="android/app/src/main/kotlin/com/lifemate/lifemate/MainActivity.kt"
           FLOATING_SERVICE="android/app/src/main/kotlin/com/lifemate/lifemate/LifeMateFloatingService.kt"
@@ -92,7 +75,7 @@ jobs:
 
           mkdir -p "$(dirname "$MAIN_ACTIVITY")"
 
-          # MainActivity
+          # MainActivity with Flutter MethodChannel
           cat > "$MAIN_ACTIVITY" <<'KOTLIN'
           package com.lifemate.lifemate
 
@@ -102,38 +85,96 @@ jobs:
           import android.os.Bundle
           import android.provider.Settings
           import io.flutter.embedding.android.FlutterActivity
+          import io.flutter.embedding.engine.FlutterEngine
+          import io.flutter.plugin.common.MethodChannel
 
           class MainActivity : FlutterActivity() {
 
-              override fun onCreate(savedInstanceState: Bundle?) {
-                  super.onCreate(savedInstanceState)
-                  checkOverlayPermission()
+              private val channelName = "com.lifemate/floating_home"
+              private val prefsName = "lifemate_floating"
+              private val enabledKey = "enabled"
+
+              override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+                  super.configureFlutterEngine(flutterEngine)
+
+                  MethodChannel(
+                      flutterEngine.dartExecutor.binaryMessenger,
+                      channelName
+                  ).setMethodCallHandler { call, result ->
+
+                      when (call.method) {
+
+                          "isOverlayPermissionGranted" -> {
+                              result.success(Settings.canDrawOverlays(this))
+                          }
+
+                          "requestOverlayPermission" -> {
+                              openOverlaySettings()
+                              result.success(true)
+                          }
+
+                          "setFloatingEnabled" -> {
+                              val enabled =
+                                  call.argument<Boolean>("enabled") ?: false
+
+                              getSharedPreferences(prefsName, MODE_PRIVATE)
+                                  .edit()
+                                  .putBoolean(enabledKey, enabled)
+                                  .apply()
+
+                              if (enabled) {
+                                  if (Settings.canDrawOverlays(this)) {
+                                      startFloatingService()
+                                  } else {
+                                      openOverlaySettings()
+                                  }
+                              } else {
+                                  stopService(
+                                      Intent(
+                                          this,
+                                          LifeMateFloatingService::class.java
+                                      )
+                                  )
+                              }
+
+                              result.success(true)
+                          }
+
+                          else -> result.notImplemented()
+                      }
+                  }
               }
 
               override fun onResume() {
                   super.onResume()
 
-                  if (Settings.canDrawOverlays(this)) {
+                  val enabled =
+                      getSharedPreferences(prefsName, MODE_PRIVATE)
+                          .getBoolean(enabledKey, false)
+
+                  if (enabled && Settings.canDrawOverlays(this)) {
                       startFloatingService()
                   }
               }
 
-              private fun checkOverlayPermission() {
-                  if (!Settings.canDrawOverlays(this)) {
+              private fun openOverlaySettings() {
+                  if (Settings.canDrawOverlays(this)) return
+
+                  try {
+                      val intent = Intent(
+                          Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                          Uri.parse("package:$packageName")
+                      )
+                      startActivity(intent)
+                  } catch (_: Exception) {
                       try {
-                          val intent = Intent(
-                              Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                              Uri.parse("package:$packageName")
+                          startActivity(
+                              Intent(
+                                  Settings.ACTION_MANAGE_OVERLAY_PERMISSION
+                              )
                           )
-                          startActivity(intent)
                       } catch (_: Exception) {
-                          val intent = Intent(
-                              Settings.ACTION_MANAGE_OVERLAY_PERMISSION
-                          )
-                          startActivity(intent)
                       }
-                  } else {
-                      startFloatingService()
                   }
               }
 
@@ -382,7 +423,7 @@ jobs:
           }
           KOTLIN
 
-          # AndroidManifest - FIXED XML
+          # AndroidManifest permissions and service
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
@@ -430,18 +471,15 @@ jobs:
                   1
               )
 
-          # Validate XML before saving
           ET.fromstring(content)
-
           manifest.write_text(content)
 
-          print("AndroidManifest.xml updated successfully.")
-          print("XML validation passed.")
+          print("AndroidManifest XML validation passed.")
           PY
 
-          echo "Floating Home Button Android files installed."
+          echo "Floating Home Button installed."
 
-      # 8. Force App compileSdk 36
+      # Force App compileSdk 36
       - name: Force App compileSdk 36
         run: |
           python3 - <<'PY'
@@ -483,7 +521,7 @@ jobs:
               print("Updated:", file)
           PY
 
-      # 9. Force Flutter plugin compileSdk 36
+      # Force Flutter plugin compileSdk 36
       - name: Force Flutter plugin compileSdk 36
         run: |
           python3 - <<'PY'
@@ -540,7 +578,7 @@ jobs:
           print("Total plugin files updated:", len(changed))
           PY
 
-      # 10. Verify Android configuration
+      # Verify Android configuration
       - name: Verify Android configuration
         run: |
           echo "ANDROID MANIFEST"
@@ -556,15 +594,12 @@ jobs:
           cat android/app/build.gradle || true
           cat android/app/build.gradle.kts || true
 
-      # 11. Flutter Clean
       - name: Flutter Clean
         run: flutter clean
 
-      # 12. Flutter Pub Get Again
       - name: Flutter Pub Get Again
         run: flutter pub get
 
-      # 13. Gradle dependency warm-up with retry
       - name: Download Gradle dependencies
         working-directory: android
         run: |
@@ -588,7 +623,6 @@ jobs:
           echo "Gradle dependency download failed after 5 attempts."
           exit 1
 
-      # 14. Build APK with retry
       - name: Build APK
         env:
           GRADLE_OPTS: >-
@@ -615,7 +649,6 @@ jobs:
           echo "APK build failed after 5 attempts."
           exit 1
 
-      # 15. Upload APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
