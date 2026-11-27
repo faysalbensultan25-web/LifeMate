@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import 'home_page.dart';
@@ -41,13 +40,17 @@ class _LifeMateShellState extends State<LifeMateShell> {
           language: widget.language,
           onLanguageChanged: widget.onLanguageChanged,
         );
+
       case 1:
         return const TodoPage();
+
       case 2:
       case 3:
         return const FinancePage();
+
       case 4:
         return const NotesPage();
+
       default:
         return HomePage(
           language: widget.language,
@@ -64,21 +67,26 @@ class _LifeMateShellState extends State<LifeMateShell> {
 
     if (index < 0 || index > 4) return;
 
+    // Home button
     if (index == 0) {
       navigatorKey.currentState?.popUntil(
         (route) => route.isFirst,
       );
 
-      setState(() {
-        selectedIndex = 0;
-      });
+      if (mounted) {
+        setState(() {
+          selectedIndex = 0;
+        });
+      }
 
       return;
     }
 
-    setState(() {
-      selectedIndex = index;
-    });
+    if (mounted) {
+      setState(() {
+        selectedIndex = index;
+      });
+    }
 
     navigatorKey.currentState?.pushAndRemoveUntil(
       MaterialPageRoute(
@@ -95,7 +103,11 @@ class _LifeMateShellState extends State<LifeMateShell> {
       builder: (ctx) => SafeArea(
         child: Wrap(
           children: [
-            moreItem(Icons.event, 'Events', const EventsPage()),
+            moreItem(
+              Icons.event,
+              'Events',
+              const EventsPage(),
+            ),
             moreItem(
               Icons.bar_chart,
               'Statistics',
@@ -152,18 +164,61 @@ class _LifeMateShellState extends State<LifeMateShell> {
     );
   }
 
+  // ============================================================
+  // ANDROID BACK / EDGE SWIPE CONTROL
+  // ============================================================
+  //
+  // Important:
+  // The outer LifeMateShell must NOT allow Android to close
+  // the entire application directly.
+  //
+  // If there is a page inside the LifeMate Navigator, Back/Swipe
+  // will first return to the previous page.
+  //
+  // If already on Home/root, the Back/Swipe is consumed instead
+  // of closing LifeMate.
+  //
+  Future<void> _handleBack() async {
+    final navigator = navigatorKey.currentState;
+
+    if (navigator == null) return;
+
+    if (navigator.canPop()) {
+      navigator.pop();
+
+      if (mounted) {
+        setState(() {
+          selectedIndex = 0;
+        });
+      }
+
+      return;
+    }
+
+    // Already at Home/root.
+    // Do NOT close the application.
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Navigator(
-        key: navigatorKey,
-        onGenerateRoute: (_) => MaterialPageRoute(
-          builder: (_) => getPage(0),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+
+        _handleBack();
+      },
+      child: Scaffold(
+        body: Navigator(
+          key: navigatorKey,
+          onGenerateRoute: (_) => MaterialPageRoute(
+            builder: (_) => getPage(0),
+          ),
         ),
-      ),
-      bottomNavigationBar: LifeMateBottomNav(
-        selectedIndex: selectedIndex,
-        onTap: navigate,
+        bottomNavigationBar: LifeMateBottomNav(
+          selectedIndex: selectedIndex,
+          onTap: navigate,
+        ),
       ),
     );
   }
