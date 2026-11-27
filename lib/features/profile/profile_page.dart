@@ -3,8 +3,13 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/database/app_database.dart';
 
@@ -26,6 +31,15 @@ class _ProfilePageState extends State<ProfilePage> {
   bool isLoading = true;
   bool isSaving = false;
   bool isPickingPhoto = false;
+  bool isLoadingContacts = false;
+
+  List<Map<String, Object?>> socialLinks = [];
+  List<Map<String, Object?>> importantContacts = [];
+  List<Map<String, Object?>> customDesignations = [];
+
+  String socialSearch = '';
+
+  DateTime calendarMonth = DateTime.now();
 
   final List<String> genderOptions = [
     'Male',
@@ -61,6 +75,20 @@ class _ProfilePageState extends State<ProfilePage> {
     'Executive',
     'Director',
     'Owner',
+    'Other',
+  ];
+
+  final List<String> socialPlatforms = [
+    'Facebook',
+    'LinkedIn',
+    'GitHub',
+    'Instagram',
+    'YouTube',
+    'TikTok',
+    'Twitter / X',
+    'WhatsApp',
+    'Telegram',
+    'Pinterest',
     'Other',
   ];
 
@@ -116,6 +144,8 @@ class _ProfilePageState extends State<ProfilePage> {
     super.dispose();
   }
 
+  Future<Database> get db async => AppDatabase.database;
+
   Future<Directory> _photoDirectory() async {
     final appDirectory = await getApplicationDocumentsDirectory();
     final directory = Directory(
@@ -129,7 +159,9 @@ class _ProfilePageState extends State<ProfilePage> {
     return directory;
   }
 
-  Future<String> _copyPhotoToPermanentStorage(String sourcePath) async {
+  Future<String> _copyPhotoToPermanentStorage(
+    String sourcePath,
+  ) async {
     final source = File(sourcePath);
 
     if (!await source.exists()) {
@@ -162,20 +194,16 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final oldFile = File(oldPath);
 
-      if (!await oldFile.exists()) {
-        return null;
-      }
+      if (!await oldFile.exists()) return null;
 
       final directory = await _photoDirectory();
       final permanentDirectoryPath = p.normalize(directory.path);
       final oldNormalizedPath = p.normalize(oldFile.path);
 
-      // Already stored in the permanent app folder.
       if (p.isWithin(permanentDirectoryPath, oldNormalizedPath)) {
         return oldFile.path;
       }
 
-      // Move the old temporary image into permanent storage.
       return await _copyPhotoToPermanentStorage(oldFile.path);
     } catch (_) {
       return null;
@@ -184,9 +212,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> loadProfile() async {
     try {
-      final db = await AppDatabase.database;
+      final database = await db;
 
-      final result = await db.query(
+      final result = await database.query(
         'profiles',
         limit: 1,
         orderBy: 'id ASC',
@@ -197,7 +225,8 @@ class _ProfilePageState extends State<ProfilePage> {
         profileId = profile['id'] as int?;
 
         for (final entry in controllers.entries) {
-          entry.value.text = profile[entry.key]?.toString() ?? '';
+          entry.value.text =
+              profile[entry.key]?.toString() ?? '';
         }
 
         gender = profile['gender']?.toString() ?? '';
@@ -208,16 +237,16 @@ class _ProfilePageState extends State<ProfilePage> {
 
         photoPath = permanentPath;
 
-        // Update the database if the old image was migrated
-        // or if the old image is no longer available.
         if (profileId != null && oldPath != permanentPath) {
-          await db.update(
+          await database.update(
             'profiles',
             {'photo_path': permanentPath},
             where: 'id = ?',
             whereArgs: [profileId],
           );
         }
+
+        await loadExtraProfileData();
       }
     } catch (e) {
       showMessage('Could not load profile: $e');
@@ -228,11 +257,43 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> loadExtraProfileData() async {
+    if (profileId == null) return;
+
+    final database = await db;
+
+    socialLinks = await database.query(
+      'profile_social_links',
+      where: 'profile_id = ?',
+      whereArgs: [profileId],
+      orderBy: 'id DESC',
+    );
+
+    importantContacts = await database.query(
+      'profile_important_contacts',
+      where: 'profile_id = ?',
+      whereArgs: [profileId],
+      orderBy: 'id DESC',
+    );
+
+    customDesignations = await database.query(
+      'profile_designations',
+      where: 'profile_id = ?',
+      whereArgs: [profileId],
+      orderBy: 'title COLLATE NOCASE ASC',
+    );
+
+    if (mounted) setState(() {});
+  }
+
   Future<int> ensureProfileId() async {
     if (profileId != null) return profileId!;
 
-    final db = await AppDatabase.database;
-    final id = await db.insert('profiles', {'name': ''});
+    final database = await db;
+    final id = await database.insert(
+      'profiles',
+      {'name': ''},
+    );
 
     profileId = id;
 
@@ -247,7 +308,7 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() => isSaving = true);
 
     try {
-      final db = await AppDatabase.database;
+      final database = await db;
       final data = <String, Object?>{};
 
       for (final entry in controllers.entries) {
@@ -255,13 +316,14 @@ class _ProfilePageState extends State<ProfilePage> {
       }
 
       data['gender'] = gender.isEmpty ? null : gender;
-      data['blood_group'] = bloodGroup.isEmpty ? null : bloodGroup;
+      data['blood_group'] =
+          bloodGroup.isEmpty ? null : bloodGroup;
       data['photo_path'] = photoPath;
 
       if (profileId == null) {
-        profileId = await db.insert('profiles', data);
+        profileId = await database.insert('profiles', data);
       } else {
-        await db.update(
+        await database.update(
           'profiles',
           data,
           where: 'id = ?',
@@ -306,7 +368,7 @@ class _ProfilePageState extends State<ProfilePage> {
     if (confirm != true) return;
 
     try {
-      final db = await AppDatabase.database;
+      final database = await db;
 
       if (profileId != null) {
         final data = <String, Object?>{};
@@ -319,7 +381,7 @@ class _ProfilePageState extends State<ProfilePage> {
         data['blood_group'] = null;
         data['photo_path'] = null;
 
-        await db.update(
+        await database.update(
           'profiles',
           data,
           where: 'id = ?',
@@ -364,15 +426,13 @@ class _ProfilePageState extends State<ProfilePage> {
         return;
       }
 
-      // Copy the selected image to permanent app storage.
       final permanentPath =
           await _copyPhotoToPermanentStorage(sourcePath);
 
-      // Save the permanent path immediately in the database.
-      final db = await AppDatabase.database;
+      final database = await db;
       final id = await ensureProfileId();
 
-      await db.update(
+      await database.update(
         'profiles',
         {'photo_path': permanentPath},
         where: 'id = ?',
@@ -381,9 +441,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (!mounted) return;
 
-      setState(() {
-        photoPath = permanentPath;
-      });
+      setState(() => photoPath = permanentPath);
 
       showMessage('Profile photo saved permanently.');
     } catch (e) {
@@ -465,32 +523,121 @@ class _ProfilePageState extends State<ProfilePage> {
     final currentValue = controllers[key]!.text;
     final items = [...options];
 
+    for (final designation in customDesignations) {
+      final title = designation['title']?.toString() ?? '';
+      if (title.isNotEmpty && !items.contains(title)) {
+        items.add(title);
+      }
+    }
+
     if (currentValue.isNotEmpty && !items.contains(currentValue)) {
       items.insert(0, currentValue);
     }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: DropdownButtonFormField<String>(
-        value: currentValue.isEmpty ? null : currentValue,
-        isExpanded: true,
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-        ),
-        items: items.map((item) {
-          return DropdownMenuItem(
-            value: item,
-            child: Text(item),
-          );
-        }).toList(),
-        onChanged: (value) {
-          if (value != null) {
-            setState(() => controllers[key]!.text = value);
-          }
-        },
+      child: Column(
+        children: [
+          DropdownButtonFormField<String>(
+            value: currentValue.isEmpty ? null : currentValue,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: label,
+              border: const OutlineInputBorder(),
+            ),
+            items: items.map((item) {
+              return DropdownMenuItem(
+                value: item,
+                child: Text(item),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() {
+                  controllers[key]!.text = value;
+                });
+              }
+            },
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: addCustomDesignation,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Add Custom Designation'),
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  Future<void> addCustomDesignation() async {
+    final controller = TextEditingController();
+
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Add Designation'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Custom Designation',
+            hintText: 'e.g. Head Teacher',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final text = controller.text.trim();
+              if (text.isNotEmpty) {
+                Navigator.pop(dialogContext, text);
+              }
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+
+    controller.dispose();
+
+    if (value == null || value.isEmpty) return;
+
+    try {
+      final id = await ensureProfileId();
+      final database = await db;
+
+      final existing = await database.query(
+        'profile_designations',
+        where: 'profile_id = ? AND title = ?',
+        whereArgs: [id, value],
+      );
+
+      if (existing.isEmpty) {
+        await database.insert('profile_designations', {
+          'profile_id': id,
+          'title': value,
+          'created_at': DateTime.now().toIso8601String(),
+        });
+      }
+
+      await loadExtraProfileData();
+
+      setState(() {
+        controllers['designation']!.text = value;
+      });
+
+      showMessage('Designation added.');
+    } catch (e) {
+      showMessage('Could not add designation: $e');
+    }
   }
 
   Widget templateField(String key, String label) {
@@ -540,11 +687,13 @@ class _ProfilePageState extends State<ProfilePage> {
         children: [
           Icon(icon, color: Colors.blue),
           const SizedBox(width: 10),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.bold,
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -557,6 +706,850 @@ class _ProfilePageState extends State<ProfilePage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
+    );
+  }
+
+  // Birthday date picker and calendar
+
+  DateTime? get birthday {
+    final value = controllers['birth_date']!.text.trim();
+    if (value.isEmpty) return null;
+
+    try {
+      return DateTime.parse(value);
+    } catch (_) {
+      try {
+        return DateFormat('dd-MM-yyyy').parseStrict(value);
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+
+  Future<void> pickBirthday() async {
+    final existing = birthday;
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: existing ?? DateTime(2000, 1, 1),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      helpText: 'Select Date of Birth',
+    );
+
+    if (selected == null) return;
+
+    setState(() {
+      controllers['birth_date']!.text =
+          DateFormat('yyyy-MM-dd').format(selected);
+    });
+  }
+
+  Widget birthdayCalendar() {
+    final birth = birthday;
+    final firstDay = DateTime(
+      calendarMonth.year,
+      calendarMonth.month,
+      1,
+    );
+    final daysInMonth = DateUtils.getDaysInMonth(
+      calendarMonth.year,
+      calendarMonth.month,
+    );
+    final offset = firstDay.weekday % 7;
+
+    final cells = <Widget>[];
+
+    for (final day in ['S', 'M', 'T', 'W', 'T', 'F', 'S']) {
+      cells.add(
+        Center(
+          child: Text(
+            day,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+            ),
+          ),
+        ),
+      );
+    }
+
+    for (int i = 0; i < offset; i++) {
+      cells.add(const SizedBox());
+    }
+
+    for (int day = 1; day <= daysInMonth; day++) {
+      final isBirthday = birth != null && birth.day == day;
+      final isToday = DateUtils.isSameDay(
+        DateTime.now(),
+        DateTime(calendarMonth.year, calendarMonth.month, day),
+      );
+
+      cells.add(
+        Container(
+          margin: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: isBirthday
+                ? Colors.pink.withValues(alpha: 0.2)
+                : isToday
+                    ? Colors.blue.withValues(alpha: 0.15)
+                    : null,
+            shape: BoxShape.circle,
+            border: isBirthday
+                ? Border.all(color: Colors.pink, width: 1.5)
+                : null,
+          ),
+          child: Center(
+            child: Text(
+              '$day',
+              style: TextStyle(
+                fontWeight: isBirthday || isToday
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+                color: isBirthday ? Colors.pink : null,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.cake, color: Colors.pink),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Birthday Calendar',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    setState(() {
+                      calendarMonth = DateTime(
+                        calendarMonth.year,
+                        calendarMonth.month - 1,
+                      );
+                    });
+                  },
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                Text(
+                  DateFormat('MMM yyyy').format(calendarMonth),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                IconButton(
+                  onPressed: () {
+                    setState(() {
+                      calendarMonth = DateTime(
+                        calendarMonth.year,
+                        calendarMonth.month + 1,
+                      );
+                    });
+                  },
+                  icon: const Icon(Icons.chevron_right),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            GridView.count(
+              crossAxisCount: 7,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: cells,
+            ),
+            if (birth != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(
+                  'Birthday: ${DateFormat('dd MMMM').format(birth)}',
+                  style: const TextStyle(
+                    color: Colors.pink,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              )
+            else
+              const Text(
+                'Add your date of birth to see your birthday.',
+                style: TextStyle(color: Colors.grey),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Map location picker
+
+  LatLng get currentMapLocation {
+    final value = controllers['location']!.text.trim();
+    final parts = value.split(',');
+
+    if (parts.length == 2) {
+      final lat = double.tryParse(parts[0].trim());
+      final lng = double.tryParse(parts[1].trim());
+
+      if (lat != null && lng != null) {
+        return LatLng(lat, lng);
+      }
+    }
+
+    return const LatLng(23.8103, 90.4125);
+  }
+
+  Future<void> openLocationPicker() async {
+    LatLng selected = currentMapLocation;
+
+    final result = await showDialog<LatLng>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Choose Profile Location'),
+              contentPadding: const EdgeInsets.all(12),
+              content: SizedBox(
+                width: 500,
+                height: 430,
+                child: Column(
+                  children: [
+                    const Text(
+                      'Tap anywhere on the map to select your location.',
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: FlutterMap(
+                        options: MapOptions(
+                          initialCenter: selected,
+                          initialZoom: 12,
+                          onTap: (tapPosition, point) {
+                            setDialogState(() {
+                              selected = point;
+                            });
+                          },
+                        ),
+                        children: [
+                          TileLayer(
+                            urlTemplate:
+                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          ),
+                          MarkerLayer(
+                            markers: [
+                              Marker(
+                                point: selected,
+                                width: 45,
+                                height: 45,
+                                child: const Icon(
+                                  Icons.location_pin,
+                                  color: Colors.red,
+                                  size: 42,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${selected.latitude.toStringAsFixed(6)}, '
+                      '${selected.longitude.toStringAsFixed(6)}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(dialogContext, selected);
+                  },
+                  icon: const Icon(Icons.check),
+                  label: const Text('Select Location'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (result == null) return;
+
+    setState(() {
+      controllers['location']!.text =
+          '${result.latitude.toStringAsFixed(6)}, '
+          '${result.longitude.toStringAsFixed(6)}';
+    });
+
+    showMessage('Location selected. Save your profile to keep it.');
+  }
+
+  // Social links
+
+  Future<void> openSocialLinkForm({
+    Map<String, Object?>? link,
+  }) async {
+    final platformController = TextEditingController(
+      text: link?['platform']?.toString() ?? '',
+    );
+    final urlController = TextEditingController(
+      text: link?['url']?.toString() ?? '',
+    );
+    final labelController = TextEditingController(
+      text: link?['label']?.toString() ?? '',
+    );
+
+    String search = '';
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final suggestions = socialPlatforms
+                .where(
+                  (item) => item.toLowerCase().contains(
+                        search.toLowerCase(),
+                      ),
+                )
+                .toList();
+
+            return AlertDialog(
+              title: Text(
+                link == null ? 'Add Social Link' : 'Edit Social Link',
+              ),
+              content: SizedBox(
+                width: 420,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: platformController,
+                        decoration: const InputDecoration(
+                          labelText: 'Platform',
+                          hintText: 'Search or enter a platform',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (value) {
+                          setDialogState(() => search = value);
+                        },
+                      ),
+                      if (suggestions.isNotEmpty)
+                        Wrap(
+                          spacing: 6,
+                          children: suggestions.map((item) {
+                            return ActionChip(
+                              label: Text(item),
+                              onPressed: () {
+                                platformController.text = item;
+                                setDialogState(() {});
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: labelController,
+                        decoration: const InputDecoration(
+                          labelText: 'Display Name (Optional)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: urlController,
+                        keyboardType: TextInputType.url,
+                        decoration: const InputDecoration(
+                          labelText: 'Profile URL',
+                          hintText: 'https://...',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    if (platformController.text.trim().isEmpty ||
+                        urlController.text.trim().isEmpty) {
+                      return;
+                    }
+                    Navigator.pop(dialogContext, true);
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (saved == true) {
+      try {
+        final id = await ensureProfileId();
+        final database = await db;
+
+        final data = {
+          'profile_id': id,
+          'platform': platformController.text.trim(),
+          'label': labelController.text.trim(),
+          'url': urlController.text.trim(),
+          'created_at': DateTime.now().toIso8601String(),
+        };
+
+        if (link == null) {
+          await database.insert('profile_social_links', data);
+        } else {
+          await database.update(
+            'profile_social_links',
+            data,
+            where: 'id = ? AND profile_id = ?',
+            whereArgs: [link['id'], id],
+          );
+        }
+
+        await loadExtraProfileData();
+        showMessage('Social link saved.');
+      } catch (e) {
+        showMessage('Could not save social link: $e');
+      }
+    }
+
+    platformController.dispose();
+    urlController.dispose();
+    labelController.dispose();
+  }
+
+  Future<void> deleteSocialLink(
+    Map<String, Object?> link,
+  ) async {
+    final database = await db;
+
+    await database.delete(
+      'profile_social_links',
+      where: 'id = ? AND profile_id = ?',
+      whereArgs: [link['id'], profileId],
+    );
+
+    await loadExtraProfileData();
+    showMessage('Social link deleted.');
+  }
+
+  Widget socialLinksSection() {
+    final filtered = socialLinks.where((link) {
+      final text =
+          '${link['platform']} ${link['label']} ${link['url']}';
+      return text.toLowerCase().contains(
+            socialSearch.toLowerCase(),
+          );
+    }).toList();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.link, color: Colors.blue),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Social Links',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => openSocialLinkForm(),
+                  icon: const Icon(
+                    Icons.add_circle,
+                    color: Colors.blue,
+                  ),
+                ),
+              ],
+            ),
+            TextField(
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Search social links',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (value) {
+                setState(() => socialSearch = value);
+              },
+            ),
+            const SizedBox(height: 8),
+            ...filtered.map((link) {
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const CircleAvatar(
+                  child: Icon(Icons.public),
+                ),
+                title: Text(
+                  link['label']?.toString().isNotEmpty == true
+                      ? link['label'].toString()
+                      : link['platform'].toString(),
+                ),
+                subtitle: Text(
+                  link['url']?.toString() ?? '',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      openSocialLinkForm(link: link);
+                    } else if (value == 'delete') {
+                      deleteSocialLink(link);
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Text('Edit'),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Delete'),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            if (filtered.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  'No social links added yet.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Important contacts
+
+  Future<void> pickImportantContact() async {
+    if (isLoadingContacts) return;
+
+    setState(() => isLoadingContacts = true);
+
+    try {
+      final permission =
+          await FlutterContacts.requestPermission(readonly: true);
+
+      if (!permission) {
+        showMessage('Contacts permission was not granted.');
+        return;
+      }
+
+      final contacts = await FlutterContacts.getContacts(
+        withProperties: true,
+      );
+
+      if (!mounted) return;
+
+      if (contacts.isEmpty) {
+        showMessage('No contacts found on your phone.');
+        return;
+      }
+
+      final selected = await showDialog<Contact>(
+        context: context,
+        builder: (dialogContext) {
+          String query = '';
+
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              final filtered = contacts.where((contact) {
+                final phoneText = contact.phones
+                    .map((phone) => phone.number)
+                    .join(' ');
+
+                return '${contact.displayName} $phoneText'
+                    .toLowerCase()
+                    .contains(query.toLowerCase());
+              }).toList();
+
+              return AlertDialog(
+                title: const Text('Select Important Contact'),
+                content: SizedBox(
+                  width: 420,
+                  height: 420,
+                  child: Column(
+                    children: [
+                      TextField(
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.search),
+                          hintText: 'Search contacts',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (value) {
+                          setDialogState(() => query = value);
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final contact = filtered[index];
+                            final phone = contact.phones.isNotEmpty
+                                ? contact.phones.first.number
+                                : '';
+
+                            return ListTile(
+                              leading: const CircleAvatar(
+                                child: Icon(Icons.person),
+                              ),
+                              title: Text(contact.displayName),
+                              subtitle: Text(
+                                phone.isEmpty
+                                    ? 'No phone number'
+                                    : phone,
+                              ),
+                              enabled: phone.isNotEmpty,
+                              onTap: () {
+                                Navigator.pop(
+                                  dialogContext,
+                                  contact,
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Cancel'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+
+      if (selected == null) return;
+
+      if (selected.phones.isEmpty) {
+        showMessage('This contact has no phone number.');
+        return;
+      }
+
+      final phone = selected.phones.first.number;
+      final relationController = TextEditingController();
+
+      final relation = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Contact Relationship'),
+          content: TextField(
+            controller: relationController,
+            decoration: const InputDecoration(
+              labelText: 'Relationship (Optional)',
+              hintText: 'e.g. Father, Friend, Doctor',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(
+                dialogContext,
+                relationController.text.trim(),
+              ),
+              child: const Text('Add Contact'),
+            ),
+          ],
+        ),
+      );
+
+      relationController.dispose();
+
+      if (relation == null) return;
+
+      final id = await ensureProfileId();
+      final database = await db;
+
+      await database.insert('profile_important_contacts', {
+        'profile_id': id,
+        'name': selected.displayName,
+        'phone': phone,
+        'relation': relation,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      await loadExtraProfileData();
+      showMessage('Important contact added.');
+    } catch (e) {
+      showMessage('Could not access contacts: $e');
+    } finally {
+      if (mounted) {
+        setState(() => isLoadingContacts = false);
+      }
+    }
+  }
+
+  Future<void> deleteImportantContact(
+    Map<String, Object?> contact,
+  ) async {
+    final database = await db;
+
+    await database.delete(
+      'profile_important_contacts',
+      where: 'id = ? AND profile_id = ?',
+      whereArgs: [contact['id'], profileId],
+    );
+
+    await loadExtraProfileData();
+    showMessage('Contact removed.');
+  }
+
+  Widget importantContactsSection() {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.contacts, color: Colors.blue),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Important Contacts',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed:
+                      isLoadingContacts ? null : pickImportantContact,
+                  icon: isLoadingContacts
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.person_add_alt_1,
+                          color: Colors.blue,
+                        ),
+                ),
+              ],
+            ),
+            ...importantContacts.map((contact) {
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const CircleAvatar(
+                  child: Icon(Icons.person),
+                ),
+                title: Text(contact['name']?.toString() ?? ''),
+                subtitle: Text(
+                  '${contact['phone'] ?? ''}'
+                  '${contact['relation'] == null || contact['relation'] == ''
+                      ? ''
+                      : ' • ${contact['relation']}'}',
+                ),
+                trailing: IconButton(
+                  onPressed: () => deleteImportantContact(contact),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: Colors.red,
+                  ),
+                ),
+              );
+            }),
+            if (importantContacts.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  'Select important numbers from your phone contacts.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget locationField() {
+    return Column(
+      children: [
+        textField('location', 'Location / Coordinates'),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: openLocationPicker,
+            icon: const Icon(Icons.map_outlined),
+            label: const Text('Select Location from Map'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget birthdayField() {
+    return Column(
+      children: [
+        TextFormField(
+          controller: controllers['birth_date'],
+          readOnly: true,
+          onTap: pickBirthday,
+          decoration: InputDecoration(
+            labelText: 'Date of Birth',
+            border: const OutlineInputBorder(),
+            suffixIcon: IconButton(
+              onPressed: pickBirthday,
+              icon: const Icon(Icons.calendar_month),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        birthdayCalendar(),
+      ],
     );
   }
 
@@ -582,13 +1575,12 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
-    final hasPhoto = photoPath != null && File(photoPath!).existsSync();
+    final hasPhoto =
+        photoPath != null && File(photoPath!).existsSync();
 
     return Scaffold(
       appBar: AppBar(
@@ -669,22 +1661,30 @@ class _ProfilePageState extends State<ProfilePage> {
               label: 'Blood Group',
               value: bloodGroup,
               options: bloodGroups,
-              onChanged: (value) => setState(() => bloodGroup = value),
+              onChanged: (value) =>
+                  setState(() => bloodGroup = value),
             ),
 
-            textField('birth_date', 'Date of Birth'),
+            birthdayField(),
+
+            const SizedBox(height: 12),
+
             textField('address', 'Present Address', multiline: true),
-            textField('location', 'Location'),
+            locationField(),
+
             textField(
               'permanent_address',
               'Permanent Address',
               multiline: true,
             ),
+
             textField(
               'emergency_contact',
               'Emergency Contact',
               keyboardType: TextInputType.phone,
             ),
+
+            importantContactsSection(),
 
             sectionTitle('Professional Information', Icons.work),
 
@@ -693,7 +1693,9 @@ class _ProfilePageState extends State<ProfilePage> {
               'Occupation',
               occupationOptions,
             ),
+
             textField('workplace', 'Workplace'),
+
             profileDropdown(
               'designation',
               'Designation',
@@ -732,6 +1734,8 @@ class _ProfilePageState extends State<ProfilePage> {
               keyboardType: TextInputType.url,
               capitalization: TextCapitalization.none,
             ),
+
+            socialLinksSection(),
 
             multiRecordSection(
               title: 'Education',
@@ -938,9 +1942,9 @@ class _RecordSectionState extends State<RecordSection> {
     }
 
     try {
-      final db = await AppDatabase.database;
+      final database = await AppDatabase.database;
 
-      final result = await db.query(
+      final result = await database.query(
         widget.table,
         where: 'profile_id = ?',
         whereArgs: [id],
@@ -1053,7 +2057,7 @@ class _RecordSectionState extends State<RecordSection> {
                           setDialogState(() => isSaving = true);
 
                           try {
-                            final db = await AppDatabase.database;
+                            final database = await AppDatabase.database;
                             final id =
                                 await widget.onEnsureProfileId();
 
@@ -1085,9 +2089,9 @@ class _RecordSectionState extends State<RecordSection> {
                               data['created_at'] =
                                   DateTime.now().toIso8601String();
 
-                              await db.insert(widget.table, data);
+                              await database.insert(widget.table, data);
                             } else {
-                              await db.update(
+                              await database.update(
                                 widget.table,
                                 data,
                                 where: 'id = ? AND profile_id = ?',
@@ -1155,12 +2159,12 @@ class _RecordSectionState extends State<RecordSection> {
     if (confirm != true) return;
 
     try {
-      final db = await AppDatabase.database;
+      final database = await AppDatabase.database;
       final id = widget.profileId;
 
       if (id == null) return;
 
-      await db.delete(
+      await database.delete(
         widget.table,
         where: 'id = ? AND profile_id = ?',
         whereArgs: [record['id'], id],
@@ -1250,7 +2254,8 @@ class _RecordSectionState extends State<RecordSection> {
                 final isCurrent = record['is_current'] == 1;
 
                 return Card(
-                  color: Theme.of(context).brightness == Brightness.dark
+                  color: Theme.of(context).brightness ==
+                          Brightness.dark
                       ? null
                       : Colors.grey.shade50,
                   elevation: 0,
