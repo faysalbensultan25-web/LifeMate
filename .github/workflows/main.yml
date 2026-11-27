@@ -75,7 +75,7 @@ jobs:
 
           mkdir -p "$(dirname "$MAIN_ACTIVITY")"
 
-          # MainActivity with Flutter MethodChannel
+          # MainActivity
           cat > "$MAIN_ACTIVITY" <<'KOTLIN'
           package com.lifemate.lifemate
 
@@ -93,6 +93,7 @@ jobs:
               private val channelName = "com.lifemate/floating_home"
               private val prefsName = "lifemate_floating"
               private val enabledKey = "enabled"
+              private val foregroundKey = "app_foreground"
 
               override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
                   super.configureFlutterEngine(flutterEngine)
@@ -148,6 +149,11 @@ jobs:
               override fun onResume() {
                   super.onResume()
 
+                  getSharedPreferences(prefsName, MODE_PRIVATE)
+                      .edit()
+                      .putBoolean(foregroundKey, true)
+                      .apply()
+
                   val enabled =
                       getSharedPreferences(prefsName, MODE_PRIVATE)
                           .getBoolean(enabledKey, false)
@@ -155,6 +161,24 @@ jobs:
                   if (enabled && Settings.canDrawOverlays(this)) {
                       startFloatingService()
                   }
+              }
+
+              override fun onPause() {
+                  getSharedPreferences(prefsName, MODE_PRIVATE)
+                      .edit()
+                      .putBoolean(foregroundKey, false)
+                      .apply()
+
+                  super.onPause()
+              }
+
+              override fun onDestroy() {
+                  getSharedPreferences(prefsName, MODE_PRIVATE)
+                      .edit()
+                      .putBoolean(foregroundKey, false)
+                      .apply()
+
+                  super.onDestroy()
               }
 
               private fun openOverlaySettings() {
@@ -169,9 +193,7 @@ jobs:
                   } catch (_: Exception) {
                       try {
                           startActivity(
-                              Intent(
-                                  Settings.ACTION_MANAGE_OVERLAY_PERMISSION
-                              )
+                              Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
                           )
                       } catch (_: Exception) {
                       }
@@ -224,6 +246,8 @@ jobs:
 
               private val channelId = "lifemate_floating_channel"
               private val notificationId = 1001
+              private val prefsName = "lifemate_floating"
+              private val foregroundKey = "app_foreground"
 
               override fun onCreate() {
                   super.onCreate()
@@ -364,7 +388,7 @@ jobs:
 
                                   MotionEvent.ACTION_UP -> {
                                       if (!moved) {
-                                          openLifeMate()
+                                          handleFloatingTap()
                                       }
                                       return true
                                   }
@@ -384,6 +408,18 @@ jobs:
                   }
               }
 
+              private fun handleFloatingTap() {
+                  val isAppForeground =
+                      getSharedPreferences(prefsName, MODE_PRIVATE)
+                          .getBoolean(foregroundKey, false)
+
+                  if (isAppForeground) {
+                      goToBackground()
+                  } else {
+                      openLifeMate()
+                  }
+              }
+
               private fun openLifeMate() {
                   try {
                       val intent =
@@ -397,6 +433,16 @@ jobs:
                           )
                           startActivity(intent)
                       }
+                  } catch (_: Exception) {
+                  }
+              }
+
+              private fun goToBackground() {
+                  try {
+                      val intent = Intent(Intent.ACTION_MAIN)
+                      intent.addCategory(Intent.CATEGORY_HOME)
+                      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                      startActivity(intent)
                   } catch (_: Exception) {
                   }
               }
