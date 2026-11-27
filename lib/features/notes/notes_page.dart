@@ -200,13 +200,11 @@ class _NotesPageState extends State<NotesPage> {
 
     if (sortByImportance) {
       result.sort((a, b) {
-        final importanceA = getImportance(
-          a['color'] as String? ?? 'yellow',
-        );
+        final importanceA =
+            getImportance(a['color'] as String? ?? 'yellow');
 
-        final importanceB = getImportance(
-          b['color'] as String? ?? 'yellow',
-        );
+        final importanceB =
+            getImportance(b['color'] as String? ?? 'yellow');
 
         if (importanceA != importanceB) {
           return importanceA.compareTo(importanceB);
@@ -231,67 +229,45 @@ class _NotesPageState extends State<NotesPage> {
   }
 
   // ============================================================
-  // COLOR SELECTOR - ALL 8 COLORS VISIBLE
+  // COMPACT COLOR SELECTOR
   // ============================================================
 
   Widget colorSelector({
     required String selected,
     required ValueChanged<String> onSelected,
   }) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: noteColors.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        crossAxisSpacing: 6,
-        mainAxisSpacing: 8,
-        childAspectRatio: 1.35,
-      ),
-      itemBuilder: (context, index) {
-        final item = noteColors[index];
+    return Wrap(
+      spacing: 9,
+      runSpacing: 8,
+      children: noteColors.map((item) {
         final name = item['name'] as String;
-        final label = item['label'] as String;
         final color = item['color'] as Color;
         final isSelected = selected == name;
 
         return InkWell(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(30),
           onTap: () => onSelected(name),
           child: Container(
+            width: 31,
+            height: 31,
             decoration: BoxDecoration(
+              shape: BoxShape.circle,
               color: color.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: isSelected ? color : color.withOpacity(0.35),
+                color: isSelected
+                    ? color
+                    : color.withOpacity(0.35),
                 width: isSelected ? 2 : 1,
               ),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  isSelected ? Icons.check_circle : Icons.circle,
-                  color: color,
-                  size: 19,
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight:
-                        isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: color,
-                  ),
-                ),
-              ],
+            child: Icon(
+              isSelected ? Icons.check : Icons.circle,
+              size: isSelected ? 17 : 12,
+              color: color,
             ),
           ),
         );
-      },
+      }).toList(),
     );
   }
 
@@ -331,139 +307,268 @@ class _NotesPageState extends State<NotesPage> {
           builder: (context, setDialogState) {
             final noteColor = getNoteColor(selectedNoteColor);
 
-            return AlertDialog(
-              title: Row(
-                children: [
-                  Icon(
-                    isEditing
-                        ? Icons.edit_note_rounded
-                        : Icons.note_add_rounded,
-                    color: noteColor,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      isEditing ? 'Edit Note' : 'New Note',
-                    ),
-                  ),
-                ],
+            return Dialog(
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 20,
               ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: titleController,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        labelText: 'Title',
-                        hintText: 'Note title',
-                        prefixIcon: Icon(Icons.title),
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: contentController,
-                      maxLines: 7,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        labelText: 'Note',
-                        hintText: 'Write your note...',
-                        alignLabelWithHint: true,
-                        prefixIcon: Padding(
-                          padding: EdgeInsets.only(bottom: 100),
-                          child: Icon(Icons.notes_rounded),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 560,
+                  maxHeight: 720,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 39,
+                              height: 39,
+                              decoration: BoxDecoration(
+                                color: noteColor.withOpacity(0.13),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                isEditing
+                                    ? Icons.edit_note_rounded
+                                    : Icons.note_add_rounded,
+                                color: noteColor,
+                              ),
+                            ),
+                            const SizedBox(width: 11),
+                            Expanded(
+                              child: Text(
+                                isEditing ? 'Edit Note' : 'New Note',
+                                style: const TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () {
+                                Navigator.pop(dialogContext);
+                              },
+                              icon: const Icon(Icons.close),
+                            ),
+                          ],
                         ),
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    const Text(
-                      'Importance / Color',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
 
-                    colorSelector(
-                      selected: selectedNoteColor,
-                      onSelected: (name) {
-                        setDialogState(() {
-                          selectedNoteColor = name;
-                        });
-                      },
-                    ),
+                        const SizedBox(height: 20),
 
-                    const SizedBox(height: 8),
-                    Text(
-                      'Selected: ${getColorLabel(selectedNoteColor)}',
-                      style: TextStyle(
-                        color: noteColor,
-                        fontWeight: FontWeight.bold,
-                      ),
+                        const Text(
+                          'Title',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+
+                        const SizedBox(height: 7),
+
+                        TextField(
+                          controller: titleController,
+                          textCapitalization:
+                              TextCapitalization.sentences,
+                          decoration: InputDecoration(
+                            hintText: 'Enter note title',
+                            filled: true,
+                            prefixIcon: const Icon(Icons.title),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 15,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(13),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 18),
+
+                        const Text(
+                          'Your Note',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+
+                        const SizedBox(height: 7),
+
+                        // Larger and clearer writing area.
+                        TextField(
+                          controller: contentController,
+                          minLines: 8,
+                          maxLines: 14,
+                          keyboardType: TextInputType.multiline,
+                          textCapitalization:
+                              TextCapitalization.sentences,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            height: 1.55,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Start writing your note here...',
+                            hintMaxLines: 2,
+                            alignLabelWithHint: true,
+                            filled: true,
+                            fillColor: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest
+                                .withOpacity(0.35),
+                            contentPadding: const EdgeInsets.all(16),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .outline
+                                    .withOpacity(0.45),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: Theme.of(context).colorScheme.primary,
+                                width: 1.7,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Importance / Color',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              getColorLabel(selectedNoteColor),
+                              style: TextStyle(
+                                color: noteColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        colorSelector(
+                          selected: selectedNoteColor,
+                          onSelected: (name) {
+                            setDialogState(() {
+                              selectedNoteColor = name;
+                            });
+                          },
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  Navigator.pop(dialogContext);
+                                },
+                                child: const Text('Cancel'),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () async {
+                                  final title =
+                                      titleController.text.trim();
+
+                                  final content =
+                                      contentController.text.trim();
+
+                                  if (title.isEmpty &&
+                                      content.isEmpty) {
+                                    return;
+                                  }
+
+                                  final db =
+                                      await AppDatabase.database;
+
+                                  final now =
+                                      DateTime.now().toIso8601String();
+
+                                  if (isEditing) {
+                                    await db.update(
+                                      'notes',
+                                      {
+                                        'title': title.isEmpty
+                                            ? 'Untitled'
+                                            : title,
+                                        'content': content,
+                                        'color': selectedNoteColor,
+                                        'updated_at': now,
+                                      },
+                                      where: 'id = ?',
+                                      whereArgs: [note['id']],
+                                    );
+                                  } else {
+                                    await db.insert(
+                                      'notes',
+                                      {
+                                        'title': title.isEmpty
+                                            ? 'Untitled'
+                                            : title,
+                                        'content': content,
+                                        'pinned': 0,
+                                        'color': selectedNoteColor,
+                                        'created_at': now,
+                                        'updated_at': now,
+                                      },
+                                    );
+                                  }
+
+                                  if (dialogContext.mounted) {
+                                    Navigator.pop(dialogContext);
+                                  }
+                                },
+                                icon: Icon(
+                                  isEditing
+                                      ? Icons.save_outlined
+                                      : Icons.check,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  isEditing ? 'Update' : 'Save',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(dialogContext);
-                  },
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    final title = titleController.text.trim();
-                    final content = contentController.text.trim();
-
-                    if (title.isEmpty && content.isEmpty) {
-                      return;
-                    }
-
-                    final db = await AppDatabase.database;
-                    final now = DateTime.now().toIso8601String();
-
-                    if (isEditing) {
-                      await db.update(
-                        'notes',
-                        {
-                          'title': title.isEmpty ? 'Untitled' : title,
-                          'content': content,
-                          'color': selectedNoteColor,
-                          'updated_at': now,
-                        },
-                        where: 'id = ?',
-                        whereArgs: [note['id']],
-                      );
-                    } else {
-                      await db.insert(
-                        'notes',
-                        {
-                          'title': title.isEmpty ? 'Untitled' : title,
-                          'content': content,
-                          'pinned': 0,
-                          'color': selectedNoteColor,
-                          'created_at': now,
-                          'updated_at': now,
-                        },
-                      );
-                    }
-
-                    if (dialogContext.mounted) {
-                      Navigator.pop(dialogContext);
-                    }
-                  },
-                  icon: Icon(
-                    isEditing ? Icons.save_outlined : Icons.add,
-                  ),
-                  label: Text(isEditing ? 'Update' : 'Save'),
-                ),
-              ],
             );
           },
         );
@@ -480,7 +585,9 @@ class _NotesPageState extends State<NotesPage> {
   // FULL NOTE DETAILS
   // ============================================================
 
-  Future<void> showNoteDetails(Map<String, dynamic> note) async {
+  Future<void> showNoteDetails(
+    Map<String, dynamic> note,
+  ) async {
     final colorName = note['color'] as String? ?? 'yellow';
     final noteColor = getNoteColor(colorName);
 
@@ -503,13 +610,13 @@ class _NotesPageState extends State<NotesPage> {
             ],
           ),
           content: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 400),
+            constraints: const BoxConstraints(maxHeight: 450),
             child: SingleChildScrollView(
               child: SelectableText(
                 note['content'] as String? ?? '',
                 style: const TextStyle(
                   fontSize: 15,
-                  height: 1.5,
+                  height: 1.6,
                 ),
               ),
             ),
@@ -571,7 +678,9 @@ class _NotesPageState extends State<NotesPage> {
                     itemCount: noteTemplates.length,
                     itemBuilder: (context, index) {
                       final template = noteTemplates[index];
-                      final colorName = template['color'] ?? 'yellow';
+                      final colorName =
+                          template['color'] ?? 'yellow';
+
                       final color = getNoteColor(colorName);
 
                       return Card(
@@ -695,70 +804,99 @@ class _NotesPageState extends State<NotesPage> {
   }
 
   // ============================================================
-  // COLOR FILTER - ALL OPTIONS VISIBLE
+  // COMPACT HORIZONTAL COLOR FILTER
   // ============================================================
 
   Widget buildColorFilter() {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      itemCount: noteColors.length + 1,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 7,
-        mainAxisSpacing: 5,
-        childAspectRatio: 2.8,
+    return SizedBox(
+      height: 39,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: [
+          _buildFilterItem(
+            name: 'all',
+            label: 'All',
+            color: Theme.of(context).colorScheme.primary,
+            icon: Icons.grid_view_rounded,
+          ),
+          ...noteColors.map((item) {
+            return _buildFilterItem(
+              name: item['name'] as String,
+              label: item['label'] as String,
+              color: item['color'] as Color,
+              icon: item['icon'] as IconData,
+            );
+          }),
+        ],
       ),
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          final selected = selectedColor == 'all';
+    );
+  }
 
-          return FilterChip(
-            visualDensity: VisualDensity.compact,
-            selected: selected,
-            label: const Text('All'),
-            avatar: const Icon(
-              Icons.grid_view_rounded,
-              size: 17,
+  Widget _buildFilterItem({
+    required String name,
+    required String label,
+    required Color color,
+    required IconData icon,
+  }) {
+    final isSelected = selectedColor == name;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 7),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          setState(() {
+            selectedColor = name;
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 5,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? color.withOpacity(0.17)
+                : Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected
+                  ? color
+                  : Theme.of(context)
+                      .colorScheme
+                      .outline
+                      .withOpacity(0.25),
             ),
-            onSelected: (_) {
-              setState(() {
-                selectedColor = 'all';
-              });
-            },
-          );
-        }
-
-        final item = noteColors[index - 1];
-        final name = item['name'] as String;
-        final color = item['color'] as Color;
-        final label = item['label'] as String;
-
-        return FilterChip(
-          visualDensity: VisualDensity.compact,
-          selected: selectedColor == name,
-          label: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
-          avatar: CircleAvatar(
-            radius: 7,
-            backgroundColor: color,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: color,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isSelected
+                      ? FontWeight.bold
+                      : FontWeight.normal,
+                  color: isSelected ? color : null,
+                ),
+              ),
+            ],
           ),
-          onSelected: (_) {
-            setState(() {
-              selectedColor = name;
-            });
-          },
-        );
-      },
+        ),
+      ),
     );
   }
 
   // ============================================================
-  // NOTE CARD - DYNAMIC HEIGHT, MAXIMUM 4:3
+  // COMPACT FULL-WIDTH NOTE CARD
   // ============================================================
 
   Widget buildNoteCard(Map<String, dynamic> note) {
@@ -769,178 +907,179 @@ class _NotesPageState extends State<NotesPage> {
     final content = note['content'] as String? ?? '';
     final pinned = note['pinned'] == 1;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-
-        final titleLines = (title.length / 32).ceil().clamp(1, 2);
-        final contentLines = (
-          content.split('\n').length +
-          (content.length / 48).floor()
-        ).clamp(1, 5);
-
-        final maximumHeight = width * 0.75;
-
-        final desiredHeight = (
-          88 + titleLines * 20 + contentLines * 18
-        ).toDouble();
-
-        final cardHeight = desiredHeight.clamp(
-          112.0,
-          maximumHeight,
-        );
-
-        final availableContentLines = (
-          ((cardHeight - 90) / 18).floor()
-        ).clamp(1, 5);
-
-        return SizedBox(
-          height: cardHeight,
-          child: Card(
-            margin: EdgeInsets.zero,
-            elevation: 2,
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: () => showNoteDetails(note),
-              child: Row(
-                children: [
-                  Container(
-                    width: 7,
-                    color: noteColor,
+    return SizedBox(
+      height: 104,
+      child: Card(
+        margin: EdgeInsets.zero,
+        elevation: 1.5,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(13),
+          side: BorderSide(
+            color: noteColor.withOpacity(0.22),
+            width: 0.8,
+          ),
+        ),
+        child: InkWell(
+          onTap: () => showNoteDetails(note),
+          child: Row(
+            children: [
+              Container(
+                width: 5,
+                color: noteColor,
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    12,
+                    9,
+                    7,
+                    8,
                   ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        12,
-                        7,
-                        8,
-                        7,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  title,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
+                          Expanded(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
                               ),
-                              if (pinned)
-                                Icon(
-                                  Icons.push_pin_rounded,
-                                  size: 17,
-                                  color: noteColor,
-                                ),
-                              PopupMenuButton<String>(
-                                padding: EdgeInsets.zero,
-                                iconSize: 20,
-                                onSelected: (value) {
-                                  if (value == 'edit') {
-                                    showNoteDialog(note: note);
-                                  } else if (value == 'pin') {
-                                    togglePin(note);
-                                  } else if (value == 'delete') {
-                                    deleteNote(note['id'] as int);
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  const PopupMenuItem(
-                                    value: 'edit',
-                                    child: ListTile(
-                                      contentPadding: EdgeInsets.zero,
-                                      leading: Icon(Icons.edit_outlined),
-                                      title: Text('Edit'),
-                                    ),
+                            ),
+                          ),
+                          if (pinned)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 3),
+                              child: Icon(
+                                Icons.push_pin_rounded,
+                                size: 15,
+                                color: noteColor,
+                              ),
+                            ),
+                          SizedBox(
+                            width: 30,
+                            height: 30,
+                            child: PopupMenuButton<String>(
+                              padding: EdgeInsets.zero,
+                              iconSize: 19,
+                              onSelected: (value) {
+                                if (value == 'edit') {
+                                  showNoteDialog(note: note);
+                                } else if (value == 'pin') {
+                                  togglePin(note);
+                                } else if (value == 'delete') {
+                                  deleteNote(note['id'] as int);
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit_outlined),
+                                      SizedBox(width: 10),
+                                      Text('Edit'),
+                                    ],
                                   ),
-                                  PopupMenuItem(
-                                    value: 'pin',
-                                    child: ListTile(
-                                      contentPadding: EdgeInsets.zero,
-                                      leading: Icon(
+                                ),
+                                PopupMenuItem(
+                                  value: 'pin',
+                                  child: Row(
+                                    children: [
+                                      Icon(
                                         pinned
                                             ? Icons.push_pin_outlined
                                             : Icons.push_pin_rounded,
                                       ),
-                                      title: Text(
+                                      const SizedBox(width: 10),
+                                      Text(
                                         pinned ? 'Unpin' : 'Pin',
                                       ),
-                                    ),
+                                    ],
                                   ),
-                                  const PopupMenuItem(
-                                    value: 'delete',
-                                    child: ListTile(
-                                      contentPadding: EdgeInsets.zero,
-                                      leading: Icon(Icons.delete_outline),
-                                      title: Text('Delete'),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 4),
-
-                          Expanded(
-                            child: Align(
-                              alignment: Alignment.topLeft,
-                              child: Text(
-                                content.isEmpty ? 'No content' : content,
-                                maxLines: availableContentLines,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  height: 1.3,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
-                                      .withOpacity(0.75),
                                 ),
-                              ),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete_outline),
+                                      SizedBox(width: 10),
+                                      Text('Delete'),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-
-                          Row(
-                            children: [
-                              Icon(
-                                getColorIcon(colorName),
-                                size: 15,
-                                color: noteColor,
-                              ),
-                              const SizedBox(width: 5),
-                              Expanded(
-                                child: Text(
-                                  getColorLabel(colorName),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: noteColor,
-                                  ),
-                                ),
-                              ),
-                              const Icon(
-                                Icons.open_in_full_rounded,
-                                size: 14,
-                              ),
-                            ],
                           ),
                         ],
                       ),
-                    ),
+
+                      const SizedBox(height: 3),
+
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.topLeft,
+                          child: Text(
+                            content.isEmpty
+                                ? 'No content'
+                                : content,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              height: 1.4,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.82),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      Row(
+                        children: [
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              color: noteColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            getColorLabel(colorName),
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: noteColor,
+                            ),
+                          ),
+                          const Spacer(),
+                          Icon(
+                            Icons.open_in_full_rounded,
+                            size: 12,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withOpacity(0.45),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -976,56 +1115,65 @@ class _NotesPageState extends State<NotesPage> {
           ),
         ],
       ),
+
       body: Column(
         children: [
+          // SEARCH
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-            child: TextField(
-              onChanged: (value) {
-                setState(() {
-                  searchText = value;
-                });
-              },
-              decoration: InputDecoration(
-                hintText: 'Search notes...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: searchText.isNotEmpty
-                    ? IconButton(
-                        onPressed: () {
-                          setState(() {
-                            searchText = '';
-                          });
-                        },
-                        icon: const Icon(Icons.clear),
-                      )
-                    : null,
-                filled: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
+            padding: const EdgeInsets.fromLTRB(12, 7, 12, 7),
+            child: SizedBox(
+              height: 45,
+              child: TextField(
+                onChanged: (value) {
+                  setState(() {
+                    searchText = value;
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search notes...',
+                  prefixIcon: const Icon(Icons.search, size: 21),
+                  suffixIcon: searchText.isNotEmpty
+                      ? IconButton(
+                          onPressed: () {
+                            setState(() {
+                              searchText = '';
+                            });
+                          },
+                          icon: const Icon(Icons.clear, size: 19),
+                        )
+                      : null,
+                  filled: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(13),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
             ),
           ),
 
-          // ALL COLORS SHOWN TOGETHER
-
+          // ONE ROW COLOR FILTER
           buildColorFilter(),
 
+          // NOTE COUNT
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 5, 14, 8),
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 7),
             child: Row(
               children: [
-                const Icon(Icons.notes_rounded, size: 18),
+                const Icon(Icons.notes_rounded, size: 16),
                 const SizedBox(width: 6),
                 Text(
                   '${visibleNotes.length} note${visibleNotes.length == 1 ? '' : 's'}',
                   style: TextStyle(
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: Theme.of(context)
                         .colorScheme
                         .onSurface
-                        .withOpacity(0.65),
+                        .withOpacity(0.7),
                   ),
                 ),
                 const Spacer(),
@@ -1034,13 +1182,13 @@ class _NotesPageState extends State<NotesPage> {
                     children: [
                       Icon(
                         Icons.priority_high_rounded,
-                        size: 16,
+                        size: 14,
                       ),
-                      SizedBox(width: 4),
+                      SizedBox(width: 3),
                       Text(
                         'Importance',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -1050,11 +1198,12 @@ class _NotesPageState extends State<NotesPage> {
             ),
           ),
 
+          // NOTES LIST
           Expanded(
             child: visibleNotes.isEmpty
                 ? Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(30),
+                      padding: const EdgeInsets.all(25),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -1063,24 +1212,24 @@ class _NotesPageState extends State<NotesPage> {
                                     selectedColor != 'all'
                                 ? Icons.search_off_rounded
                                 : Icons.sticky_note_2_outlined,
-                            size: 64,
+                            size: 58,
                             color: Theme.of(context)
                                 .colorScheme
                                 .primary
                                 .withOpacity(0.55),
                           ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 12),
                           Text(
                             searchText.isNotEmpty ||
                                     selectedColor != 'all'
                                 ? 'No matching notes'
                                 : 'No notes yet',
                             style: const TextStyle(
-                              fontSize: 19,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 7),
                           Text(
                             searchText.isNotEmpty ||
                                     selectedColor != 'all'
@@ -1088,16 +1237,20 @@ class _NotesPageState extends State<NotesPage> {
                                 : 'Create your first note or use a template.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
+                              fontSize: 13,
                               color: Theme.of(context)
                                   .colorScheme
                                   .onSurface
                                   .withOpacity(0.65),
                             ),
                           ),
-                          const SizedBox(height: 18),
+                          const SizedBox(height: 15),
                           ElevatedButton.icon(
                             onPressed: showTemplateDialog,
-                            icon: const Icon(Icons.auto_awesome),
+                            icon: const Icon(
+                              Icons.auto_awesome,
+                              size: 18,
+                            ),
                             label: const Text('Use Template'),
                           ),
                         ],
@@ -1105,10 +1258,15 @@ class _NotesPageState extends State<NotesPage> {
                     ),
                   )
                 : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 90),
+                    padding: const EdgeInsets.fromLTRB(
+                      12,
+                      2,
+                      12,
+                      85,
+                    ),
                     itemCount: visibleNotes.length,
                     separatorBuilder: (context, index) {
-                      return const SizedBox(height: 10);
+                      return const SizedBox(height: 7);
                     },
                     itemBuilder: (context, index) {
                       return buildNoteCard(visibleNotes[index]);
@@ -1117,10 +1275,15 @@ class _NotesPageState extends State<NotesPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: showTemplateDialog,
-        icon: const Icon(Icons.add),
-        label: const Text('New Note'),
+
+      // ONLY PLUS BUTTON
+      floatingActionButton: FloatingActionButton(
+        onPressed: showNoteDialog,
+        tooltip: 'New Note',
+        child: const Icon(
+          Icons.add_rounded,
+          size: 29,
+        ),
       ),
     );
   }
