@@ -1,0 +1,27 @@
+
+name: Find LifeMate Keystore Alias
+
+on:
+  workflow_dispatch:
+
+jobs:
+  find-alias:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Find Key Alias
+        env:
+          STORE_PASS: ${{ secrets.LIFEMATE_KEYSTORE_PASSWORD }}
+        run: |
+          keytool -list -v \
+            -keystore lifemate-release.jks \
+            -storepass "$STORE_PASS"
