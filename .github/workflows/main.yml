@@ -861,4 +861,738 @@ jobs:
 
                   } else {
 
-                      openLifeMate
+                      openLifeMate()
+                  }
+              }
+
+              private fun openLifeMate() {
+
+                  try {
+
+                      val intent =
+                          packageManager
+                              .getLaunchIntentForPackage(
+                                  packageName
+                              )
+
+                      if (intent != null) {
+
+                          intent.addFlags(
+                              Intent.FLAG_ACTIVITY_NEW_TASK or
+                                  Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                                  Intent.FLAG_ACTIVITY_CLEAR_TOP
+                          )
+
+                          startActivity(intent)
+                      }
+
+                  } catch (_: Exception) {
+                  }
+              }
+
+              private fun goToBackground() {
+
+                  try {
+
+                      val intent =
+                          Intent(
+                              Intent.ACTION_MAIN
+                          )
+
+                      intent.addCategory(
+                          Intent.CATEGORY_HOME
+                      )
+
+                      intent.addFlags(
+                          Intent.FLAG_ACTIVITY_NEW_TASK
+                      )
+
+                      startActivity(intent)
+
+                  } catch (_: Exception) {
+                  }
+              }
+
+              private fun dp(
+                  value: Int
+              ): Int {
+
+                  return (
+                      value *
+                          resources.displayMetrics.density
+                      ).toInt()
+              }
+
+              override fun onDestroy() {
+
+                  try {
+
+                      floatingView?.let {
+
+                          windowManager
+                              ?.removeView(it)
+                      }
+
+                  } catch (_: Exception) {
+                  }
+
+                  floatingView = null
+
+                  super.onDestroy()
+              }
+
+              override fun onBind(
+                  intent: Intent?
+              ): IBinder? {
+
+                  return null
+              }
+          }
+          KOTLIN
+
+
+          # -----------------------------------------------------
+          # Manifest Permissions
+          # -----------------------------------------------------
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          manifest = Path(
+              "android/app/src/main/AndroidManifest.xml"
+          )
+
+          content = manifest.read_text()
+
+          permissions = [
+              "android.permission.SYSTEM_ALERT_WINDOW",
+              "android.permission.FOREGROUND_SERVICE",
+              "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
+              "android.permission.READ_CONTACTS",
+          ]
+
+          for permission in permissions:
+
+              tag = (
+                  '<uses-permission '
+                  f'android:name="{permission}" />'
+              )
+
+              if tag not in content:
+
+                  content = content.replace(
+                      "<application",
+                      "    " + tag + "\n"
+                      "    <application",
+                      1
+                  )
+
+          service_block = """
+              <service
+                  android:name=".LifeMateFloatingService"
+                  android:enabled="true"
+                  android:exported="false"
+                  android:foregroundServiceType="specialUse">
+                  <property
+                      android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                      android:value="LifeMate floating Home button overlay" />
+              </service>
+          """
+
+          if "LifeMateFloatingService" not in content:
+
+              content = content.replace(
+                  "</application>",
+                  service_block +
+                  "\n    </application>",
+                  1
+              )
+
+          ET.fromstring(content)
+
+          manifest.write_text(content)
+
+          print(
+              "AndroidManifest XML validation passed."
+          )
+
+          print(
+              "Floating Home Button configured."
+          )
+
+          print(
+              "READ_CONTACTS configured."
+          )
+          PY
+
+
+      # =========================================================
+      # 12. Force App compileSdk 36
+      # =========================================================
+      - name: Force App compileSdk 36
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          files = [
+              Path("android/app/build.gradle"),
+              Path("android/app/build.gradle.kts"),
+          ]
+
+          for file in files:
+
+              if not file.exists():
+                  continue
+
+              content = file.read_text()
+
+              updated = re.sub(
+                  r'(?m)^(\s*compileSdk(?:Version)?\s*'
+                  r'(?:=\s*)?)'
+                  r'(?:flutter\.compileSdkVersion|\d+)',
+                  r'\g<1>36',
+                  content
+              )
+
+              if not re.search(
+                  r'compileSdk(?:Version)?',
+                  updated
+              ):
+
+                  if file.suffix == ".kts":
+
+                      updated = updated.replace(
+                          "android {",
+                          "android {\n"
+                          "    compileSdk = 36",
+                          1
+                      )
+
+                  else:
+
+                      updated = updated.replace(
+                          "android {",
+                          "android {\n"
+                          "    compileSdk 36",
+                          1
+                      )
+
+              file.write_text(updated)
+
+              print("Updated:", file)
+          PY
+
+
+      # =========================================================
+      # 13. Force Flutter Plugin compileSdk 36
+      # =========================================================
+      - name: Force Flutter plugin compileSdk 36
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import os
+
+          pub_root = Path(
+              os.path.expanduser(
+                  "~/.pub-cache/hosted/pub.dev"
+              )
+          )
+
+          target_names = [
+              "file_picker",
+              "flutter_plugin_android_lifecycle",
+          ]
+
+          changed = []
+
+          if pub_root.exists():
+
+              for name in target_names:
+
+                  for folder in pub_root.glob(
+                      f"{name}-*"
+                  ):
+
+                      android_folder = folder / "android"
+
+                      if not android_folder.exists():
+                          continue
+
+                      for file in android_folder.glob(
+                          "build.gradle*"
+                      ):
+
+                          content = file.read_text()
+
+                          updated = re.sub(
+                              r'(?m)^(\s*compileSdk(?:Version)?\s*'
+                              r'(?:=\s*)?)'
+                              r'(?:flutter\.compileSdkVersion|\d+)',
+                              r'\g<1>36',
+                              content
+                          )
+
+                          if updated != content:
+
+                              file.write_text(updated)
+
+                              changed.append(
+                                  str(file)
+                              )
+
+          print(
+              "Total plugin files updated:",
+              len(changed)
+          )
+
+          for item in changed:
+              print("Updated:", item)
+          PY
+
+
+      # =========================================================
+      # 14. Restore encrypted keystore if needed
+      # =========================================================
+      - name: Restore encrypted keystore
+        run: |
+          set -e
+
+          mkdir -p android/keystore
+
+          if [ -f /tmp/lifemate-release.jks.enc.b64 ]; then
+
+            cp \
+              /tmp/lifemate-release.jks.enc.b64 \
+              android/keystore/lifemate-release.jks.enc.b64
+
+            echo "Encrypted keystore restored."
+
+          elif [ -f android/keystore/lifemate-release.jks.enc.b64 ]; then
+
+            echo "Encrypted keystore already exists."
+
+          else
+
+            echo "ERROR: Encrypted keystore missing."
+            exit 1
+
+          fi
+
+
+      # =========================================================
+      # 15. Decrypt Release Keystore
+      # =========================================================
+      - name: Decrypt LifeMate Release Keystore
+        env:
+          ENCRYPTION_PASSWORD: ${{ secrets.LIFEMATE_KEYSTORE_ENCRYPTION_PASSWORD }}
+        run: |
+          set -e
+
+          if [ -z "$ENCRYPTION_PASSWORD" ]; then
+            echo "ERROR: Encryption password is missing."
+            exit 1
+          fi
+
+          base64 -d \
+            android/keystore/lifemate-release.jks.enc.b64 \
+            > /tmp/lifemate-release.jks.enc
+
+          openssl enc \
+            -d \
+            -aes-256-cbc \
+            -pbkdf2 \
+            -in /tmp/lifemate-release.jks.enc \
+            -out android/keystore/lifemate-release.jks \
+            -pass env:ENCRYPTION_PASSWORD
+
+          rm -f /tmp/lifemate-release.jks.enc
+
+          chmod 600 \
+            android/keystore/lifemate-release.jks
+
+          echo "LifeMate release keystore decrypted successfully."
+
+
+      # =========================================================
+      # 16. Create key.properties
+      # =========================================================
+      - name: Configure Release Signing
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.LIFEMATE_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.LIFEMATE_KEY_PASSWORD }}
+        run: |
+          set -e
+
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "ERROR: Keystore password is missing."
+            exit 1
+          fi
+
+          if [ -z "$KEY_PASSWORD" ]; then
+            echo "ERROR: Key password is missing."
+            exit 1
+          fi
+
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=lifemate
+          storeFile=keystore/lifemate-release.jks
+          EOF
+
+          chmod 600 android/key.properties
+
+          echo "Release signing configuration created."
+
+
+      # =========================================================
+      # 17. Configure Gradle Signing Automatically
+      # =========================================================
+      - name: Configure Gradle Release Signing
+        run: |
+          set -e
+
+          mkdir -p "$HOME/.gradle"
+
+          cat > "$HOME/.gradle/init.gradle" <<'EOF'
+          allprojects {
+              afterEvaluate { project ->
+
+                  if (
+                      project.name == 'app' &&
+                      project.plugins.hasPlugin(
+                          'com.android.application'
+                      )
+                  ) {
+
+                      def android =
+                          project.extensions.findByName(
+                              'android'
+                          )
+
+                      def props =
+                          new Properties()
+
+                      def propertiesFile =
+                          project.rootProject.file(
+                              'key.properties'
+                          )
+
+                      if (propertiesFile.exists()) {
+
+                          propertiesFile.withInputStream {
+                              props.load(it)
+                          }
+
+                          def storeFile =
+                              project.rootProject.file(
+                                  props['storeFile']
+                              )
+
+                          def signingConfigs =
+                              android.signingConfigs
+
+                          def release =
+                              signingConfigs.findByName(
+                                  'release'
+                              )
+
+                          if (release == null) {
+
+                              release =
+                                  signingConfigs.create(
+                                      'release'
+                                  )
+                          }
+
+                          release.storeFile =
+                              storeFile
+
+                          release.storePassword =
+                              props['storePassword']
+
+                          release.keyAlias =
+                              props['keyAlias']
+
+                          release.keyPassword =
+                              props['keyPassword']
+
+                          android.buildTypes.release
+                              .signingConfig = release
+
+                          println(
+                              'LifeMate release signing configured.'
+                          )
+                      }
+                  }
+              }
+          }
+          EOF
+
+          echo "Gradle release signing configured."
+
+
+      # =========================================================
+      # 18. Verify Android Configuration
+      # =========================================================
+      - name: Verify Android configuration
+        run: |
+
+          echo "======================================"
+          echo "ANDROID SDK"
+          echo "======================================"
+
+          ls "$ANDROID_HOME/platforms/" || true
+
+
+          echo ""
+          echo "======================================"
+          echo "APP ICONS"
+          echo "======================================"
+
+          find android/app/src/main/res \
+            -name "ic_launcher*.png" \
+            -print
+
+
+          echo ""
+          echo "======================================"
+          echo "RELEASE KEYSTORE"
+          echo "======================================"
+
+          if [ -f android/keystore/lifemate-release.jks ]; then
+            echo "Release keystore exists."
+          else
+            echo "ERROR: Release keystore missing."
+            exit 1
+          fi
+
+
+          echo ""
+          echo "======================================"
+          echo "KEYSTORE ALIAS CHECK"
+          echo "======================================"
+
+          keytool \
+            -list \
+            -keystore android/keystore/lifemate-release.jks \
+            -alias lifemate \
+            -storepass "${{ secrets.LIFEMATE_KEYSTORE_PASSWORD }}" \
+            >/dev/null
+
+          echo "Keystore alias verification successful."
+
+
+          echo ""
+          echo "======================================"
+          echo "ANDROID MANIFEST"
+          echo "======================================"
+
+          cat android/app/src/main/AndroidManifest.xml
+
+
+          echo ""
+          echo "======================================"
+          echo "APP BUILD FILE"
+          echo "======================================"
+
+          cat android/app/build.gradle || true
+
+          cat android/app/build.gradle.kts || true
+
+
+      # =========================================================
+      # 19. Flutter Clean
+      # =========================================================
+      - name: Flutter Clean
+        run: |
+          flutter clean
+
+
+      # =========================================================
+      # 20. Flutter Pub Get Again
+      # =========================================================
+      - name: Flutter Pub Get Again
+        run: |
+          flutter pub get
+
+
+      # =========================================================
+      # 21. Gradle Dependencies
+      # =========================================================
+      - name: Download Gradle dependencies
+        working-directory: android
+        run: |
+
+          echo "Downloading Gradle dependencies..."
+
+          for attempt in 1 2 3 4 5
+          do
+
+            echo ""
+            echo "Gradle dependency attempt: $attempt"
+
+            if ./gradlew dependencies \
+              --no-daemon \
+              --stacktrace
+            then
+
+              echo "Gradle dependencies downloaded successfully."
+
+              exit 0
+
+            fi
+
+            echo "Attempt $attempt failed."
+
+            if [ "$attempt" -lt 5 ]
+            then
+              sleep $((attempt * 20))
+            fi
+
+          done
+
+          echo "Gradle dependency download failed."
+
+          exit 1
+
+
+      # =========================================================
+      # 22. Build Signed APK
+      # =========================================================
+      - name: Build Signed APK
+        env:
+          GRADLE_OPTS: >-
+            -Dorg.gradle.daemon=false
+            -Dorg.gradle.parallel=true
+            -Dorg.gradle.caching=true
+            -Dorg.gradle.jvmargs=-Xmx4g
+
+        run: |
+
+          for attempt in 1 2 3 4 5
+          do
+
+            echo ""
+            echo "======================================"
+            echo "SIGNED APK BUILD ATTEMPT: $attempt"
+            echo "======================================"
+
+            if flutter build apk --release
+            then
+
+              echo "Signed APK build successful."
+
+              exit 0
+
+            fi
+
+            echo "Build attempt $attempt failed."
+
+            if [ "$attempt" -lt 5 ]
+            then
+              sleep $((attempt * 20))
+            fi
+
+          done
+
+          echo "Signed APK build failed after 5 attempts."
+
+          exit 1
+
+
+      # =========================================================
+      # 23. Build Signed AAB
+      # =========================================================
+      - name: Build Signed AAB
+        env:
+          GRADLE_OPTS: >-
+            -Dorg.gradle.daemon=false
+            -Dorg.gradle.parallel=true
+            -Dorg.gradle.caching=true
+            -Dorg.gradle.jvmargs=-Xmx4g
+
+        run: |
+
+          for attempt in 1 2 3 4 5
+          do
+
+            echo ""
+            echo "======================================"
+            echo "SIGNED AAB BUILD ATTEMPT: $attempt"
+            echo "======================================"
+
+            if flutter build appbundle --release
+            then
+
+              echo "Signed AAB build successful."
+
+              exit 0
+
+            fi
+
+            echo "AAB build attempt $attempt failed."
+
+            if [ "$attempt" -lt 5 ]
+            then
+              sleep $((attempt * 20))
+            fi
+
+          done
+
+          echo "Signed AAB build failed after 5 attempts."
+
+          exit 1
+
+
+      # =========================================================
+      # 24. Verify Release Files
+      # =========================================================
+      - name: Verify Release Files
+        run: |
+
+          echo "======================================"
+          echo "APK"
+          echo "======================================"
+
+          ls -lh \
+            build/app/outputs/flutter-apk/app-release.apk
+
+
+          echo ""
+          echo "======================================"
+          echo "AAB"
+          echo "======================================"
+
+          ls -lh \
+            build/app/outputs/bundle/release/app-release.aab
+
+
+          echo ""
+          echo "======================================"
+          echo "RELEASE FILES VERIFIED"
+          echo "======================================"
+
+
+      # =========================================================
+      # 25. Upload APK
+      # =========================================================
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LifeMate-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+
+      # =========================================================
+      # 26. Upload AAB
+      # =========================================================
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: LifeMate-AAB
+          path: build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
