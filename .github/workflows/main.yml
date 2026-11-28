@@ -1,4 +1,4 @@
-name: Build LifeMate APK
+name: Build LifeMate APK and AAB
 
 on:
   workflow_dispatch:
@@ -53,10 +53,31 @@ jobs:
 
 
       # =========================================================
-      # 5. Generate Android Project
+      # 5. Preserve encrypted keystore
+      # =========================================================
+      - name: Preserve encrypted keystore
+        run: |
+          set -e
+
+          SOURCE="android/keystore/lifemate-release.jks.enc.b64"
+
+          if [ -f "$SOURCE" ]; then
+            cp "$SOURCE" /tmp/lifemate-release.jks.enc.b64
+            echo "Encrypted keystore preserved."
+          else
+            echo "ERROR: Encrypted keystore not found:"
+            echo "$SOURCE"
+            exit 1
+          fi
+
+
+      # =========================================================
+      # 6. Generate Android Project
       # =========================================================
       - name: Generate Android project
         run: |
+          set -e
+
           if [ ! -f android/gradlew ]; then
 
             echo "Generating Android project..."
@@ -71,6 +92,12 @@ jobs:
 
             cp -R /tmp/lifemate_scaffold/android ./android
 
+            mkdir -p android/keystore
+
+            cp \
+              /tmp/lifemate-release.jks.enc.b64 \
+              android/keystore/lifemate-release.jks.enc.b64
+
             echo "Android project generated successfully."
 
           else
@@ -81,7 +108,7 @@ jobs:
 
 
       # =========================================================
-      # 6. Install Android SDK 36
+      # 7. Install Android SDK 36
       # =========================================================
       - name: Install Android SDK 36
         run: |
@@ -112,7 +139,7 @@ jobs:
 
 
       # =========================================================
-      # 7. Flutter Pub Get
+      # 8. Flutter Pub Get
       # =========================================================
       - name: Flutter Pub Get
         run: |
@@ -120,7 +147,7 @@ jobs:
 
 
       # =========================================================
-      # 8. Install LifeMate App Icon
+      # 9. Install LifeMate App Icon
       # =========================================================
       - name: Install LifeMate App Icon
         run: |
@@ -148,7 +175,6 @@ jobs:
 
           print("Original icon size:", image.size)
 
-          # Make square canvas
           size = max(image.width, image.height)
 
           canvas = Image.new(
@@ -206,7 +232,7 @@ jobs:
 
 
       # =========================================================
-      # 9. Configure Launcher Icon
+      # 10. Configure Launcher Icon
       # =========================================================
       - name: Configure Android Launcher Icon
         run: |
@@ -222,21 +248,18 @@ jobs:
 
           content = manifest.read_text()
 
-          # Replace existing icon
           content = re.sub(
               r'android:icon="[^"]*"',
               'android:icon="@mipmap/ic_launcher"',
               content
           )
 
-          # Replace existing round icon
           content = re.sub(
               r'android:roundIcon="[^"]*"',
               'android:roundIcon="@mipmap/ic_launcher_round"',
               content
           )
 
-          # Add icons if missing
           if 'android:icon="@mipmap/ic_launcher"' not in content:
 
               content = content.replace(
@@ -252,8 +275,6 @@ jobs:
           print("Launcher icon configured.")
           PY
 
-          # Remove adaptive icon definitions so the
-          # generated PNG icons are used directly.
           rm -f \
             android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml \
             android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml \
@@ -263,7 +284,7 @@ jobs:
 
 
       # =========================================================
-      # 10. Floating Home Button
+      # 11. Floating Home Button
       # =========================================================
       - name: Install Floating Home Button
         run: |
@@ -307,7 +328,6 @@ jobs:
               private val foregroundKey =
                   "app_foreground"
 
-
               override fun configureFlutterEngine(
                   flutterEngine: FlutterEngine
               ) {
@@ -321,20 +341,15 @@ jobs:
                       when (call.method) {
 
                           "isOverlayPermissionGranted" -> {
-
                               result.success(
                                   Settings.canDrawOverlays(this)
                               )
                           }
 
-
                           "requestOverlayPermission" -> {
-
                               openOverlaySettings()
-
                               result.success(true)
                           }
-
 
                           "setFloatingEnabled" -> {
 
@@ -352,7 +367,6 @@ jobs:
                                       enabled
                                   )
                                   .apply()
-
 
                               if (enabled) {
 
@@ -377,14 +391,12 @@ jobs:
                               result.success(true)
                           }
 
-
                           else -> {
                               result.notImplemented()
                           }
                       }
                   }
               }
-
 
               override fun onResume() {
 
@@ -401,7 +413,6 @@ jobs:
                       )
                       .apply()
 
-
                   val enabled =
                       getSharedPreferences(
                           prefsName,
@@ -412,7 +423,6 @@ jobs:
                               false
                           )
 
-
                   if (
                       enabled &&
                       Settings.canDrawOverlays(this)
@@ -420,7 +430,6 @@ jobs:
                       startFloatingService()
                   }
               }
-
 
               override fun onPause() {
 
@@ -438,7 +447,6 @@ jobs:
                   super.onPause()
               }
 
-
               override fun onDestroy() {
 
                   getSharedPreferences(
@@ -455,7 +463,6 @@ jobs:
                   super.onDestroy()
               }
 
-
               private fun openOverlaySettings() {
 
                   if (
@@ -463,7 +470,6 @@ jobs:
                   ) {
                       return
                   }
-
 
                   try {
 
@@ -491,7 +497,6 @@ jobs:
                   }
               }
 
-
               private fun startFloatingService() {
 
                   try {
@@ -500,7 +505,6 @@ jobs:
                           this,
                           LifeMateFloatingService::class.java
                       )
-
 
                       if (
                           Build.VERSION.SDK_INT >=
@@ -544,7 +548,6 @@ jobs:
           import android.view.WindowManager
           import android.widget.TextView
 
-
           class LifeMateFloatingService : Service() {
 
               private var windowManager: WindowManager? =
@@ -565,11 +568,9 @@ jobs:
               private val foregroundKey =
                   "app_foreground"
 
-
               override fun onCreate() {
 
                   super.onCreate()
-
 
                   if (!Settings.canDrawOverlays(this)) {
 
@@ -577,7 +578,6 @@ jobs:
 
                       return
                   }
-
 
                   createNotificationChannel()
 
@@ -588,7 +588,6 @@ jobs:
 
                   showFloatingButton()
               }
-
 
               private fun createNotificationChannel() {
 
@@ -607,19 +606,16 @@ jobs:
                       channel.description =
                           "Keeps the LifeMate Home button available."
 
-
                       val manager =
                           getSystemService(
                               NotificationManager::class.java
                           )
-
 
                       manager.createNotificationChannel(
                           channel
                       )
                   }
               }
-
 
               private fun createNotification(): Notification {
 
@@ -657,22 +653,18 @@ jobs:
                   }
               }
 
-
               private fun showFloatingButton() {
 
                   if (floatingView != null) {
                       return
                   }
 
-
                   windowManager =
                       getSystemService(
                           WINDOW_SERVICE
                       ) as WindowManager
 
-
                   val button = TextView(this)
-
 
                   button.text = "⌂"
 
@@ -685,7 +677,6 @@ jobs:
                   button.gravity =
                       Gravity.CENTER
 
-
                   button.setPadding(
                       0,
                       0,
@@ -693,14 +684,11 @@ jobs:
                       1
                   )
 
-
                   val background =
                       GradientDrawable()
 
-
                   background.shape =
                       GradientDrawable.OVAL
-
 
                   background.setColor(
                       Color.rgb(
@@ -710,19 +698,15 @@ jobs:
                       )
                   )
 
-
                   background.setStroke(
                       2,
                       Color.WHITE
                   )
 
-
                   button.background =
                       background
 
-
                   button.elevation = 12f
-
 
                   val params =
                       WindowManager.LayoutParams(
@@ -745,40 +729,30 @@ jobs:
                                   .TYPE_PHONE
                           },
 
-
                           WindowManager.LayoutParams
                               .FLAG_NOT_FOCUSABLE or
                               WindowManager.LayoutParams
                                   .FLAG_LAYOUT_NO_LIMITS,
 
-
                           PixelFormat.TRANSLUCENT
                       )
-
 
                   params.gravity =
                       Gravity.CENTER_VERTICAL or
                       Gravity.END
 
-
                   params.x = dp(4)
 
                   params.y = 0
-
 
                   button.setOnTouchListener(
                       object : View.OnTouchListener {
 
                           private var downX = 0f
-
                           private var downY = 0f
-
                           private var startX = 0
-
                           private var startY = 0
-
                           private var moved = false
-
 
                           override fun onTouch(
                               view: View,
@@ -790,18 +764,15 @@ jobs:
                                   MotionEvent.ACTION_DOWN -> {
 
                                       downX = event.rawX
-
                                       downY = event.rawY
 
                                       startX = params.x
-
                                       startY = params.y
 
                                       moved = false
 
                                       return true
                                   }
-
 
                                   MotionEvent.ACTION_MOVE -> {
 
@@ -810,7 +781,6 @@ jobs:
 
                                       val dy =
                                           event.rawY - downY
-
 
                                       if (
                                           kotlin.math.abs(dx) >
@@ -821,16 +791,13 @@ jobs:
                                           moved = true
                                       }
 
-
                                       params.x =
                                           startX -
                                           dx.toInt()
 
-
                                       params.y =
                                           startY +
                                           dy.toInt()
-
 
                                       try {
 
@@ -843,10 +810,8 @@ jobs:
                                       } catch (_: Exception) {
                                       }
 
-
                                       return true
                                   }
-
 
                                   MotionEvent.ACTION_UP -> {
 
@@ -858,15 +823,12 @@ jobs:
                                   }
                               }
 
-
                               return false
                           }
                       }
                   )
 
-
                   floatingView = button
-
 
                   try {
 
@@ -881,7 +843,6 @@ jobs:
                   }
               }
 
-
               private fun handleFloatingTap() {
 
                   val isAppForeground =
@@ -894,485 +855,10 @@ jobs:
                               false
                           )
 
-
                   if (isAppForeground) {
 
                       goToBackground()
 
                   } else {
 
-                      openLifeMate()
-                  }
-              }
-
-
-              private fun openLifeMate() {
-
-                  try {
-
-                      val intent =
-                          packageManager
-                              .getLaunchIntentForPackage(
-                                  packageName
-                              )
-
-
-                      if (intent != null) {
-
-                          intent.addFlags(
-                              Intent.FLAG_ACTIVITY_NEW_TASK or
-                                  Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                                  Intent.FLAG_ACTIVITY_CLEAR_TOP
-                          )
-
-
-                          startActivity(intent)
-                      }
-
-                  } catch (_: Exception) {
-                  }
-              }
-
-
-              private fun goToBackground() {
-
-                  try {
-
-                      val intent =
-                          Intent(
-                              Intent.ACTION_MAIN
-                          )
-
-
-                      intent.addCategory(
-                          Intent.CATEGORY_HOME
-                      )
-
-
-                      intent.addFlags(
-                          Intent.FLAG_ACTIVITY_NEW_TASK
-                      )
-
-
-                      startActivity(intent)
-
-                  } catch (_: Exception) {
-                  }
-              }
-
-
-              private fun dp(
-                  value: Int
-              ): Int {
-
-                  return (
-                      value *
-                          resources.displayMetrics.density
-                      ).toInt()
-              }
-
-
-              override fun onDestroy() {
-
-                  try {
-
-                      floatingView?.let {
-
-                          windowManager
-                              ?.removeView(it)
-                      }
-
-                  } catch (_: Exception) {
-                  }
-
-
-                  floatingView = null
-
-                  super.onDestroy()
-              }
-
-
-              override fun onBind(
-                  intent: Intent?
-              ): IBinder? {
-
-                  return null
-              }
-          }
-          KOTLIN
-
-
-          # -----------------------------------------------------
-          # Manifest Permissions
-          # -----------------------------------------------------
-          python3 - <<'PY'
-          from pathlib import Path
-          import xml.etree.ElementTree as ET
-
-          manifest = Path(
-              "android/app/src/main/AndroidManifest.xml"
-          )
-
-          content = manifest.read_text()
-
-
-          permissions = [
-
-              "android.permission.SYSTEM_ALERT_WINDOW",
-
-              "android.permission.FOREGROUND_SERVICE",
-
-              "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
-
-              "android.permission.READ_CONTACTS",
-          ]
-
-
-          for permission in permissions:
-
-              tag = (
-                  '<uses-permission '
-                  f'android:name="{permission}" />'
-              )
-
-              if tag not in content:
-
-                  content = content.replace(
-                      "<application",
-                      "    " + tag + "\n"
-                      "    <application",
-                      1
-                  )
-
-
-          service_block = """
-              <service
-                  android:name=".LifeMateFloatingService"
-                  android:enabled="true"
-                  android:exported="false"
-                  android:foregroundServiceType="specialUse">
-                  <property
-                      android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                      android:value="LifeMate floating Home button overlay" />
-              </service>
-          """
-
-
-          if "LifeMateFloatingService" not in content:
-
-              content = content.replace(
-                  "</application>",
-                  service_block +
-                  "\n    </application>",
-                  1
-              )
-
-
-          ET.fromstring(content)
-
-          manifest.write_text(content)
-
-          print(
-              "AndroidManifest XML validation passed."
-          )
-
-          print(
-              "Floating Home Button configured."
-          )
-
-          print(
-              "READ_CONTACTS configured."
-          )
-          PY
-
-
-      # =========================================================
-      # 11. Force App compileSdk 36
-      # =========================================================
-      - name: Force App compileSdk 36
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          files = [
-              Path("android/app/build.gradle"),
-              Path("android/app/build.gradle.kts"),
-          ]
-
-
-          for file in files:
-
-              if not file.exists():
-                  continue
-
-
-              content = file.read_text()
-
-
-              updated = re.sub(
-                  r'(?m)^(\s*compileSdk(?:Version)?\s*'
-                  r'(?:=\s*)?)'
-                  r'(?:flutter\.compileSdkVersion|\d+)',
-                  r'\g<1>36',
-                  content
-              )
-
-
-              if not re.search(
-                  r'compileSdk(?:Version)?',
-                  updated
-              ):
-
-                  if file.suffix == ".kts":
-
-                      updated = updated.replace(
-                          "android {",
-                          "android {\n"
-                          "    compileSdk = 36",
-                          1
-                      )
-
-                  else:
-
-                      updated = updated.replace(
-                          "android {",
-                          "android {\n"
-                          "    compileSdk 36",
-                          1
-                      )
-
-
-              file.write_text(updated)
-
-              print("Updated:", file)
-          PY
-
-
-      # =========================================================
-      # 12. Force Flutter Plugin compileSdk 36
-      # =========================================================
-      - name: Force Flutter plugin compileSdk 36
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          import os
-
-          pub_root = Path(
-              os.path.expanduser(
-                  "~/.pub-cache/hosted/pub.dev"
-              )
-          )
-
-          target_names = [
-              "file_picker",
-              "flutter_plugin_android_lifecycle",
-          ]
-
-          changed = []
-
-          if pub_root.exists():
-
-              for name in target_names:
-
-                  for folder in pub_root.glob(
-                      f"{name}-*"
-                  ):
-
-                      android_folder = folder / "android"
-
-                      if not android_folder.exists():
-                          continue
-
-                      for file in android_folder.glob(
-                          "build.gradle*"
-                      ):
-
-                          content = file.read_text()
-
-                          updated = re.sub(
-                              r'(?m)^(\s*compileSdk(?:Version)?\s*'
-                              r'(?:=\s*)?)'
-                              r'(?:flutter\.compileSdkVersion|\d+)',
-                              r'\g<1>36',
-                              content
-                          )
-
-                          if updated != content:
-
-                              file.write_text(updated)
-
-                              changed.append(
-                                  str(file)
-                              )
-
-
-          print(
-              "Total plugin files updated:",
-              len(changed)
-          )
-
-          for item in changed:
-              print("Updated:", item)
-          PY
-
-
-      # =========================================================
-      # 13. Verify Android Configuration
-      # =========================================================
-      - name: Verify Android configuration
-        run: |
-
-          echo "======================================"
-          echo "ANDROID SDK"
-          echo "======================================"
-
-          ls "$ANDROID_HOME/platforms/" || true
-
-          echo ""
-          echo "======================================"
-          echo "APP ICONS"
-          echo "======================================"
-
-          find android/app/src/main/res \
-            -name "ic_launcher*.png" \
-            -print
-
-
-          echo ""
-          echo "======================================"
-          echo "ANDROID MANIFEST"
-          echo "======================================"
-
-          cat android/app/src/main/AndroidManifest.xml
-
-
-          echo ""
-          echo "======================================"
-          echo "APP BUILD GRADLE"
-          echo "======================================"
-
-          cat android/app/build.gradle || true
-
-          cat android/app/build.gradle.kts || true
-
-
-      # =========================================================
-      # 14. Flutter Clean
-      # =========================================================
-      - name: Flutter Clean
-        run: |
-          flutter clean
-
-
-      # =========================================================
-      # 15. Flutter Pub Get Again
-      # =========================================================
-      - name: Flutter Pub Get Again
-        run: |
-          flutter pub get
-
-
-      # =========================================================
-      # 16. Gradle Dependencies
-      # =========================================================
-      - name: Download Gradle dependencies
-        working-directory: android
-        run: |
-
-          echo "Downloading Gradle dependencies..."
-
-
-          for attempt in 1 2 3 4 5
-          do
-
-            echo ""
-            echo "Gradle dependency attempt: $attempt"
-
-
-            if ./gradlew dependencies \
-              --no-daemon \
-              --stacktrace
-            then
-
-              echo "Gradle dependencies downloaded successfully."
-
-              exit 0
-
-            fi
-
-
-            echo "Attempt $attempt failed."
-
-
-            if [ "$attempt" -lt 5 ]
-            then
-              sleep $((attempt * 20))
-            fi
-
-          done
-
-
-          echo "Gradle dependency download failed."
-
-          exit 1
-
-
-      # =========================================================
-      # 17. Build APK
-      # =========================================================
-      - name: Build APK
-        env:
-          GRADLE_OPTS: >-
-            -Dorg.gradle.daemon=false
-            -Dorg.gradle.parallel=true
-            -Dorg.gradle.caching=true
-            -Dorg.gradle.jvmargs=-Xmx4g
-
-        run: |
-
-          for attempt in 1 2 3 4 5
-          do
-
-            echo ""
-            echo "======================================"
-            echo "APK BUILD ATTEMPT: $attempt"
-            echo "======================================"
-
-
-            if flutter build apk --release
-            then
-
-              echo "APK build successful."
-
-              exit 0
-
-            fi
-
-
-            echo "Build attempt $attempt failed."
-
-
-            if [ "$attempt" -lt 5 ]
-            then
-              sleep $((attempt * 20))
-            fi
-
-          done
-
-
-          echo "APK build failed after 5 attempts."
-
-          exit 1
-
-
-      # =========================================================
-      # 18. Upload APK
-      # =========================================================
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: LifeMate-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
+                      openLifeMate
